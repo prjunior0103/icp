@@ -1,0 +1,7 @@
+app/node_modules/
+app/.next/
+app/dev.db
+app/.env
+app/src/generated/
+app/app/generated/
+*.DS_Store
