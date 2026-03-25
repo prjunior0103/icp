@@ -8,7 +8,7 @@ import MasterDashboard from "@/components/MasterDashboard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type TabId = "dashboard" | "cockpit" | "gestor" | "scorecard" | "indicadores" | "metas" | "atingimento" | "elegiveis" | "relatorio" | "realizacoes" | "colaboradores" | "workflow" | "janelas" | "importacao";
+type TabId = "dashboard" | "cockpit" | "gestor" | "scorecard" | "indicadores" | "metas" | "atingimento" | "elegiveis" | "relatorio" | "realizacoes" | "colaboradores" | "workflow" | "janelas" | "importacao" | "ajuda";
 
 interface Cargo { id: number; nome: string; nivelHierarquico: string; targetBonusPerc: number; }
 interface CentroCusto { id: number; nome: string; codigo: string; }
@@ -556,7 +556,7 @@ export default function Home() {
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4">
           <nav className="flex gap-1 overflow-x-auto">
-            {(["dashboard","cockpit","gestor","scorecard","indicadores","metas","atingimento","elegiveis","relatorio","realizacoes","colaboradores","workflow","janelas","importacao"] as TabId[]).map((tab) => (
+            {(["dashboard","cockpit","gestor","scorecard","indicadores","metas","atingimento","elegiveis","relatorio","realizacoes","colaboradores","workflow","janelas","importacao","ajuda"] as TabId[]).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -574,6 +574,7 @@ export default function Home() {
                  tab === "gestor" ? "Painel Gestor" :
                  tab === "elegiveis" ? "Elegíveis" :
                  tab === "relatorio" ? "Relatório" :
+                 tab === "ajuda" ? "? Ajuda" :
                  tab.charAt(0).toUpperCase() + tab.slice(1)}
                 {tab === "workflow" && pendingCount > 0 && (
                   <span className="bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
@@ -1848,6 +1849,80 @@ export default function Home() {
                 </table>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* ── AJUDA ─────────────────────────────────────────────────────── */}
+        {activeTab === "ajuda" && (
+          <div className="space-y-6 max-w-3xl">
+            <h2 className="text-xl font-bold text-gray-800">Manual do Sistema ICP</h2>
+            <p className="text-sm text-gray-500">Guia rápido de cada tela e sua finalidade.</p>
+            {[
+              {
+                icon: "📊", tab: "Dashboard",
+                desc: "Visão executiva do ciclo: total de colaboradores, metas ativas, workflow pendente, uso do bonus pool, top colaboradores e alertas de engajamento.",
+              },
+              {
+                icon: "👤", tab: "Cockpit",
+                desc: "Painel individual do colaborador — prêmio projetado ao vivo, evolução mensal e ofensores (quais metas estão puxando a nota para baixo).",
+              },
+              {
+                icon: "👥", tab: "Painel Gestor",
+                desc: "Visão do gestor sobre a equipe: heatmap de desempenho, nota e prêmio de cada subordinado por indicador.",
+              },
+              {
+                icon: "📋", tab: "Scorecard",
+                desc: "Ficha completa de um colaborador: todas as metas, realizações por mês, nota YTD e prêmio acumulado.",
+              },
+              {
+                icon: "📈", tab: "Indicadores",
+                desc: "Cadastro dos KPIs do ciclo: nome, tipo, polaridade, unidade, analista responsável, divisor. Define 'o que mede'. O código é gerado automaticamente.",
+              },
+              {
+                icon: "🎯", tab: "Metas",
+                desc: "Vincula um indicador a um centro de custo e define os valores (mínimo, alvo, máximo, peso). Também permite atribuir colaboradores à meta.",
+              },
+              {
+                icon: "📉", tab: "Atingimento",
+                desc: "Painel de atingimento por meta — mostra todas as metas com suas realizações, nota calculada e prêmio projetado mês a mês.",
+              },
+              {
+                icon: "🏆", tab: "Elegíveis",
+                desc: "Ranking de todos os colaboradores com realizações lançadas: nota média, prêmio YTD, target anual e % atingido. Serve para comparar entre pares.",
+              },
+              {
+                icon: "📄", tab: "Relatório",
+                desc: "Fechamento do ciclo — resumo executivo com cards, tabela completa por colaborador (com totais) e breakdown de metas. Botão de imprimir/exportar PDF.",
+              },
+              {
+                icon: "⚡", tab: "Realizações",
+                desc: "Lançamento dos valores realizados por meta/mês. É aqui que o BP ou colaborador registra o resultado do período. A nota é recalculada apenas se o valor mudar.",
+              },
+              {
+                icon: "👔", tab: "Colaboradores",
+                desc: "Base de elegíveis: matrícula, cargo, grade (nível hierárquico), target bonus com valor anual calculado, centro de custo e salário base.",
+              },
+              {
+                icon: "✅", tab: "Workflow",
+                desc: "Caixa de entrada do Guardião para aprovar ou rejeitar metas e realizações submetidas pelo BP ou colaborador.",
+              },
+              {
+                icon: "🗓", tab: "Janelas",
+                desc: "Controle dos períodos de apuração — abre e fecha a janela de cada mês. Gerencia prorrogações (waivers) para colaboradores com prazo estendido.",
+              },
+              {
+                icon: "📥", tab: "Importação BP",
+                desc: "Importação em lote de realizações via CSV. O BP cola as linhas no formato: matrícula; código da meta; valor realizado; observação — e submete tudo de uma vez.",
+              },
+            ].map((item) => (
+              <div key={item.tab} className="bg-white rounded-xl border border-gray-200 p-5 flex gap-4">
+                <span className="text-2xl flex-shrink-0">{item.icon}</span>
+                <div>
+                  <h3 className="font-semibold text-gray-800 mb-1">{item.tab}</h3>
+                  <p className="text-sm text-gray-600 leading-relaxed">{item.desc}</p>
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
