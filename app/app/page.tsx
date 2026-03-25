@@ -2,10 +2,13 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { signOut } from "next-auth/react";
+import CockpitColaborador from "@/components/CockpitColaborador";
+import PainelGestor from "@/components/PainelGestor";
+import MasterDashboard from "@/components/MasterDashboard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type TabId = "dashboard" | "scorecard" | "metas" | "realizacoes" | "colaboradores" | "workflow" | "janelas" | "importacao";
+type TabId = "dashboard" | "cockpit" | "gestor" | "scorecard" | "metas" | "realizacoes" | "colaboradores" | "workflow" | "janelas" | "importacao";
 
 interface Cargo { id: number; nome: string; nivelHierarquico: string; targetBonusPerc: number; }
 interface CentroCusto { id: number; nome: string; codigo: string; }
@@ -106,6 +109,8 @@ export default function Home() {
   const [seeded, setSeeded] = useState(false);
   const [seedLoading, setSeedLoading] = useState(false);
   const [selectedColaborador, setSelectedColaborador] = useState<number | null>(null);
+  const [cockpitColId, setCockpitColId] = useState<number | null>(null);
+  const [gestorColId, setGestorColId] = useState<number | null>(null);
   const [scorecardData, setScorecardData] = useState<{
     notaYTD: number; premioYTD: number; targetAnual: number;
     metas: { meta: Meta; indicador: Indicador; realizacoes: Realizacao[]; notaMedia: number; premioProjetado: number }[];
@@ -427,7 +432,7 @@ export default function Home() {
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4">
           <nav className="flex gap-1 overflow-x-auto">
-            {(["dashboard","scorecard","metas","realizacoes","colaboradores","workflow","janelas","importacao"] as TabId[]).map((tab) => (
+            {(["dashboard","cockpit","gestor","scorecard","metas","realizacoes","colaboradores","workflow","janelas","importacao"] as TabId[]).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -441,6 +446,8 @@ export default function Home() {
                  tab === "realizacoes" ? "Realizações" :
                  tab === "janelas" ? "Janelas" :
                  tab === "importacao" ? "Importação BP" :
+                 tab === "cockpit" ? "Cockpit" :
+                 tab === "gestor" ? "Painel Gestor" :
                  tab.charAt(0).toUpperCase() + tab.slice(1)}
                 {tab === "workflow" && pendingCount > 0 && (
                   <span className="bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
@@ -461,10 +468,11 @@ export default function Home() {
       {/* Content */}
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-6">
 
-        {/* ── DASHBOARD ─────────────────────────────────────────────────── */}
+        {/* ── DASHBOARD (Master) ──────────────────────────────────────────── */}
         {activeTab === "dashboard" && (
           <div className="space-y-6">
-            <h2 className="text-xl font-bold text-gray-800">Dashboard</h2>
+            <h2 className="text-xl font-bold text-gray-800">Master Dashboard</h2>
+            <MasterDashboard cicloId={cicloAtivo?.id ?? null} />
 
             {/* KPI Cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1179,6 +1187,56 @@ export default function Home() {
         {activeTab === "importacao" && role !== "BP" && role !== "GUARDIAO" && (
           <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-8 text-center text-yellow-800">
             Acesso restrito a papéis BP e GUARDIÃO.
+          </div>
+        )}
+
+        {/* ── COCKPIT DO COLABORADOR ──────────────────────────────────────── */}
+        {activeTab === "cockpit" && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-4">
+              <div>
+                <h1 className="text-xl font-bold text-gray-900">Cockpit do Colaborador</h1>
+                <p className="text-xs text-gray-500 mt-0.5">Simulador R$ vivo — prêmio projetado, ofensores e evolução mensal</p>
+              </div>
+              <select
+                value={cockpitColId ?? ""}
+                onChange={(e) => setCockpitColId(e.target.value ? Number(e.target.value) : null)}
+                className="ml-auto border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Selecione colaborador...</option>
+                {colaboradores.map((c) => (
+                  <option key={c.id} value={c.id}>{c.nomeCompleto} — {c.matricula}</option>
+                ))}
+              </select>
+            </div>
+            <CockpitColaborador colaboradorId={cockpitColId} cicloId={cicloAtivo?.id ?? null} />
+          </div>
+        )}
+
+        {/* ── PAINEL DO GESTOR ────────────────────────────────────────────── */}
+        {activeTab === "gestor" && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-4">
+              <div>
+                <h1 className="text-xl font-bold text-gray-900">Painel do Gestor</h1>
+                <p className="text-xs text-gray-500 mt-0.5">Heatmap da equipe e visão cruzada por indicador</p>
+              </div>
+              <select
+                value={gestorColId ?? ""}
+                onChange={(e) => setGestorColId(e.target.value ? Number(e.target.value) : null)}
+                className="ml-auto border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Selecione gestor...</option>
+                {colaboradores.map((c) => (
+                  <option key={c.id} value={c.id}>{c.nomeCompleto} — {c.cargo.nome}</option>
+                ))}
+              </select>
+            </div>
+            <PainelGestor
+              gestorId={gestorColId}
+              cicloId={cicloAtivo?.id ?? null}
+              colaboradores={colaboradores.map((c) => ({ id: c.id, nomeCompleto: c.nomeCompleto, gestorId: null }))}
+            />
           </div>
         )}
 
