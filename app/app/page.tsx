@@ -2373,9 +2373,93 @@ export default function Home() {
 
         {/* ── AJUDA ─────────────────────────────────────────────────────── */}
         {activeTab === "ajuda" && (
-          <div className="space-y-6 max-w-3xl">
-            <h2 className="text-xl font-bold text-gray-800">Manual do Sistema ICP</h2>
-            <p className="text-sm text-gray-500">Guia rápido de cada tela e sua finalidade.</p>
+          <div className="space-y-8 max-w-3xl">
+            <div>
+              <h2 className="text-xl font-bold text-gray-800">Manual do Sistema ICP</h2>
+              <p className="text-sm text-gray-500 mt-1">Incentivo de Curto Prazo — guia completo de uso.</p>
+            </div>
+
+            {/* Como usar — fluxo principal */}
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 space-y-4">
+              <h3 className="font-bold text-blue-900">Como usar — Fluxo Principal do Ciclo</h3>
+              {[
+                { step: "1", title: "Configurar o Ciclo", desc: "O sistema já cria o ciclo ativo automaticamente. Se precisar criar um novo, acesse a API /api/ciclos (POST) com anoFiscal, mesInicio, mesFim e status ATIVO." },
+                { step: "2", title: "Carregar Colaboradores", desc: "Use o botão 'Carregar Dados Demo' para popular o banco com dados de exemplo, ou importe via API /api/colaboradores." },
+                { step: "3", title: "Cadastrar Indicadores", desc: "Vá em Indicadores → + Novo Indicador. O código é gerado automaticamente. Defina: nome, tipo (Volume/Custo/Projeto), polaridade (↑ Maior ou ↓ Menor é melhor), unidade, analista responsável e origem dos dados." },
+                { step: "4", title: "Criar Metas", desc: "Vá em Metas → + Nova Meta. Vincule um indicador, defina o Centro de Custo (ou deixe Corporativo), e os valores: mínimo, alvo e máximo. O peso na cesta define a participação dessa meta no prêmio total." },
+                { step: "5", title: "Cascatear Metas (opcional)", desc: "Clique em 'Cascatear' em uma meta corporativa para criar uma meta filha de área ou individual. A meta filha herda o indicador e os valores, mas pode ter CC e alvo diferentes." },
+                { step: "6", title: "Atribuir Colaboradores às Metas", desc: "Na tabela de Metas, clique em 'Atribuir' na linha da meta e selecione o colaborador. Repita para todos os elegíveis de cada meta." },
+                { step: "7", title: "Criar Janelas de Apuração", desc: "Vá em Janelas → + Nova Janela. Defina o mês/ano de referência e as datas de abertura e fechamento. Enquanto a janela estiver aberta, realizações podem ser lançadas." },
+                { step: "8", title: "Lançar Realizações", desc: "Vá em Realizações → + Lançar Realização (ou use Importação BP para lote). Informe a meta, o colaborador, o mês/ano e o valor realizado. O sistema calcula a nota automaticamente." },
+                { step: "9", title: "Aprovar no Workflow", desc: "Vá em Workflow. O Guardião aprova ou rejeita metas e realizações pendentes. Metas precisam ser aprovadas antes de gerar prêmio." },
+                { step: "10", title: "Acompanhar Resultados", desc: "Use: Dashboard (visão geral), Atingimento (por meta), Elegíveis (ranking), Conferência (validação e consolidados) e Relatório (fechamento para impressão/PDF)." },
+              ].map((s) => (
+                <div key={s.step} className="flex gap-3">
+                  <div className="w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">{s.step}</div>
+                  <div>
+                    <p className="font-semibold text-gray-800 text-sm">{s.title}</p>
+                    <p className="text-sm text-gray-600 mt-0.5">{s.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Movimentações RH */}
+            <div className="bg-purple-50 border border-purple-200 rounded-xl p-5 space-y-3">
+              <h3 className="font-bold text-purple-900">Movimentações RH — Pro-Rata</h3>
+              <p className="text-sm text-gray-600">Quando um colaborador entra, sai ou muda de cargo/CC durante o ciclo, o prêmio é ajustado proporcionalmente.</p>
+              {[
+                { tipo: "Admissão", desc: "Informe a data de admissão. O sistema calcula quantos meses o colaborador ficou no ciclo e aplica o fator (ex: admitido em Jul de um ciclo Jan-Dez = 6/12 = 50%)." },
+                { tipo: "Desligamento", desc: "Informe a data de saída. O fator é calculado como meses trabalhados / total de meses do ciclo." },
+                { tipo: "Promoção", desc: "Informe data, cargo anterior e cargo novo. O sistema mostra o split: X meses com target antigo + Y meses com novo target." },
+                { tipo: "Transferência", desc: "Informe data, CC anterior e CC novo. O prêmio dos meses no CC antigo usa as metas daquele CC; os demais meses, as metas do novo CC." },
+              ].map((m) => (
+                <div key={m.tipo} className="flex gap-2">
+                  <span className="text-purple-600 font-semibold text-sm w-28 flex-shrink-0">{m.tipo}</span>
+                  <span className="text-sm text-gray-600">{m.desc}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Motor matemático */}
+            <div className="bg-green-50 border border-green-200 rounded-xl p-5 space-y-3">
+              <h3 className="font-bold text-green-900">Motor Matemático — Como a Nota é Calculada</h3>
+              {[
+                { label: "↑ Maior é Melhor (MAIOR_MELHOR)", formula: "Nota = (Realizado ÷ Alvo) × 100" },
+                { label: "↓ Menor é Melhor (MENOR_MELHOR)", formula: "Nota = (Alvo ÷ Realizado) × 100  — quanto menor o realizado, maior a nota" },
+                { label: "Projeto / Marco (PROJETO_MARCO)", formula: "Nota = 100 se realizado ≥ 1 (concluído), senão 0" },
+                { label: "Abaixo do mínimo", formula: "Nota = 0 — se o realizado não atingir o mínimo definido" },
+                { label: "Teto (cap)", formula: "Nota máxima = (Meta Máxima ÷ Alvo) × 100, ou 120% se máximo não definido" },
+              ].map((m) => (
+                <div key={m.label}>
+                  <p className="text-sm font-semibold text-gray-700">{m.label}</p>
+                  <p className="text-sm text-green-800 font-mono mt-0.5">{m.formula}</p>
+                </div>
+              ))}
+              <div className="border-t border-green-200 pt-3">
+                <p className="text-sm font-semibold text-gray-700">Prêmio Projetado por Realização</p>
+                <p className="text-sm text-green-800 font-mono mt-0.5">Prêmio = Salário Base × 12 × (Target Bonus %) × (Nota ÷ 100) × (Peso na Cesta ÷ 100)</p>
+              </div>
+            </div>
+
+            {/* Papéis */}
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 space-y-3">
+              <h3 className="font-bold text-gray-800">Papéis e Permissões</h3>
+              {[
+                { papel: "GUARDIÃO", desc: "Acesso total. Aprova metas, realizações e waivers no Workflow. Único que pode aprovar." },
+                { papel: "BP (Business Partner)", desc: "Lança realizações em lote via Importação BP. Pode abrir waivers (prorrogações) para colaboradores." },
+                { papel: "GESTOR", desc: "Visualiza o Painel Gestor com a equipe. Acompanha notas e prêmios dos subordinados." },
+                { papel: "COLABORADOR", desc: "Acessa o Cockpit individual. Visualiza suas metas, evolução e prêmio projetado." },
+              ].map((p) => (
+                <div key={p.papel} className="flex gap-2">
+                  <span className="bg-indigo-100 text-indigo-700 text-xs font-semibold px-2 py-0.5 rounded-full h-fit mt-0.5 flex-shrink-0">{p.papel}</span>
+                  <span className="text-sm text-gray-600">{p.desc}</span>
+                </div>
+              ))}
+            </div>
+
+            <h3 className="font-bold text-gray-800 pt-2">Descrição de Cada Tela</h3>
+            <p className="text-sm text-gray-500 -mt-4">Referência rápida de finalidade por tab.</p>
             {[
               {
                 icon: "📊", tab: "Dashboard",
