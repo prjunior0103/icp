@@ -11,6 +11,7 @@ export async function GET(req: NextRequest) {
       include: {
         ciclo: true,
         metas: { select: { id: true } },
+        divisor: { select: { id: true, nome: true } },
       },
       orderBy: { criadoEm: "desc" },
     });
@@ -41,6 +42,7 @@ export async function POST(req: NextRequest) {
         diretivo: body.diretivo ?? null,
         analistaResp: body.analistaResp ?? null,
         origemDado: body.origemDado ?? null,
+        divisorId: body.divisorId ? Number(body.divisorId) : null,
         metaMinima: body.metaMinima ? Number(body.metaMinima) : undefined,
         metaAlvo: body.metaAlvo ? Number(body.metaAlvo) : undefined,
         metaMaxima: body.metaMaxima ? Number(body.metaMaxima) : undefined,

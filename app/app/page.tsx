@@ -19,7 +19,7 @@ interface Colaborador {
   cargo: Cargo; centroCusto: CentroCusto; empresa: Empresa;
 }
 interface CicloICP { id: number; anoFiscal: number; status: string; bonusPool: number | null; }
-interface Indicador { id: number; codigo: string; nome: string; tipo: string; polaridade: string; abrangencia: string; unidade: string; status: string; diretivo?: string; analistaResp?: string; origemDado?: string; }
+interface Indicador { id: number; codigo: string; nome: string; tipo: string; polaridade: string; abrangencia: string; unidade: string; status: string; diretivo?: string; analistaResp?: string; origemDado?: string; divisorId?: number | null; divisor?: { id: number; nome: string } | null; }
 interface Meta {
   id: number; pesoNaCesta: number; metaAlvo: number; metaMinima: number | null;
   metaMaxima: number | null; status: string;
@@ -134,6 +134,7 @@ export default function Home() {
     codigo: "", nome: "", tipo: "VOLUME_FINANCEIRO", polaridade: "MAIOR_MELHOR",
     abrangencia: "CORPORATIVO", unidade: "%", descricao: "",
     diretivo: "", analistaResp: "", origemDado: "",
+    isDivisivel: false, divisorId: "",
   });
 
   // MetaColaborador assignment
@@ -320,10 +321,11 @@ export default function Home() {
   async function handleCriarIndicador(e: React.FormEvent) {
     e.preventDefault();
     if (!cicloAtivo) return;
+    const autoCode = `IND-${String(indicadores.length + 1).padStart(3, "0")}`;
     await fetch("/api/indicadores", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        codigo: indicadorForm.codigo,
+        codigo: indicadorForm.codigo || autoCode,
         nome: indicadorForm.nome,
         tipo: indicadorForm.tipo,
         polaridade: indicadorForm.polaridade,
@@ -333,11 +335,12 @@ export default function Home() {
         diretivo: indicadorForm.diretivo || undefined,
         analistaResp: indicadorForm.analistaResp || undefined,
         origemDado: indicadorForm.origemDado || undefined,
+        divisorId: indicadorForm.isDivisivel && indicadorForm.divisorId ? Number(indicadorForm.divisorId) : null,
         cicloId: cicloAtivo.id,
         status: "ATIVO",
       }),
     });
-    setIndicadorForm({ codigo: "", nome: "", tipo: "VOLUME_FINANCEIRO", polaridade: "MAIOR_MELHOR", abrangencia: "CORPORATIVO", unidade: "%", descricao: "", diretivo: "", analistaResp: "", origemDado: "" });
+    setIndicadorForm({ codigo: "", nome: "", tipo: "VOLUME_FINANCEIRO", polaridade: "MAIOR_MELHOR", abrangencia: "CORPORATIVO", unidade: "%", descricao: "", diretivo: "", analistaResp: "", origemDado: "", isDivisivel: false, divisorId: "" });
     setShowIndicadorForm(false);
     loadIndicadores(cicloAtivo.id);
   }
@@ -775,15 +778,21 @@ export default function Home() {
               </button>
             </div>
 
-            {showIndicadorForm && (
-              <form onSubmit={handleCriarIndicador} className="bg-blue-50 border border-blue-200 rounded-xl p-5 grid grid-cols-2 md:grid-cols-3 gap-4">
+            {showIndicadorForm && (() => {
+              const autoCode = `IND-${String(indicadores.length + 1).padStart(3, "0")}`;
+              const codigoDisplay = indicadorForm.codigo || autoCode;
+              return (
+              <form onSubmit={(e) => { if (!indicadorForm.codigo) setIndicadorForm((f) => ({ ...f, codigo: autoCode })); handleCriarIndicador(e); }}
+                className="bg-blue-50 border border-blue-200 rounded-xl p-5 grid grid-cols-2 md:grid-cols-3 gap-4">
                 <div className="col-span-2 md:col-span-3">
                   <h3 className="text-sm font-semibold text-blue-900">Novo Indicador</h3>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Código *</label>
-                  <input required value={indicadorForm.codigo} onChange={(e) => setIndicadorForm({ ...indicadorForm, codigo: e.target.value })}
-                    placeholder="Ex: IND-001" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Código (auto)</label>
+                  <div className="flex items-center gap-2">
+                    <input value={codigoDisplay} readOnly
+                      className="w-full border border-gray-200 bg-gray-100 rounded px-2 py-1.5 text-sm font-mono text-gray-500 cursor-not-allowed" />
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Nome *</label>
@@ -791,9 +800,19 @@ export default function Home() {
                     placeholder="Ex: Volume de Vendas" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Unidade</label>
-                  <input value={indicadorForm.unidade} onChange={(e) => setIndicadorForm({ ...indicadorForm, unidade: e.target.value })}
-                    placeholder="%, R$, un..." className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Unidade *</label>
+                  <select required value={indicadorForm.unidade} onChange={(e) => setIndicadorForm({ ...indicadorForm, unidade: e.target.value })}
+                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
+                    <option value="%">% — Percentual</option>
+                    <option value="R$">R$ — Reais</option>
+                    <option value="un">un — Unidades</option>
+                    <option value="dias">dias — Dias</option>
+                    <option value="h">h — Horas</option>
+                    <option value="pts">pts — Pontos</option>
+                    <option value="#"># — Quantidade</option>
+                    <option value="índice">índice</option>
+                    <option value="NPS">NPS</option>
+                  </select>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Tipo *</label>
@@ -822,14 +841,19 @@ export default function Home() {
                   </select>
                 </div>
                 <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Analista Responsável</label>
+                  <select value={indicadorForm.analistaResp} onChange={(e) => setIndicadorForm({ ...indicadorForm, analistaResp: e.target.value })}
+                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
+                    <option value="">— Selecionar —</option>
+                    {colaboradores.map((c) => (
+                      <option key={c.id} value={c.nomeCompleto}>{c.nomeCompleto} ({c.cargo.nome})</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Diretivo / Objetivo Estratégico</label>
                   <input value={indicadorForm.diretivo} onChange={(e) => setIndicadorForm({ ...indicadorForm, diretivo: e.target.value })}
                     placeholder="Ex: Crescer receita 20%" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Analista Responsável</label>
-                  <input value={indicadorForm.analistaResp} onChange={(e) => setIndicadorForm({ ...indicadorForm, analistaResp: e.target.value })}
-                    placeholder="Nome do responsável" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Origem dos Dados</label>
@@ -841,6 +865,28 @@ export default function Home() {
                   <input value={indicadorForm.descricao} onChange={(e) => setIndicadorForm({ ...indicadorForm, descricao: e.target.value })}
                     className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
                 </div>
+                <div className="col-span-2 md:col-span-3 border-t border-blue-200 pt-3">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={indicadorForm.isDivisivel}
+                      onChange={(e) => setIndicadorForm({ ...indicadorForm, isDivisivel: e.target.checked, divisorId: "" })}
+                      className="w-4 h-4 rounded border-gray-300" />
+                    <span className="text-sm font-medium text-gray-700">É um indicador divisível? (ex: Despesa ÷ Receita Líquida)</span>
+                  </label>
+                  {indicadorForm.isDivisivel && (
+                    <div className="mt-2">
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Divisor — Indicador denominador *</label>
+                      <select required={indicadorForm.isDivisivel} value={indicadorForm.divisorId}
+                        onChange={(e) => setIndicadorForm({ ...indicadorForm, divisorId: e.target.value })}
+                        className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm max-w-sm">
+                        <option value="">Selecionar indicador divisor...</option>
+                        {indicadores.map((i) => (
+                          <option key={i.id} value={i.id}>{i.codigo} — {i.nome}</option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-gray-500 mt-1">Este indicador será calculado como: <strong>{indicadorForm.nome || "Indicador"}</strong> ÷ <strong>{indicadores.find((i) => String(i.id) === indicadorForm.divisorId)?.nome ?? "?"}</strong></p>
+                    </div>
+                  )}
+                </div>
                 <div className="col-span-2 md:col-span-3 flex gap-2">
                   <button type="submit" className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-1.5 rounded-lg">
                     Criar Indicador
@@ -851,14 +897,15 @@ export default function Home() {
                   </button>
                 </div>
               </form>
-            )}
+              );
+            })()}
 
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50">
                     <tr>
-                      {["#","Código","Nome","Tipo","Polaridade","Abrangência","Unidade","Diretivo","Analista","Status","Metas"].map((h) => (
+                      {["#","Código","Nome","Tipo","Polaridade","Unidade","Analista","Divisor","Status","Metas"].map((h) => (
                         <th key={h} className="text-left px-4 py-2.5 text-gray-500 font-medium text-xs uppercase">{h}</th>
                       ))}
                     </tr>
@@ -877,16 +924,17 @@ export default function Home() {
                             {i.polaridade === "MENOR_MELHOR" ? "↓ Menor" : "↑ Maior"}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-xs text-gray-600">{i.abrangencia}</td>
                         <td className="px-4 py-3 text-xs text-gray-600">{i.unidade}</td>
-                        <td className="px-4 py-3 text-xs text-gray-500 max-w-[120px] truncate" title={i.diretivo}>{i.diretivo ?? "—"}</td>
                         <td className="px-4 py-3 text-xs text-gray-500">{i.analistaResp ?? "—"}</td>
+                        <td className="px-4 py-3 text-xs text-gray-500">
+                          {i.divisor ? <span className="bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded text-xs">÷ {i.divisor.nome}</span> : "—"}
+                        </td>
                         <td className="px-4 py-3"><StatusBadge status={i.status} /></td>
                         <td className="px-4 py-3 text-xs text-gray-500">{(i as unknown as { _count?: { metas?: number } })._count?.metas ?? 0}</td>
                       </tr>
                     ))}
                     {indicadores.length === 0 && (
-                      <tr><td colSpan={11} className="px-4 py-8 text-center text-gray-400">Nenhum indicador cadastrado</td></tr>
+                      <tr><td colSpan={10} className="px-4 py-8 text-center text-gray-400">Nenhum indicador cadastrado</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -1251,7 +1299,7 @@ export default function Home() {
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50">
                     <tr>
-                      {["Matrícula","Nome","Cargo","Centro de Custo","Salário Base","Status"].map((h) => (
+                      {["Matrícula","Nome","Cargo","Grade","Target Bonus","Centro de Custo","Salário Base","Status"].map((h) => (
                         <th key={h} className="text-left px-4 py-2.5 text-gray-500 font-medium text-xs uppercase">{h}</th>
                       ))}
                     </tr>
@@ -1261,8 +1309,15 @@ export default function Home() {
                       <tr key={c.id} className="hover:bg-gray-50">
                         <td className="px-4 py-3 font-mono text-gray-500 text-xs">{c.matricula}</td>
                         <td className="px-4 py-3 font-medium text-gray-800">{c.nomeCompleto}</td>
-                        <td className="px-4 py-3 text-gray-600">{c.cargo.nome}
-                          <span className="ml-1.5 text-xs text-gray-400">{c.cargo.nivelHierarquico}</span>
+                        <td className="px-4 py-3 text-gray-600">{c.cargo.nome}</td>
+                        <td className="px-4 py-3">
+                          <span className="bg-indigo-50 text-indigo-700 text-xs font-semibold px-2 py-0.5 rounded">{c.cargo.nivelHierarquico}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`text-xs font-semibold ${c.cargo.targetBonusPerc >= 20 ? "text-green-700" : c.cargo.targetBonusPerc >= 10 ? "text-blue-700" : "text-gray-600"}`}>
+                            {c.cargo.targetBonusPerc}%
+                          </span>
+                          <span className="text-xs text-gray-400 ml-1">= {fmt(c.salarioBase * 12 * c.cargo.targetBonusPerc / 100)}/ano</span>
                         </td>
                         <td className="px-4 py-3 text-gray-600">{c.centroCusto.nome}</td>
                         <td className="px-4 py-3 text-gray-800">{fmt(c.salarioBase)}</td>
@@ -1274,7 +1329,7 @@ export default function Home() {
                       </tr>
                     ))}
                     {colaboradores.length === 0 && (
-                      <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">Nenhum colaborador cadastrado</td></tr>
+                      <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">Nenhum colaborador cadastrado</td></tr>
                     )}
                   </tbody>
                 </table>

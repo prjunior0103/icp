@@ -112,6 +112,9 @@ model Indicador {
   diretivo          String?   // Objetivo estratégico vinculado
   analistaResp      String?   // Analista responsável pelo indicador
   origemDado        String?   // Fonte/origem dos dados
+  divisorId         Int?      // Indicador usado como divisor (ex: Receita Líquida)
+  divisor           Indicador?  @relation("IndicadorDivisor", fields: [divisorId], references: [id])
+  divisorado        Indicador[] @relation("IndicadorDivisor")
   ciclo             CicloICP  @relation(fields: [cicloId], references: [id])
   cicloId           Int
   metas             Meta[]
