@@ -5,7 +5,7 @@ import { signOut } from "next-auth/react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type TabId = "dashboard" | "scorecard" | "metas" | "realizacoes" | "colaboradores" | "workflow";
+type TabId = "dashboard" | "scorecard" | "metas" | "realizacoes" | "colaboradores" | "workflow" | "janelas" | "importacao";
 
 interface Cargo { id: number; nome: string; nivelHierarquico: string; targetBonusPerc: number; }
 interface CentroCusto { id: number; nome: string; codigo: string; }
@@ -36,6 +36,25 @@ interface WorkflowItem {
   meta: Meta | null; realizacao: Realizacao | null;
   solicitante: { id: string; name: string };
 }
+interface JanelaApuracao {
+  id: number; cicloId: number; mesReferencia: number; anoReferencia: number;
+  dataAbertura: string; dataFechamento: string; status: string;
+  isOpen: boolean; waiversPendentes: number;
+}
+interface Waiver {
+  id: number; janelaId: number; colaboradorId: number; justificativa: string;
+  novaDataLimite: string; status: string; criadoEm: string;
+  janela: { id: number; mesReferencia: number; anoReferencia: number };
+  colaborador: { id: number; nomeCompleto: string; matricula: string } | null;
+}
+interface DashboardData {
+  totalColaboradores: number; totalMetasAtivas: number; workflowPendente: number;
+  bonusPoolUsado: number; bonusPoolTotal: number | null;
+  alertasEngajamento: string[];
+  topColaboradores: { id: number; nome: string; cargo: string; notaMedia: number; premioYTD: number }[];
+  realizacoesMes: number;
+  janelaAtual: (JanelaApuracao & { isOpen: boolean }) | null;
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -62,6 +81,9 @@ function StatusBadge({ status }: { status: string }) {
     SUBMETIDO: "bg-blue-100 text-blue-700",
     ENCERRADO: "bg-gray-200 text-gray-500",
     SETUP: "bg-purple-100 text-purple-700",
+    ABERTA: "bg-green-100 text-green-700",
+    FECHADA: "bg-red-100 text-red-700",
+    PRORROGADA: "bg-orange-100 text-orange-700",
   };
   return (
     <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded-full ${map[status] ?? "bg-gray-100 text-gray-600"}`}>
@@ -97,7 +119,27 @@ export default function Home() {
   const [filterColabId, setFilterColabId] = useState<string>("");
   const [filterMes, setFilterMes] = useState<string>("");
 
-  const role = "GUARDIAO";
+  // Janelas state
+  const [janelas, setJanelas] = useState<JanelaApuracao[]>([]);
+  const [showJanelaForm, setShowJanelaForm] = useState(false);
+  const [janelaForm, setJanelaForm] = useState({
+    mesReferencia: "", anoReferencia: "2026", dataAbertura: "", dataFechamento: "",
+  });
+
+  // Waivers state
+  const [waivers, setWaivers] = useState<Waiver[]>([]);
+
+  // Dashboard API state
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+
+  // Bulk import state
+  const [importForm, setImportForm] = useState({
+    mesReferencia: "", anoReferencia: "2026", csvText: "",
+  });
+  const [importResult, setImportResult] = useState<{ processed: number; erros: { matricula: string; motivo: string }[] } | null>(null);
+  const [importLoading, setImportLoading] = useState(false);
+
+  const role: string = "GUARDIAO";
 
   // ── Data loading ───────────────────────────────────────────────────────────
 
@@ -131,8 +173,24 @@ export default function Home() {
     setWorkflowItems(res.data ?? []);
   }, []);
 
+  const loadJanelas = useCallback(async (cicloId?: number) => {
+    if (!cicloId) return;
+    const res = await fetch(`/api/janelas?cicloId=${cicloId}`).then((r) => r.json()).catch(() => ({ data: [] }));
+    setJanelas(res.data ?? []);
+  }, []);
+
+  const loadWaivers = useCallback(async () => {
+    const res = await fetch("/api/waivers?status=PENDENTE").then((r) => r.json()).catch(() => ({ data: [] }));
+    setWaivers(res.data ?? []);
+  }, []);
+
+  const loadDashboard = useCallback(async (cicloId?: number) => {
+    if (!cicloId) return;
+    const res = await fetch(`/api/dashboard?cicloId=${cicloId}`).then((r) => r.json()).catch(() => ({ data: null }));
+    if (res.data) setDashboardData(res.data);
+  }, []);
+
   const checkSeeded = useCallback(async () => {
-    // Quick check: if there are colaboradores, we're seeded
     const res = await fetch("/api/colaboradores").then((r) => r.json()).catch(() => ({ data: [] }));
     setSeeded((res.data ?? []).length > 0);
   }, []);
@@ -141,16 +199,23 @@ export default function Home() {
     (async () => {
       setLoading(true);
       const ativo = await loadCiclos();
-      await Promise.all([loadColaboradores(), loadMetas(ativo?.id), loadRealizacoes(), loadWorkflow(), checkSeeded()]);
+      await Promise.all([
+        loadColaboradores(), loadMetas(ativo?.id), loadRealizacoes(),
+        loadWorkflow(), checkSeeded(), loadJanelas(ativo?.id),
+        loadWaivers(), loadDashboard(ativo?.id),
+      ]);
       setLoading(false);
     })();
-  }, [loadCiclos, loadColaboradores, loadMetas, loadRealizacoes, loadWorkflow, checkSeeded]);
+  }, [loadCiclos, loadColaboradores, loadMetas, loadRealizacoes, loadWorkflow, checkSeeded, loadJanelas, loadWaivers, loadDashboard]);
 
   async function handleSeed() {
     setSeedLoading(true);
     await fetch("/api/seed", { method: "POST" });
     const ativo = await loadCiclos();
-    await Promise.all([loadColaboradores(), loadMetas(ativo?.id), loadRealizacoes(), loadWorkflow()]);
+    await Promise.all([
+      loadColaboradores(), loadMetas(ativo?.id), loadRealizacoes(),
+      loadWorkflow(), loadJanelas(ativo?.id), loadWaivers(), loadDashboard(ativo?.id),
+    ]);
     setSeeded(true);
     setSeedLoading(false);
   }
@@ -203,6 +268,68 @@ export default function Home() {
     loadRealizacoes();
   }
 
+  async function handleCreateJanela(e: React.FormEvent) {
+    e.preventDefault();
+    if (!cicloAtivo) return;
+    await fetch("/api/janelas", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        cicloId: cicloAtivo.id,
+        mesReferencia: Number(janelaForm.mesReferencia),
+        anoReferencia: Number(janelaForm.anoReferencia),
+        dataAbertura: janelaForm.dataAbertura,
+        dataFechamento: janelaForm.dataFechamento,
+      }),
+    });
+    setShowJanelaForm(false);
+    setJanelaForm({ mesReferencia: "", anoReferencia: "2026", dataAbertura: "", dataFechamento: "" });
+    loadJanelas(cicloAtivo.id);
+  }
+
+  async function handleFecharJanela(id: number) {
+    await fetch("/api/janelas", {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, status: "FECHADA" }),
+    });
+    loadJanelas(cicloAtivo?.id);
+  }
+
+  async function handleWaiverAction(id: number, status: "APROVADO" | "REJEITADO") {
+    await fetch("/api/waivers", {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, status }),
+    });
+    loadWaivers();
+    loadJanelas(cicloAtivo?.id);
+  }
+
+  async function handleBulkImport(e: React.FormEvent) {
+    e.preventDefault();
+    if (!cicloAtivo) return;
+    setImportLoading(true);
+    setImportResult(null);
+    const rows = importForm.csvText
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const [matricula, metaCodigo, valorRealizado, observacao] = line.split(";");
+        return { matricula, metaCodigo, valorRealizado: Number(valorRealizado), observacao };
+      });
+    const res = await fetch("/api/bulk-import", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        cicloId: cicloAtivo.id,
+        mesReferencia: Number(importForm.mesReferencia),
+        anoReferencia: Number(importForm.anoReferencia),
+        rows,
+      }),
+    }).then((r) => r.json()).catch(() => null);
+    if (res?.data) setImportResult(res.data);
+    setImportLoading(false);
+    loadRealizacoes();
+  }
+
   // ── Derived data ───────────────────────────────────────────────────────────
 
   const realizacoesFiltradas = realizacoes.filter((r) => {
@@ -213,12 +340,7 @@ export default function Home() {
 
   const pendingCount = workflowItems.length;
 
-  // Dashboard top colaboradores mock
-  const topColaboradores = colaboradores.slice(0, 5).map((c) => ({
-    ...c,
-    notaYTD: Math.random() * 40 + 70,
-    premioYTD: c.salarioBase * 12 * (c.cargo.targetBonusPerc / 100) * 0.85,
-  }));
+  const janelaAtualHeader = janelas.find((j) => j.isOpen) ?? null;
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -250,7 +372,7 @@ export default function Home() {
               value={cicloAtivo?.id ?? ""}
               onChange={(e) => {
                 const c = ciclos.find((x) => x.id === Number(e.target.value));
-                if (c) { setCicloAtivo(c); loadMetas(c.id); }
+                if (c) { setCicloAtivo(c); loadMetas(c.id); loadJanelas(c.id); loadDashboard(c.id); }
               }}
               className="bg-blue-800 border border-blue-600 text-white text-sm rounded px-2 py-1"
             >
@@ -259,6 +381,17 @@ export default function Home() {
               ))}
             </select>
           </div>
+
+          {/* Janela status indicator */}
+          {janelaAtualHeader ? (
+            <span className="text-xs bg-green-500 text-white px-2 py-0.5 rounded-full font-medium">
+              Janela {MESES[janelaAtualHeader.mesReferencia - 1]} ABERTA
+            </span>
+          ) : (
+            <span className="text-xs bg-gray-600 text-gray-300 px-2 py-0.5 rounded-full font-medium">
+              Sem janela aberta
+            </span>
+          )}
 
           <div className="ml-auto flex items-center gap-3">
             <span className="bg-purple-600 text-white text-xs font-semibold px-2.5 py-0.5 rounded-full">{role}</span>
@@ -294,7 +427,7 @@ export default function Home() {
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4">
           <nav className="flex gap-1 overflow-x-auto">
-            {(["dashboard","scorecard","metas","realizacoes","colaboradores","workflow"] as TabId[]).map((tab) => (
+            {(["dashboard","scorecard","metas","realizacoes","colaboradores","workflow","janelas","importacao"] as TabId[]).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -306,10 +439,17 @@ export default function Home() {
               >
                 {tab === "workflow" ? "Workflow" :
                  tab === "realizacoes" ? "Realizações" :
+                 tab === "janelas" ? "Janelas" :
+                 tab === "importacao" ? "Importação BP" :
                  tab.charAt(0).toUpperCase() + tab.slice(1)}
                 {tab === "workflow" && pendingCount > 0 && (
                   <span className="bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
                     {pendingCount}
+                  </span>
+                )}
+                {tab === "workflow" && waivers.length > 0 && (
+                  <span className="bg-orange-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
+                    {waivers.length}
                   </span>
                 )}
               </button>
@@ -329,10 +469,10 @@ export default function Home() {
             {/* KPI Cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {[
-                { label: "Total Colaboradores", value: colaboradores.length, color: "blue" },
-                { label: "Metas Ativas", value: metas.filter((m) => m.status !== "DRAFT").length, color: "green" },
-                { label: "Realizações no Mês", value: realizacoes.filter((r) => r.mesReferencia === new Date().getMonth() + 1).length, color: "indigo" },
-                { label: "Pendências Workflow", value: pendingCount, color: "amber" },
+                { label: "Total Colaboradores", value: dashboardData?.totalColaboradores ?? colaboradores.length, color: "blue" },
+                { label: "Metas Ativas", value: dashboardData?.totalMetasAtivas ?? metas.filter((m) => m.status !== "DRAFT").length, color: "green" },
+                { label: "Realizações no Mês", value: dashboardData?.realizacoesMes ?? realizacoes.filter((r) => r.mesReferencia === new Date().getMonth() + 1).length, color: "indigo" },
+                { label: "Pendências Workflow", value: dashboardData?.workflowPendente ?? pendingCount, color: "amber" },
               ].map((kpi) => (
                 <div key={kpi.label} className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
                   <p className="text-sm text-gray-500">{kpi.label}</p>
@@ -340,6 +480,41 @@ export default function Home() {
                 </div>
               ))}
             </div>
+
+            {/* Bonus Pool Card */}
+            {dashboardData && dashboardData.bonusPoolTotal !== null && (
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+                <h3 className="font-semibold text-gray-800 mb-3">Bonus Pool</h3>
+                <div className="flex items-center justify-between text-sm mb-2">
+                  <span className="text-gray-500">Utilizado</span>
+                  <span className="font-medium">{fmt(dashboardData.bonusPoolUsado)} / {fmt(dashboardData.bonusPoolTotal)}</span>
+                </div>
+                <div className="w-full bg-gray-100 rounded-full h-3">
+                  <div
+                    className="bg-blue-600 h-3 rounded-full transition-all"
+                    style={{ width: `${Math.min(100, (dashboardData.bonusPoolUsado / dashboardData.bonusPoolTotal) * 100)}%` }}
+                  />
+                </div>
+                <p className="text-xs text-gray-400 mt-1">
+                  {((dashboardData.bonusPoolUsado / dashboardData.bonusPoolTotal) * 100).toFixed(1)}% utilizado
+                </p>
+              </div>
+            )}
+
+            {/* Alertas de Engajamento */}
+            {dashboardData && dashboardData.alertasEngajamento.length > 0 && (
+              <div className="bg-orange-50 border border-orange-200 rounded-xl p-5">
+                <h3 className="font-semibold text-orange-800 mb-2">Alertas de Engajamento</h3>
+                <p className="text-sm text-orange-700 mb-2">
+                  Centros de custo sem realizações nos últimos 2 meses:
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {dashboardData.alertasEngajamento.map((cc) => (
+                    <span key={cc} className="bg-orange-100 text-orange-700 text-xs px-2.5 py-1 rounded-full font-medium">{cc}</span>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Top Colaboradores */}
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -350,23 +525,22 @@ export default function Home() {
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50">
                     <tr>
-                      {["Nome","Cargo","Centro de Custo","Nota YTD","Prêmio YTD"].map((h) => (
+                      {["Nome","Cargo","Nota Média","Prêmio YTD"].map((h) => (
                         <th key={h} className="text-left px-4 py-2.5 text-gray-500 font-medium text-xs uppercase">{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {topColaboradores.map((c) => (
+                    {(dashboardData?.topColaboradores ?? []).map((c) => (
                       <tr key={c.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 font-medium text-gray-800">{c.nomeCompleto}</td>
-                        <td className="px-4 py-3 text-gray-600">{c.cargo.nome}</td>
-                        <td className="px-4 py-3 text-gray-600">{c.centroCusto.nome}</td>
-                        <td className={`px-4 py-3 ${notaColor(c.notaYTD)}`}>{fmtN(c.notaYTD)}</td>
+                        <td className="px-4 py-3 font-medium text-gray-800">{c.nome}</td>
+                        <td className="px-4 py-3 text-gray-600">{c.cargo}</td>
+                        <td className={`px-4 py-3 ${notaColor(c.notaMedia)}`}>{fmtN(c.notaMedia)}</td>
                         <td className="px-4 py-3 text-gray-800 font-medium">{fmt(c.premioYTD)}</td>
                       </tr>
                     ))}
-                    {topColaboradores.length === 0 && (
-                      <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">Nenhum dado disponível</td></tr>
+                    {(dashboardData?.topColaboradores ?? []).length === 0 && (
+                      <tr><td colSpan={4} className="px-4 py-8 text-center text-gray-400">Nenhum dado disponível</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -411,9 +585,7 @@ export default function Home() {
                   <div className="bg-blue-900 text-white rounded-xl p-6 shadow-sm col-span-2">
                     <p className="text-xs text-blue-300 uppercase tracking-wide">Prêmio Projetado YTD</p>
                     <p className="text-4xl font-bold mt-1">{fmt(scorecardData.premioYTD)}</p>
-                    <p className="text-blue-300 text-sm mt-2">
-                      Target anual: {fmt(scorecardData.targetAnual)}
-                    </p>
+                    <p className="text-blue-300 text-sm mt-2">Target anual: {fmt(scorecardData.targetAnual)}</p>
                   </div>
                 </div>
 
@@ -515,7 +687,6 @@ export default function Home() {
             <div className="flex items-center justify-between flex-wrap gap-3">
               <h2 className="text-xl font-bold text-gray-800">Realizações</h2>
               <div className="flex items-center gap-3">
-                {/* Filters */}
                 <select
                   value={filterColabId}
                   onChange={(e) => setFilterColabId(e.target.value)}
@@ -705,53 +876,312 @@ export default function Home() {
             )}
 
             {role === "GUARDIAO" && (
-              <div className="space-y-3">
-                {workflowItems.map((item) => (
-                  <div key={item.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-semibold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
-                          {item.tipo.replace(/_/g, " ")}
-                        </span>
-                        <StatusBadge status={item.status} />
-                        <span className="text-xs text-gray-400">
-                          {new Date(item.criadoEm).toLocaleDateString("pt-BR")}
-                        </span>
+              <>
+                <div className="space-y-3">
+                  {workflowItems.map((item) => (
+                    <div key={item.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xs font-semibold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
+                            {item.tipo.replace(/_/g, " ")}
+                          </span>
+                          <StatusBadge status={item.status} />
+                          <span className="text-xs text-gray-400">
+                            {new Date(item.criadoEm).toLocaleDateString("pt-BR")}
+                          </span>
+                        </div>
+                        <p className="text-sm font-medium text-gray-800">{item.descricao}</p>
+                        {item.comentario && (
+                          <p className="text-xs text-gray-500 mt-1">{item.comentario}</p>
+                        )}
+                        <p className="text-xs text-gray-400 mt-1">
+                          Solicitante: {item.solicitante?.name ?? "Sistema"}
+                        </p>
                       </div>
-                      <p className="text-sm font-medium text-gray-800">{item.descricao}</p>
-                      {item.comentario && (
-                        <p className="text-xs text-gray-500 mt-1">{item.comentario}</p>
-                      )}
-                      <p className="text-xs text-gray-400 mt-1">
-                        Solicitante: {item.solicitante?.name ?? "Sistema"}
-                      </p>
+                      <div className="flex gap-2 flex-shrink-0">
+                        <button
+                          onClick={() => handleWorkflowAction(item.id, "APROVADO")}
+                          className="bg-green-600 hover:bg-green-700 text-white text-xs font-medium px-3 py-1.5 rounded transition-colors"
+                        >
+                          Aprovar
+                        </button>
+                        <button
+                          onClick={() => handleWorkflowAction(item.id, "REJEITADO")}
+                          className="bg-red-500 hover:bg-red-600 text-white text-xs font-medium px-3 py-1.5 rounded transition-colors"
+                        >
+                          Rejeitar
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex gap-2 flex-shrink-0">
-                      <button
-                        onClick={() => handleWorkflowAction(item.id, "APROVADO")}
-                        className="bg-green-600 hover:bg-green-700 text-white text-xs font-medium px-3 py-1.5 rounded transition-colors"
-                      >
-                        Aprovar
-                      </button>
-                      <button
-                        onClick={() => handleWorkflowAction(item.id, "REJEITADO")}
-                        className="bg-red-500 hover:bg-red-600 text-white text-xs font-medium px-3 py-1.5 rounded transition-colors"
-                      >
-                        Rejeitar
-                      </button>
+                  ))}
+                  {workflowItems.length === 0 && (
+                    <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-400">
+                      <p className="text-lg mb-1">Nenhuma pendência</p>
+                      <p className="text-sm">Todos os itens foram processados.</p>
                     </div>
+                  )}
+                </div>
+
+                {/* Waivers section */}
+                <div className="mt-6">
+                  <h3 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                    Solicitações de Prorrogação (Waivers)
+                    {waivers.length > 0 && (
+                      <span className="bg-orange-500 text-white text-xs rounded-full px-2 py-0.5">{waivers.length} pendente(s)</span>
+                    )}
+                  </h3>
+                  {waivers.length === 0 ? (
+                    <div className="bg-white rounded-xl border border-gray-200 p-6 text-center text-gray-400 text-sm">
+                      Sem solicitações de prorrogação pendentes.
+                    </div>
+                  ) : (
+                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              {["Colaborador","Janela","Justificativa","Nova Data Limite","Ações"].map((h) => (
+                                <th key={h} className="text-left px-4 py-2.5 text-gray-500 font-medium text-xs uppercase">{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {waivers.map((w) => (
+                              <tr key={w.id} className="hover:bg-gray-50">
+                                <td className="px-4 py-3 font-medium text-gray-800">
+                                  {w.colaborador?.nomeCompleto ?? `#${w.colaboradorId}`}
+                                  <br /><span className="text-xs text-gray-400 font-mono">{w.colaborador?.matricula}</span>
+                                </td>
+                                <td className="px-4 py-3 text-gray-600">
+                                  {MESES[(w.janela.mesReferencia ?? 1) - 1]}/{w.janela.anoReferencia}
+                                </td>
+                                <td className="px-4 py-3 text-gray-600 max-w-xs truncate">{w.justificativa}</td>
+                                <td className="px-4 py-3 text-gray-600">
+                                  {new Date(w.novaDataLimite).toLocaleDateString("pt-BR")}
+                                </td>
+                                <td className="px-4 py-3">
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => handleWaiverAction(w.id, "APROVADO")}
+                                      className="bg-green-600 hover:bg-green-700 text-white text-xs font-medium px-2.5 py-1 rounded transition-colors"
+                                    >
+                                      Aprovar
+                                    </button>
+                                    <button
+                                      onClick={() => handleWaiverAction(w.id, "REJEITADO")}
+                                      className="bg-red-500 hover:bg-red-600 text-white text-xs font-medium px-2.5 py-1 rounded transition-colors"
+                                    >
+                                      Rejeitar
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ── JANELAS ───────────────────────────────────────────────────── */}
+        {activeTab === "janelas" && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-800">Janelas de Apuração</h2>
+              {role === "GUARDIAO" && (
+                <button
+                  onClick={() => setShowJanelaForm(!showJanelaForm)}
+                  className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-1.5 rounded-lg transition-colors"
+                >
+                  + Nova Janela
+                </button>
+              )}
+            </div>
+
+            {showJanelaForm && (
+              <form onSubmit={handleCreateJanela} className="bg-blue-50 border border-blue-200 rounded-xl p-5 grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Mês</label>
+                  <select required value={janelaForm.mesReferencia}
+                    onChange={(e) => setJanelaForm({ ...janelaForm, mesReferencia: e.target.value })}
+                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
+                    <option value="">Selecionar...</option>
+                    {MESES.map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Ano</label>
+                  <input type="number" required value={janelaForm.anoReferencia}
+                    onChange={(e) => setJanelaForm({ ...janelaForm, anoReferencia: e.target.value })}
+                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Data Abertura</label>
+                  <input type="date" required value={janelaForm.dataAbertura}
+                    onChange={(e) => setJanelaForm({ ...janelaForm, dataAbertura: e.target.value })}
+                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Data Fechamento</label>
+                  <input type="date" required value={janelaForm.dataFechamento}
+                    onChange={(e) => setJanelaForm({ ...janelaForm, dataFechamento: e.target.value })}
+                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
+                </div>
+                <div className="col-span-2 md:col-span-4 flex gap-2">
+                  <button type="submit" className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-1.5 rounded transition-colors">
+                    Criar Janela
+                  </button>
+                  <button type="button" onClick={() => setShowJanelaForm(false)}
+                    className="bg-white border border-gray-300 text-gray-600 text-sm px-4 py-1.5 rounded hover:bg-gray-50 transition-colors">
+                    Cancelar
+                  </button>
+                </div>
+              </form>
+            )}
+
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      {["Mês","Ano","Abertura","Fechamento","Status","Waivers","Ação"].map((h) => (
+                        <th key={h} className="text-left px-4 py-2.5 text-gray-500 font-medium text-xs uppercase">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {janelas.map((j) => (
+                      <tr key={j.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 font-medium text-gray-800">{MESES[j.mesReferencia - 1]}</td>
+                        <td className="px-4 py-3 text-gray-600">{j.anoReferencia}</td>
+                        <td className="px-4 py-3 text-gray-600">{new Date(j.dataAbertura).toLocaleDateString("pt-BR")}</td>
+                        <td className="px-4 py-3 text-gray-600">{new Date(j.dataFechamento).toLocaleDateString("pt-BR")}</td>
+                        <td className="px-4 py-3">
+                          <StatusBadge status={j.status} />
+                          {j.isOpen && <span className="ml-1.5 text-xs text-green-600 font-medium">• ao vivo</span>}
+                        </td>
+                        <td className="px-4 py-3 text-gray-600">
+                          {j.waiversPendentes > 0 ? (
+                            <span className="bg-orange-100 text-orange-700 text-xs px-2 py-0.5 rounded-full font-medium">
+                              {j.waiversPendentes} pendente(s)
+                            </span>
+                          ) : (
+                            <span className="text-gray-400">—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          {role === "GUARDIAO" && j.status !== "FECHADA" && (
+                            <button
+                              onClick={() => handleFecharJanela(j.id)}
+                              className="text-xs bg-red-500 hover:bg-red-600 text-white px-2.5 py-1 rounded transition-colors"
+                            >
+                              Fechar
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                    {janelas.length === 0 && (
+                      <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">Nenhuma janela cadastrada para este ciclo</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── IMPORTAÇÃO BP ─────────────────────────────────────────────── */}
+        {activeTab === "importacao" && (role === "BP" || role === "GUARDIAO") && (
+          <div className="space-y-6">
+            <h2 className="text-xl font-bold text-gray-800">Importação em Lote — BP Consolidador</h2>
+
+            <form onSubmit={handleBulkImport} className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Mês Referência</label>
+                  <select required value={importForm.mesReferencia}
+                    onChange={(e) => setImportForm({ ...importForm, mesReferencia: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                    <option value="">Selecionar...</option>
+                    {MESES.map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Ano Referência</label>
+                  <input type="number" required value={importForm.anoReferencia}
+                    onChange={(e) => setImportForm({ ...importForm, anoReferencia: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Dados CSV <span className="text-gray-400 font-normal">(formato: matricula;codigo_indicador;valor_realizado[;observacao])</span>
+                </label>
+                <textarea
+                  required
+                  rows={8}
+                  placeholder={"EMP001;REC-001;1500000;Resultado forte\nEMP002;EBITDA-001;25.5"}
+                  value={importForm.csvText}
+                  onChange={(e) => setImportForm({ ...importForm, csvText: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={importLoading}
+                className="bg-blue-700 hover:bg-blue-800 disabled:bg-blue-400 text-white text-sm font-medium px-6 py-2 rounded-lg transition-colors"
+              >
+                {importLoading ? "Processando..." : "Processar Importação"}
+              </button>
+            </form>
+
+            {importResult && (
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="bg-green-100 text-green-700 rounded-lg p-3 text-center min-w-[80px]">
+                    <p className="text-2xl font-bold">{importResult.processed}</p>
+                    <p className="text-xs">processados</p>
                   </div>
-                ))}
-                {workflowItems.length === 0 && (
-                  <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">
-                    <p className="text-lg mb-1">Nenhuma pendência</p>
-                    <p className="text-sm">Todos os itens foram processados.</p>
+                  {importResult.erros.length > 0 && (
+                    <div className="bg-red-100 text-red-700 rounded-lg p-3 text-center min-w-[80px]">
+                      <p className="text-2xl font-bold">{importResult.erros.length}</p>
+                      <p className="text-xs">erros</p>
+                    </div>
+                  )}
+                </div>
+
+                {importResult.erros.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-medium text-red-700 mb-2">Erros de importação:</h4>
+                    <div className="space-y-1.5">
+                      {importResult.erros.map((err, i) => (
+                        <div key={i} className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm flex gap-3">
+                          <span className="font-mono text-red-700 font-medium">{err.matricula}</span>
+                          <span className="text-red-600">{err.motivo}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
             )}
           </div>
         )}
+
+        {activeTab === "importacao" && role !== "BP" && role !== "GUARDIAO" && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-8 text-center text-yellow-800">
+            Acesso restrito a papéis BP e GUARDIÃO.
+          </div>
+        )}
+
       </main>
 
       {/* Footer */}

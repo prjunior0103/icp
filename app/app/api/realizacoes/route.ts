@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
+import { isJanelaAberta } from "@/app/lib/janelas";
 
 function calcularNota(
   tipo: string,
@@ -82,6 +83,31 @@ export async function POST(req: NextRequest) {
       include: { indicador: true },
     });
     if (!meta) return NextResponse.json({ error: "Meta nao encontrada" }, { status: 404 });
+
+    // Check if janela is open
+    const { aberta, janela } = await isJanelaAberta(
+      meta.cicloId,
+      Number(mesReferencia),
+      Number(anoReferencia)
+    );
+    if (janela && !aberta) {
+      // Check if colaborador has an active approved waiver
+      const hasWaiver =
+        colaboradorId &&
+        (await prisma.prorrogacaoWaiver.findFirst({
+          where: {
+            janelaId: janela.id,
+            colaboradorId: Number(colaboradorId),
+            status: "APROVADO",
+          },
+        }));
+      if (!hasWaiver) {
+        return NextResponse.json(
+          { error: "Janela de apuração fechada. Solicite prorrogação." },
+          { status: 403 }
+        );
+      }
+    }
 
     const nota = calcularNota(
       meta.indicador.tipo,
