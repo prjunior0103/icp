@@ -8,7 +8,7 @@ import MasterDashboard from "@/components/MasterDashboard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type TabId = "dashboard" | "cockpit" | "gestor" | "scorecard" | "indicadores" | "metas" | "atingimento" | "elegiveis" | "relatorio" | "conferencia" | "realizacoes" | "colaboradores" | "workflow" | "janelas" | "importacao" | "ajuda";
+type TabId = "dashboard" | "cockpit" | "gestor" | "scorecard" | "indicadores" | "metas" | "atingimento" | "elegiveis" | "relatorio" | "conferencia" | "movimentacoes" | "realizacoes" | "colaboradores" | "workflow" | "janelas" | "importacao" | "ajuda";
 
 interface Cargo { id: number; nome: string; nivelHierarquico: string; targetBonusPerc: number; }
 interface CentroCusto { id: number; nome: string; codigo: string; }
@@ -18,7 +18,7 @@ interface Colaborador {
   salarioBase: number; ativo: boolean;
   cargo: Cargo; centroCusto: CentroCusto; empresa: Empresa;
 }
-interface CicloICP { id: number; anoFiscal: number; status: string; bonusPool: number | null; }
+interface CicloICP { id: number; anoFiscal: number; status: string; bonusPool: number | null; mesInicio: number; mesFim: number; }
 interface Indicador { id: number; codigo: string; nome: string; tipo: string; polaridade: string; abrangencia: string; unidade: string; status: string; diretivo?: string; analistaResp?: string; origemDado?: string; divisorId?: number | null; divisor?: { id: number; nome: string } | null; }
 interface Meta {
   id: number; pesoNaCesta: number; metaAlvo: number; metaMinima: number | null;
@@ -46,6 +46,13 @@ interface JanelaApuracao {
   id: number; cicloId: number; mesReferencia: number; anoReferencia: number;
   dataAbertura: string; dataFechamento: string; status: string;
   isOpen: boolean; waiversPendentes: number;
+}
+interface MovimentacaoRH {
+  id: number; tipo: string; dataEfetiva: string; status: string; criadoEm: string;
+  colaboradorId: number;
+  colaborador: { id: number; nomeCompleto: string; matricula: string; cargo: Cargo; centroCusto: CentroCusto };
+  cargoAnterior: Cargo | null; cargoNovo: Cargo | null;
+  ccAnterior: CentroCusto | null; ccNovo: CentroCusto | null;
 }
 interface Waiver {
   id: number; janelaId: number; colaboradorId: number; justificativa: string;
@@ -152,6 +159,14 @@ export default function Home() {
   });
   const [cascateandoMetaId, setCascateandoMetaId] = useState<number | null>(null);
 
+  // Movimentações state
+  const [movimentacoes, setMovimentacoes] = useState<MovimentacaoRH[]>([]);
+  const [showMovForm, setShowMovForm] = useState(false);
+  const [movForm, setMovForm] = useState({
+    colaboradorId: "", tipo: "ADMISSAO", dataEfetiva: "", cargoAnteriorId: "", cargoNovoId: "", ccAnteriorId: "", ccNovoId: "",
+  });
+  const [cargos, setCargos] = useState<Cargo[]>([]);
+
   // Janelas state
   const [janelas, setJanelas] = useState<JanelaApuracao[]>([]);
   const [showJanelaForm, setShowJanelaForm] = useState(false);
@@ -231,6 +246,20 @@ export default function Home() {
     setWaivers(res.data ?? []);
   }, []);
 
+  const loadMovimentacoes = useCallback(async (cicloId?: number) => {
+    const url = cicloId ? `/api/movimentacoes?cicloId=${cicloId}` : "/api/movimentacoes";
+    const res = await fetch(url).then((r) => r.json()).catch(() => ({ data: [] }));
+    setMovimentacoes(res.data ?? []);
+  }, []);
+
+  const loadCargos = useCallback(async () => {
+    const res = await fetch("/api/colaboradores").then((r) => r.json()).catch(() => ({ data: [] }));
+    const cols: Colaborador[] = res.data ?? [];
+    const map = new Map<number, Cargo>();
+    cols.forEach((c) => { if (c.cargo) map.set(c.cargo.id, c.cargo); });
+    setCargos(Array.from(map.values()));
+  }, []);
+
   const loadDashboard = useCallback(async (cicloId?: number) => {
     if (!cicloId) return;
     const res = await fetch(`/api/dashboard?cicloId=${cicloId}`).then((r) => r.json()).catch(() => ({ data: null }));
@@ -251,10 +280,11 @@ export default function Home() {
         loadWorkflow(), checkSeeded(), loadJanelas(ativo?.id),
         loadIndicadores(ativo?.id), loadCentrosCusto(),
         loadWaivers(), loadDashboard(ativo?.id),
+        loadMovimentacoes(ativo?.id), loadCargos(),
       ]);
       setLoading(false);
     })();
-  }, [loadCiclos, loadColaboradores, loadMetas, loadRealizacoes, loadWorkflow, checkSeeded, loadJanelas, loadWaivers, loadDashboard, loadIndicadores, loadCentrosCusto]);
+  }, [loadCiclos, loadColaboradores, loadMetas, loadRealizacoes, loadWorkflow, checkSeeded, loadJanelas, loadWaivers, loadDashboard, loadIndicadores, loadCentrosCusto, loadMovimentacoes, loadCargos]);
 
   async function handleSeed() {
     setSeedLoading(true);
@@ -412,6 +442,25 @@ export default function Home() {
     loadJanelas(cicloAtivo?.id);
   }
 
+  async function handleCriarMovimentacao(e: React.FormEvent) {
+    e.preventDefault();
+    await fetch("/api/movimentacoes", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        colaboradorId: Number(movForm.colaboradorId),
+        tipo: movForm.tipo,
+        dataEfetiva: movForm.dataEfetiva,
+        cargoAnteriorId: movForm.cargoAnteriorId || null,
+        cargoNovoId: movForm.cargoNovoId || null,
+        ccAnteriorId: movForm.ccAnteriorId || null,
+        ccNovoId: movForm.ccNovoId || null,
+      }),
+    });
+    setMovForm({ colaboradorId: "", tipo: "ADMISSAO", dataEfetiva: "", cargoAnteriorId: "", cargoNovoId: "", ccAnteriorId: "", ccNovoId: "" });
+    setShowMovForm(false);
+    loadMovimentacoes(cicloAtivo?.id);
+  }
+
   async function handleBulkImport(e: React.FormEvent) {
     e.preventDefault();
     if (!cicloAtivo) return;
@@ -448,6 +497,44 @@ export default function Home() {
   });
 
   const pendingCount = workflowItems.length;
+
+  // Pro-rata factor per collaborator based on movimentações no ciclo
+  function calcFatorProRata(colaboradorId: number): { fator: number; tipo: string | null; descricao: string } {
+    if (!cicloAtivo) return { fator: 1, tipo: null, descricao: "Ciclo completo" };
+    const totalMeses = (cicloAtivo.mesFim ?? 12) - (cicloAtivo.mesInicio ?? 1) + 1;
+    const colMovs = movimentacoes.filter((m) => m.colaboradorId === colaboradorId);
+
+    const admissao = colMovs.find((m) => m.tipo === "ADMISSAO");
+    const desligamento = colMovs.find((m) => m.tipo === "DESLIGAMENTO");
+
+    if (admissao) {
+      const mes = new Date(admissao.dataEfetiva).getMonth() + 1;
+      const mesesNoCiclo = (cicloAtivo.mesFim ?? 12) - mes + 1;
+      const fator = Math.max(0, Math.min(1, mesesNoCiclo / totalMeses));
+      return { fator, tipo: "ADMISSAO", descricao: `Admitido em ${MESES[mes - 1]} — ${(fator * 100).toFixed(0)}% do ciclo` };
+    }
+    if (desligamento) {
+      const mes = new Date(desligamento.dataEfetiva).getMonth() + 1;
+      const mesesNoCiclo = mes - (cicloAtivo.mesInicio ?? 1) + 1;
+      const fator = Math.max(0, Math.min(1, mesesNoCiclo / totalMeses));
+      return { fator, tipo: "DESLIGAMENTO", descricao: `Desligado em ${MESES[mes - 1]} — ${(fator * 100).toFixed(0)}% do ciclo` };
+    }
+    const promocao = colMovs.find((m) => m.tipo === "PROMOCAO");
+    if (promocao) {
+      const mes = new Date(promocao.dataEfetiva).getMonth() + 1;
+      const mesesAntes = mes - (cicloAtivo.mesInicio ?? 1);
+      const mesesDepois = (cicloAtivo.mesFim ?? 12) - mes + 1;
+      return { fator: 1, tipo: "PROMOCAO", descricao: `Promovido em ${MESES[mes - 1]} — ${mesesAntes}m cargo anterior + ${mesesDepois}m novo cargo` };
+    }
+    const transferencia = colMovs.find((m) => m.tipo === "TRANSFERENCIA");
+    if (transferencia) {
+      const mes = new Date(transferencia.dataEfetiva).getMonth() + 1;
+      const mesesAntes = mes - (cicloAtivo.mesInicio ?? 1);
+      const mesesDepois = (cicloAtivo.mesFim ?? 12) - mes + 1;
+      return { fator: 1, tipo: "TRANSFERENCIA", descricao: `Transferido em ${MESES[mes - 1]} — ${mesesAntes}m CC anterior + ${mesesDepois}m novo CC` };
+    }
+    return { fator: 1, tipo: null, descricao: "Ciclo completo" };
+  }
 
   // Elegíveis ranking — inclui TODOS os colaboradores atribuídos a pelo menos uma meta
   type ElegívelRow = {
@@ -639,6 +726,7 @@ export default function Home() {
                  tab === "elegiveis" ? "Elegíveis" :
                  tab === "relatorio" ? "Relatório" :
                  tab === "conferencia" ? "Conferência" :
+                 tab === "movimentacoes" ? "Movimentações RH" :
                  tab === "ajuda" ? "? Ajuda" :
                  tab.charAt(0).toUpperCase() + tab.slice(1)}
                 {tab === "workflow" && pendingCount > 0 && (
@@ -1787,7 +1875,9 @@ export default function Home() {
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {rankingElegiveis.map((row, idx) => {
-                        const percTarget = row.targetAnual > 0 ? (row.premioYTD / row.targetAnual) * 100 : 0;
+                        const { fator, tipo: movTipo } = calcFatorProRata(row.colaborador.id);
+                        const premioAjustado = row.premioYTD * fator;
+                        const percTarget = row.targetAnual > 0 ? (premioAjustado / row.targetAnual) * 100 : 0;
                         const medal = idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : null;
                         return (
                           <tr key={row.colaborador.id} className={idx < 3 ? "bg-amber-50" : "hover:bg-gray-50"}>
@@ -1800,7 +1890,10 @@ export default function Home() {
                             <td className="px-4 py-3 text-gray-500">{row.metasAtribuidas}</td>
                             <td className="px-4 py-3 text-gray-500">{row.totalRealizacoes > 0 ? row.totalRealizacoes : <span className="text-gray-300">—</span>}</td>
                             <td className={`px-4 py-3 ${row.totalRealizacoes > 0 ? notaColor(row.notaMedia) : "text-gray-300"}`}>{row.totalRealizacoes > 0 ? fmtN(row.notaMedia) : "—"}</td>
-                            <td className="px-4 py-3 text-blue-700 font-medium">{fmt(row.premioYTD)}</td>
+                            <td className="px-4 py-3">
+                              <p className="text-blue-700 font-medium">{fmt(premioAjustado)}</p>
+                              {movTipo && fator < 1 && <p className="text-xs text-amber-600">{fmt(row.premioYTD)} × {(fator * 100).toFixed(0)}%</p>}
+                            </td>
                             <td className="px-4 py-3 text-gray-600">{fmt(row.targetAnual)}</td>
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-2">
@@ -2108,6 +2201,173 @@ export default function Home() {
             {evolucaoMensal.length === 0 && ccRows.length === 0 && (
               <div className="text-center text-gray-400 py-12">Nenhuma realização lançada ainda — os painéis consolidados aparecerão aqui.</div>
             )}
+          </div>
+        )}
+
+        {/* ── MOVIMENTAÇÕES RH ──────────────────────────────────────────── */}
+        {activeTab === "movimentacoes" && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-gray-800">Movimentações RH</h2>
+                <p className="text-sm text-gray-500 mt-0.5">Admissões, transferências, promoções e desligamentos — com cálculo pro-rata automático</p>
+              </div>
+              <button onClick={() => setShowMovForm(!showMovForm)}
+                className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-1.5 rounded-lg transition-colors">
+                + Registrar Movimentação
+              </button>
+            </div>
+
+            {showMovForm && (
+              <form onSubmit={handleCriarMovimentacao} className="bg-blue-50 border border-blue-200 rounded-xl p-5 grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div className="col-span-2 md:col-span-3">
+                  <h3 className="text-sm font-semibold text-blue-900">Nova Movimentação</h3>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Colaborador *</label>
+                  <select required value={movForm.colaboradorId} onChange={(e) => setMovForm({ ...movForm, colaboradorId: e.target.value })}
+                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
+                    <option value="">Selecionar...</option>
+                    {colaboradores.map((c) => <option key={c.id} value={c.id}>{c.nomeCompleto} — {c.matricula}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Tipo *</label>
+                  <select required value={movForm.tipo} onChange={(e) => setMovForm({ ...movForm, tipo: e.target.value })}
+                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
+                    <option value="ADMISSAO">Admissão</option>
+                    <option value="TRANSFERENCIA">Transferência de CC</option>
+                    <option value="PROMOCAO">Promoção</option>
+                    <option value="DESLIGAMENTO">Desligamento</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Data Efetiva *</label>
+                  <input required type="date" value={movForm.dataEfetiva} onChange={(e) => setMovForm({ ...movForm, dataEfetiva: e.target.value })}
+                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
+                </div>
+                {(movForm.tipo === "PROMOCAO") && (<>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Cargo Anterior</label>
+                    <select value={movForm.cargoAnteriorId} onChange={(e) => setMovForm({ ...movForm, cargoAnteriorId: e.target.value })}
+                      className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
+                      <option value="">Selecionar...</option>
+                      {cargos.map((c) => <option key={c.id} value={c.id}>{c.nome} ({c.nivelHierarquico}) — {c.targetBonusPerc}%</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Cargo Novo *</label>
+                    <select required value={movForm.cargoNovoId} onChange={(e) => setMovForm({ ...movForm, cargoNovoId: e.target.value })}
+                      className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
+                      <option value="">Selecionar...</option>
+                      {cargos.map((c) => <option key={c.id} value={c.id}>{c.nome} ({c.nivelHierarquico}) — {c.targetBonusPerc}%</option>)}
+                    </select>
+                  </div>
+                </>)}
+                {(movForm.tipo === "TRANSFERENCIA") && (<>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">CC Anterior</label>
+                    <select value={movForm.ccAnteriorId} onChange={(e) => setMovForm({ ...movForm, ccAnteriorId: e.target.value })}
+                      className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
+                      <option value="">Selecionar...</option>
+                      {centrosCusto.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">CC Novo *</label>
+                    <select required value={movForm.ccNovoId} onChange={(e) => setMovForm({ ...movForm, ccNovoId: e.target.value })}
+                      className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
+                      <option value="">Selecionar...</option>
+                      {centrosCusto.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                    </select>
+                  </div>
+                </>)}
+                <div className="col-span-2 md:col-span-3 flex gap-2">
+                  <button type="submit" className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-1.5 rounded-lg">Registrar</button>
+                  <button type="button" onClick={() => setShowMovForm(false)} className="text-sm text-gray-500 px-4 py-1.5">Cancelar</button>
+                </div>
+              </form>
+            )}
+
+            {/* Pro-rata summary por colaborador */}
+            {movimentacoes.length > 0 && (
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="px-5 py-3 border-b border-gray-100">
+                  <h3 className="font-semibold text-gray-700">Impacto Pro-Rata por Colaborador</h3>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        {["Colaborador","Tipo","Data Efetiva","Fator Pro-Rata","Situação","Prêmio Bruto","Prêmio Ajustado"].map((h) => (
+                          <th key={h} className="text-left px-4 py-2.5 text-gray-500 font-medium text-xs uppercase">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {movimentacoes.map((mv) => {
+                        const { fator, descricao } = calcFatorProRata(mv.colaboradorId);
+                        const colRealizacoes = realizacoes.filter((r) => r.colaborador?.id === mv.colaboradorId);
+                        const premioBruto = colRealizacoes.reduce((s, r) => s + (r.premioProjetado ?? 0), 0);
+                        const premioAjustado = premioBruto * fator;
+                        return (
+                          <tr key={mv.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 font-medium text-gray-800">{mv.colaborador.nomeCompleto}</td>
+                            <td className="px-4 py-3">
+                              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${mv.tipo === "ADMISSAO" ? "bg-green-100 text-green-700" : mv.tipo === "DESLIGAMENTO" ? "bg-red-100 text-red-700" : mv.tipo === "PROMOCAO" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}>
+                                {mv.tipo}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-gray-600">{new Date(mv.dataEfetiva).toLocaleDateString("pt-BR")}</td>
+                            <td className="px-4 py-3 font-semibold text-blue-700">{(fator * 100).toFixed(0)}%</td>
+                            <td className="px-4 py-3 text-xs text-gray-500">{descricao}</td>
+                            <td className="px-4 py-3 text-gray-600">{fmt(premioBruto)}</td>
+                            <td className="px-4 py-3 font-semibold text-green-700">{fmt(premioAjustado)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Full list */}
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+                <h3 className="font-semibold text-gray-700">Histórico de Movimentações</h3>
+                <span className="text-xs text-gray-400">{movimentacoes.length} registros</span>
+              </div>
+              {movimentacoes.length === 0 ? (
+                <div className="px-5 py-10 text-center text-gray-400 text-sm">Nenhuma movimentação registrada no ciclo</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        {["Colaborador","Tipo","Data","Cargo Ant.","Cargo Novo","CC Ant.","CC Novo","Status"].map((h) => (
+                          <th key={h} className="text-left px-4 py-2.5 text-gray-500 font-medium text-xs uppercase">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {movimentacoes.map((mv) => (
+                        <tr key={mv.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 font-medium text-gray-800">{mv.colaborador.nomeCompleto}</td>
+                          <td className="px-4 py-3"><StatusBadge status={mv.tipo} /></td>
+                          <td className="px-4 py-3 text-gray-600">{new Date(mv.dataEfetiva).toLocaleDateString("pt-BR")}</td>
+                          <td className="px-4 py-3 text-xs text-gray-500">{mv.cargoAnterior?.nome ?? "—"}</td>
+                          <td className="px-4 py-3 text-xs text-gray-500">{mv.cargoNovo?.nome ?? "—"}</td>
+                          <td className="px-4 py-3 text-xs text-gray-500">{mv.ccAnterior?.nome ?? "—"}</td>
+                          <td className="px-4 py-3 text-xs text-gray-500">{mv.ccNovo?.nome ?? "—"}</td>
+                          <td className="px-4 py-3"><StatusBadge status={mv.status} /></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
