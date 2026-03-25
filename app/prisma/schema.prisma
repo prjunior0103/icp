@@ -137,6 +137,9 @@ model Meta {
   metaAlvo        Float             @default(100)
   metaMaxima      Float?
   status          String            @default("DRAFT") // DRAFT, ATIVO, APROVADO
+  parentMetaId    Int?              // Cascateamento: meta pai (corporativa/área)
+  parentMeta      Meta?             @relation("MetaCascata", fields: [parentMetaId], references: [id])
+  filhas          Meta[]            @relation("MetaCascata")
   colaboradores   MetaColaborador[]
   realizacoes     Realizacao[]
   workflowItems   WorkflowItem[]

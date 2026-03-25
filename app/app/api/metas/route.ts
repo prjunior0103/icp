@@ -12,8 +12,10 @@ export async function GET(req: NextRequest) {
         indicador: true,
         centroCusto: true,
         ciclo: true,
-        colaboradores: { select: { id: true } },
+        colaboradores: { select: { id: true, colaboradorId: true } },
         realizacoes: { select: { id: true } },
+        parentMeta: { select: { id: true, indicador: { select: { nome: true } }, centroCusto: { select: { nome: true } } } },
+        filhas: { select: { id: true } },
       },
       orderBy: { id: "asc" },
     });
@@ -23,7 +25,9 @@ export async function GET(req: NextRequest) {
       _count: {
         colaboradores: m.colaboradores.length,
         realizacoes: m.realizacoes.length,
+        filhas: m.filhas.length,
       },
+      colaboradorIds: m.colaboradores.map((c) => c.colaboradorId),
     }));
 
     return NextResponse.json({ data: result });
@@ -45,6 +49,7 @@ export async function POST(req: NextRequest) {
         metaAlvo: Number(body.metaAlvo ?? 100),
         metaMaxima: body.metaMaxima ? Number(body.metaMaxima) : undefined,
         status: body.status ?? "DRAFT",
+        parentMetaId: body.parentMetaId ? Number(body.parentMetaId) : undefined,
       },
       include: { indicador: true, centroCusto: true },
     });
@@ -81,6 +86,8 @@ export async function PUT(req: NextRequest) {
     if (data.indicadorId !== undefined) updateData.indicadorId = Number(data.indicadorId);
     if (data.centroCustoId !== undefined)
       updateData.centroCustoId = data.centroCustoId ? Number(data.centroCustoId) : null;
+    if (data.parentMetaId !== undefined)
+      updateData.parentMetaId = data.parentMetaId ? Number(data.parentMetaId) : null;
 
     const meta = await prisma.meta.update({
       where: { id: Number(id) },

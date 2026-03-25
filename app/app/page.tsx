@@ -24,7 +24,10 @@ interface Meta {
   id: number; pesoNaCesta: number; metaAlvo: number; metaMinima: number | null;
   metaMaxima: number | null; status: string;
   indicador: Indicador; centroCusto: CentroCusto | null;
-  _count: { colaboradores: number; realizacoes: number };
+  _count: { colaboradores: number; realizacoes: number; filhas: number };
+  colaboradorIds: number[];
+  parentMetaId: number | null;
+  parentMeta: { id: number; indicador: { nome: string }; centroCusto: { nome: string } | null } | null;
 }
 interface Realizacao {
   id: number; mesReferencia: number; anoReferencia: number;
@@ -145,8 +148,9 @@ export default function Home() {
   const [showMetaForm, setShowMetaForm] = useState(false);
   const [metaForm, setMetaForm] = useState({
     indicadorId: "", centroCustoId: "", pesoNaCesta: "100", metaAlvo: "",
-    metaMinima: "", metaMaxima: "",
+    metaMinima: "", metaMaxima: "", parentMetaId: "",
   });
+  const [cascateandoMetaId, setCascateandoMetaId] = useState<number | null>(null);
 
   // Janelas state
   const [janelas, setJanelas] = useState<JanelaApuracao[]>([]);
@@ -311,10 +315,12 @@ export default function Home() {
         metaAlvo: Number(metaForm.metaAlvo),
         metaMinima: metaForm.metaMinima ? Number(metaForm.metaMinima) : null,
         metaMaxima: metaForm.metaMaxima ? Number(metaForm.metaMaxima) : null,
+        parentMetaId: metaForm.parentMetaId ? Number(metaForm.parentMetaId) : null,
       }),
     });
-    setMetaForm({ indicadorId: "", centroCustoId: "", pesoNaCesta: "100", metaAlvo: "", metaMinima: "", metaMaxima: "" });
+    setMetaForm({ indicadorId: "", centroCustoId: "", pesoNaCesta: "100", metaAlvo: "", metaMinima: "", metaMaxima: "", parentMetaId: "" });
     setShowMetaForm(false);
+    setCascateandoMetaId(null);
     loadMetas(cicloAtivo.id);
   }
 
@@ -443,26 +449,28 @@ export default function Home() {
 
   const pendingCount = workflowItems.length;
 
-  // Elegíveis ranking
+  // Elegíveis ranking — inclui TODOS os colaboradores atribuídos a pelo menos uma meta
   type ElegívelRow = {
     colaborador: Colaborador;
     notaMedia: number;
     premioYTD: number;
     targetAnual: number;
     totalRealizacoes: number;
+    metasAtribuidas: number;
   };
+  const elegiveisIds = new Set(metas.flatMap((m) => m.colaboradorIds ?? []));
   const rankingElegiveis: ElegívelRow[] = colaboradores
+    .filter((c) => elegiveisIds.has(c.id))
     .map((c) => {
       const colRealizacoes = realizacoes.filter((r) => r.colaborador?.id === c.id);
-      if (colRealizacoes.length === 0) return null;
-      const notaMedia =
-        colRealizacoes.reduce((sum, r) => sum + (r.notaCalculada ?? 0), 0) /
-        colRealizacoes.length;
+      const metasAtribuidas = metas.filter((m) => m.colaboradorIds?.includes(c.id)).length;
+      const notaMedia = colRealizacoes.length > 0
+        ? colRealizacoes.reduce((sum, r) => sum + (r.notaCalculada ?? 0), 0) / colRealizacoes.length
+        : 0;
       const premioYTD = colRealizacoes.reduce((sum, r) => sum + (r.premioProjetado ?? 0), 0);
       const targetAnual = c.salarioBase * 12 * (c.cargo.targetBonusPerc / 100);
-      return { colaborador: c, notaMedia, premioYTD, targetAnual, totalRealizacoes: colRealizacoes.length };
+      return { colaborador: c, notaMedia, premioYTD, targetAnual, totalRealizacoes: colRealizacoes.length, metasAtribuidas };
     })
-    .filter((x): x is ElegívelRow => x !== null)
     .sort((a, b) => b.notaMedia - a.notaMedia);
 
   // Relatório metrics
@@ -1020,7 +1028,14 @@ export default function Home() {
             {showMetaForm && (
               <form onSubmit={handleCriarMeta} className="bg-blue-50 border border-blue-200 rounded-xl p-5 grid grid-cols-2 md:grid-cols-3 gap-4">
                 <div className="col-span-2 md:col-span-3">
-                  <h3 className="text-sm font-semibold text-blue-900">Nova Meta</h3>
+                  <h3 className="text-sm font-semibold text-blue-900">
+                    {cascateandoMetaId ? `Cascatear Meta #${cascateandoMetaId}` : "Nova Meta"}
+                  </h3>
+                  {cascateandoMetaId && (
+                    <p className="text-xs text-purple-600 mt-0.5">
+                      Esta meta será filha de #{cascateandoMetaId} — {metas.find((m) => m.id === cascateandoMetaId)?.indicador.nome}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Indicador *</label>
@@ -1066,11 +1081,23 @@ export default function Home() {
                     onChange={(e) => setMetaForm({ ...metaForm, metaMaxima: e.target.value })}
                     className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
                 </div>
+                {!cascateandoMetaId && (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Meta Pai (Cascata)</label>
+                    <select value={metaForm.parentMetaId} onChange={(e) => setMetaForm({ ...metaForm, parentMetaId: e.target.value })}
+                      className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
+                      <option value="">Nenhuma (meta raiz)</option>
+                      {metas.map((m) => (
+                        <option key={m.id} value={m.id}>#{m.id} — {m.indicador.nome} {m.centroCusto ? `(${m.centroCusto.nome})` : "(Corp)"}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div className="col-span-2 md:col-span-3 flex gap-2">
                   <button type="submit" className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-1.5 rounded-lg">
-                    Criar Meta
+                    {cascateandoMetaId ? "Criar Meta Cascateada" : "Criar Meta"}
                   </button>
-                  <button type="button" onClick={() => setShowMetaForm(false)}
+                  <button type="button" onClick={() => { setShowMetaForm(false); setCascateandoMetaId(null); setMetaForm({ indicadorId: "", centroCustoId: "", pesoNaCesta: "100", metaAlvo: "", metaMinima: "", metaMaxima: "", parentMetaId: "" }); }}
                     className="text-sm text-gray-500 hover:text-gray-700 px-4 py-1.5">
                     Cancelar
                   </button>
@@ -1091,9 +1118,20 @@ export default function Home() {
                   <tbody className="divide-y divide-gray-100">
                     {metas.map((m) => (
                       <React.Fragment key={m.id}>
-                        <tr className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-gray-400">{m.id}</td>
-                          <td className="px-4 py-3 font-medium text-gray-800">{m.indicador.nome}</td>
+                        <tr className={`hover:bg-gray-50 ${m.parentMetaId ? "bg-gray-50/50" : ""}`}>
+                          <td className="px-4 py-3 text-gray-400">
+                            {m.parentMetaId && <span className="mr-1 text-purple-400">↳</span>}
+                            {m.id}
+                          </td>
+                          <td className="px-4 py-3">
+                            <p className="font-medium text-gray-800">{m.indicador.nome}</p>
+                            {m.parentMeta && (
+                              <p className="text-xs text-purple-600 mt-0.5">Cascata de: {m.parentMeta.indicador.nome}{m.parentMeta.centroCusto ? ` (${m.parentMeta.centroCusto.nome})` : ""}</p>
+                            )}
+                            {m._count.filhas > 0 && (
+                              <p className="text-xs text-indigo-500 mt-0.5">{m._count.filhas} meta(s) cascateada(s)</p>
+                            )}
+                          </td>
                           <td className="px-4 py-3 text-gray-600">{m.centroCusto?.nome ?? "—"}</td>
                           <td className="px-4 py-3 text-gray-600">{m.pesoNaCesta}%</td>
                           <td className="px-4 py-3 text-gray-600">{m.metaAlvo.toLocaleString("pt-BR")}</td>
@@ -1109,6 +1147,14 @@ export default function Home() {
                             <button onClick={() => setAssigningMetaId(assigningMetaId === m.id ? null : m.id)}
                               className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-2.5 py-1 rounded transition-colors">
                               Atribuir
+                            </button>
+                            <button onClick={() => {
+                                setCascateandoMetaId(m.id);
+                                setMetaForm({ indicadorId: String(m.indicador.id ?? ""), centroCustoId: "", pesoNaCesta: "100", metaAlvo: String(m.metaAlvo), metaMinima: m.metaMinima ? String(m.metaMinima) : "", metaMaxima: m.metaMaxima ? String(m.metaMaxima) : "", parentMetaId: String(m.id) });
+                                setShowMetaForm(true);
+                              }}
+                              className="text-xs bg-purple-100 hover:bg-purple-200 text-purple-700 px-2.5 py-1 rounded transition-colors">
+                              Cascatear
                             </button>
                           </td>
                         </tr>
@@ -1734,7 +1780,7 @@ export default function Home() {
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50">
                       <tr>
-                        {["#","Colaborador","Cargo","Nível","Realizações","Nota Média","Prêmio YTD","Target Anual","% do Target"].map((h) => (
+                        {["#","Colaborador","Cargo","Nível","Metas","Realizações","Nota Média","Prêmio YTD","Target Anual","% do Target"].map((h) => (
                           <th key={h} className="text-left px-4 py-2.5 text-gray-500 font-medium text-xs uppercase">{h}</th>
                         ))}
                       </tr>
@@ -1751,8 +1797,9 @@ export default function Home() {
                             <td className="px-4 py-3 font-medium text-gray-800">{row.colaborador.nomeCompleto}</td>
                             <td className="px-4 py-3 text-gray-600">{row.colaborador.cargo.nome}</td>
                             <td className="px-4 py-3 text-gray-500">{row.colaborador.cargo.nivelHierarquico}</td>
-                            <td className="px-4 py-3 text-gray-500">{row.totalRealizacoes}</td>
-                            <td className={`px-4 py-3 ${notaColor(row.notaMedia)}`}>{fmtN(row.notaMedia)}</td>
+                            <td className="px-4 py-3 text-gray-500">{row.metasAtribuidas}</td>
+                            <td className="px-4 py-3 text-gray-500">{row.totalRealizacoes > 0 ? row.totalRealizacoes : <span className="text-gray-300">—</span>}</td>
+                            <td className={`px-4 py-3 ${row.totalRealizacoes > 0 ? notaColor(row.notaMedia) : "text-gray-300"}`}>{row.totalRealizacoes > 0 ? fmtN(row.notaMedia) : "—"}</td>
                             <td className="px-4 py-3 text-blue-700 font-medium">{fmt(row.premioYTD)}</td>
                             <td className="px-4 py-3 text-gray-600">{fmt(row.targetAnual)}</td>
                             <td className="px-4 py-3">
