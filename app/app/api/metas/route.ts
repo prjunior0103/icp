@@ -57,8 +57,18 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, status, comentario, ...data } = body;
+    const { id, status, comentario, atribuirColaboradorId, ...data } = body;
     if (!id) return NextResponse.json({ error: "id obrigatorio" }, { status: 400 });
+
+    // Assign collaborator to meta
+    if (atribuirColaboradorId) {
+      await prisma.metaColaborador.upsert({
+        where: { metaId_colaboradorId: { metaId: Number(id), colaboradorId: Number(atribuirColaboradorId) } },
+        update: { ativo: true },
+        create: { metaId: Number(id), colaboradorId: Number(atribuirColaboradorId) },
+      });
+      return NextResponse.json({ data: { success: true } });
+    }
 
     const updateData: Record<string, unknown> = {};
 

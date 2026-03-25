@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { signOut } from "next-auth/react";
 import CockpitColaborador from "@/components/CockpitColaborador";
 import PainelGestor from "@/components/PainelGestor";
@@ -8,7 +8,7 @@ import MasterDashboard from "@/components/MasterDashboard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type TabId = "dashboard" | "cockpit" | "gestor" | "scorecard" | "indicadores" | "metas" | "realizacoes" | "colaboradores" | "workflow" | "janelas" | "importacao";
+type TabId = "dashboard" | "cockpit" | "gestor" | "scorecard" | "indicadores" | "metas" | "atingimento" | "realizacoes" | "colaboradores" | "workflow" | "janelas" | "importacao";
 
 interface Cargo { id: number; nome: string; nivelHierarquico: string; targetBonusPerc: number; }
 interface CentroCusto { id: number; nome: string; codigo: string; }
@@ -19,7 +19,7 @@ interface Colaborador {
   cargo: Cargo; centroCusto: CentroCusto; empresa: Empresa;
 }
 interface CicloICP { id: number; anoFiscal: number; status: string; bonusPool: number | null; }
-interface Indicador { id: number; codigo: string; nome: string; tipo: string; abrangencia: string; unidade: string; status: string; }
+interface Indicador { id: number; codigo: string; nome: string; tipo: string; polaridade: string; abrangencia: string; unidade: string; status: string; diretivo?: string; analistaResp?: string; origemDado?: string; }
 interface Meta {
   id: number; pesoNaCesta: number; metaAlvo: number; metaMinima: number | null;
   metaMaxima: number | null; status: string;
@@ -131,8 +131,14 @@ export default function Home() {
   // Novo Indicador form state
   const [showIndicadorForm, setShowIndicadorForm] = useState(false);
   const [indicadorForm, setIndicadorForm] = useState({
-    codigo: "", nome: "", tipo: "VOLUME_FINANCEIRO", abrangencia: "CORPORATIVO", unidade: "%", descricao: "",
+    codigo: "", nome: "", tipo: "VOLUME_FINANCEIRO", polaridade: "MAIOR_MELHOR",
+    abrangencia: "CORPORATIVO", unidade: "%", descricao: "",
+    diretivo: "", analistaResp: "", origemDado: "",
   });
+
+  // MetaColaborador assignment
+  const [assigningMetaId, setAssigningMetaId] = useState<number | null>(null);
+  const [assignColabId, setAssignColabId] = useState<string>("");
 
   // Nova Meta form state
   const [showMetaForm, setShowMetaForm] = useState(false);
@@ -279,6 +285,18 @@ export default function Home() {
     loadMetas(cicloAtivo?.id);
   }
 
+  async function handleAtribuirMeta(e: React.FormEvent) {
+    e.preventDefault();
+    if (!assigningMetaId || !assignColabId) return;
+    await fetch("/api/metas", {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: assigningMetaId, atribuirColaboradorId: Number(assignColabId) }),
+    });
+    setAssignColabId("");
+    setAssigningMetaId(null);
+    loadMetas(cicloAtivo?.id);
+  }
+
   async function handleCriarMeta(e: React.FormEvent) {
     e.preventDefault();
     if (!cicloAtivo) return;
@@ -308,14 +326,18 @@ export default function Home() {
         codigo: indicadorForm.codigo,
         nome: indicadorForm.nome,
         tipo: indicadorForm.tipo,
+        polaridade: indicadorForm.polaridade,
         abrangencia: indicadorForm.abrangencia,
         unidade: indicadorForm.unidade || "%",
         descricao: indicadorForm.descricao || undefined,
+        diretivo: indicadorForm.diretivo || undefined,
+        analistaResp: indicadorForm.analistaResp || undefined,
+        origemDado: indicadorForm.origemDado || undefined,
         cicloId: cicloAtivo.id,
         status: "ATIVO",
       }),
     });
-    setIndicadorForm({ codigo: "", nome: "", tipo: "VOLUME_FINANCEIRO", abrangencia: "CORPORATIVO", unidade: "%", descricao: "" });
+    setIndicadorForm({ codigo: "", nome: "", tipo: "VOLUME_FINANCEIRO", polaridade: "MAIOR_MELHOR", abrangencia: "CORPORATIVO", unidade: "%", descricao: "", diretivo: "", analistaResp: "", origemDado: "" });
     setShowIndicadorForm(false);
     loadIndicadores(cicloAtivo.id);
   }
@@ -505,7 +527,7 @@ export default function Home() {
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4">
           <nav className="flex gap-1 overflow-x-auto">
-            {(["dashboard","cockpit","gestor","scorecard","indicadores","metas","realizacoes","colaboradores","workflow","janelas","importacao"] as TabId[]).map((tab) => (
+            {(["dashboard","cockpit","gestor","scorecard","indicadores","metas","atingimento","realizacoes","colaboradores","workflow","janelas","importacao"] as TabId[]).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -764,6 +786,29 @@ export default function Home() {
                   </select>
                 </div>
                 <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Polaridade *</label>
+                  <select required value={indicadorForm.polaridade} onChange={(e) => setIndicadorForm({ ...indicadorForm, polaridade: e.target.value })}
+                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
+                    <option value="MAIOR_MELHOR">↑ Maior é Melhor (ex: vendas, receita)</option>
+                    <option value="MENOR_MELHOR">↓ Menor é Melhor (ex: custo, prazo, defeitos)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Diretivo / Objetivo Estratégico</label>
+                  <input value={indicadorForm.diretivo} onChange={(e) => setIndicadorForm({ ...indicadorForm, diretivo: e.target.value })}
+                    placeholder="Ex: Crescer receita 20%" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Analista Responsável</label>
+                  <input value={indicadorForm.analistaResp} onChange={(e) => setIndicadorForm({ ...indicadorForm, analistaResp: e.target.value })}
+                    placeholder="Nome do responsável" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Origem dos Dados</label>
+                  <input value={indicadorForm.origemDado} onChange={(e) => setIndicadorForm({ ...indicadorForm, origemDado: e.target.value })}
+                    placeholder="Ex: ERP, BI, Planilha..." className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
+                </div>
+                <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Descrição</label>
                   <input value={indicadorForm.descricao} onChange={(e) => setIndicadorForm({ ...indicadorForm, descricao: e.target.value })}
                     className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
@@ -785,7 +830,7 @@ export default function Home() {
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50">
                     <tr>
-                      {["#","Código","Nome","Tipo","Abrangência","Unidade","Status","Metas"].map((h) => (
+                      {["#","Código","Nome","Tipo","Polaridade","Abrangência","Unidade","Diretivo","Analista","Status","Metas"].map((h) => (
                         <th key={h} className="text-left px-4 py-2.5 text-gray-500 font-medium text-xs uppercase">{h}</th>
                       ))}
                     </tr>
@@ -799,14 +844,21 @@ export default function Home() {
                         <td className="px-4 py-3 text-xs text-gray-600">
                           {i.tipo === "VOLUME_FINANCEIRO" ? "Volume" : i.tipo === "CUSTO_PRAZO" ? "Custo/Prazo" : "Projeto"}
                         </td>
+                        <td className="px-4 py-3 text-xs">
+                          <span className={`font-medium ${i.polaridade === "MENOR_MELHOR" ? "text-orange-600" : "text-green-600"}`}>
+                            {i.polaridade === "MENOR_MELHOR" ? "↓ Menor" : "↑ Maior"}
+                          </span>
+                        </td>
                         <td className="px-4 py-3 text-xs text-gray-600">{i.abrangencia}</td>
                         <td className="px-4 py-3 text-xs text-gray-600">{i.unidade}</td>
+                        <td className="px-4 py-3 text-xs text-gray-500 max-w-[120px] truncate" title={i.diretivo}>{i.diretivo ?? "—"}</td>
+                        <td className="px-4 py-3 text-xs text-gray-500">{i.analistaResp ?? "—"}</td>
                         <td className="px-4 py-3"><StatusBadge status={i.status} /></td>
                         <td className="px-4 py-3 text-xs text-gray-500">{(i as unknown as { _count?: { metas?: number } })._count?.metas ?? 0}</td>
                       </tr>
                     ))}
                     {indicadores.length === 0 && (
-                      <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">Nenhum indicador cadastrado</td></tr>
+                      <tr><td colSpan={11} className="px-4 py-8 text-center text-gray-400">Nenhum indicador cadastrado</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -904,25 +956,46 @@ export default function Home() {
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {metas.map((m) => (
-                      <tr key={m.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 text-gray-400">{m.id}</td>
-                        <td className="px-4 py-3 font-medium text-gray-800">{m.indicador.nome}</td>
-                        <td className="px-4 py-3 text-gray-600">{m.centroCusto?.nome ?? "—"}</td>
-                        <td className="px-4 py-3 text-gray-600">{m.pesoNaCesta}%</td>
-                        <td className="px-4 py-3 text-gray-600">{m.metaAlvo.toLocaleString("pt-BR")}</td>
-                        <td className="px-4 py-3 text-gray-600">{m._count.colaboradores}</td>
-                        <td className="px-4 py-3"><StatusBadge status={m.status} /></td>
-                        <td className="px-4 py-3">
-                          {role === "GUARDIAO" && m.status === "DRAFT" && (
-                            <button
-                              onClick={() => handleApproveMeta(m.id)}
-                              className="text-xs bg-green-600 hover:bg-green-700 text-white px-2.5 py-1 rounded transition-colors"
-                            >
-                              Aprovar
+                      <React.Fragment key={m.id}>
+                        <tr className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-gray-400">{m.id}</td>
+                          <td className="px-4 py-3 font-medium text-gray-800">{m.indicador.nome}</td>
+                          <td className="px-4 py-3 text-gray-600">{m.centroCusto?.nome ?? "—"}</td>
+                          <td className="px-4 py-3 text-gray-600">{m.pesoNaCesta}%</td>
+                          <td className="px-4 py-3 text-gray-600">{m.metaAlvo.toLocaleString("pt-BR")}</td>
+                          <td className="px-4 py-3 text-gray-600">{m._count.colaboradores}</td>
+                          <td className="px-4 py-3"><StatusBadge status={m.status} /></td>
+                          <td className="px-4 py-3 flex gap-1 flex-wrap">
+                            {role === "GUARDIAO" && m.status === "DRAFT" && (
+                              <button onClick={() => handleApproveMeta(m.id)}
+                                className="text-xs bg-green-600 hover:bg-green-700 text-white px-2.5 py-1 rounded transition-colors">
+                                Aprovar
+                              </button>
+                            )}
+                            <button onClick={() => setAssigningMetaId(assigningMetaId === m.id ? null : m.id)}
+                              className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-2.5 py-1 rounded transition-colors">
+                              Atribuir
                             </button>
-                          )}
-                        </td>
-                      </tr>
+                          </td>
+                        </tr>
+                        {assigningMetaId === m.id && (
+                          <tr className="bg-blue-50">
+                            <td colSpan={8} className="px-4 py-2">
+                              <form onSubmit={handleAtribuirMeta} className="flex items-center gap-2">
+                                <select required value={assignColabId} onChange={(e) => setAssignColabId(e.target.value)}
+                                  className="border border-gray-300 rounded px-2 py-1 text-sm flex-1">
+                                  <option value="">Selecionar colaborador...</option>
+                                  {colaboradores.map((c) => (
+                                    <option key={c.id} value={c.id}>{c.nomeCompleto} — {c.cargo.nome}</option>
+                                  ))}
+                                </select>
+                                <button type="submit" className="text-xs bg-blue-700 text-white px-3 py-1 rounded">Atribuir</button>
+                                <button type="button" onClick={() => setAssigningMetaId(null)} className="text-xs text-gray-500 px-2 py-1">Cancelar</button>
+                              </form>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
                     ))}
                     {metas.length === 0 && (
                       <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">Nenhuma meta cadastrada</td></tr>
@@ -931,6 +1004,78 @@ export default function Home() {
                 </table>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* ── PAINEL ATINGIMENTO NOMINAL ────────────────────────────────── */}
+        {activeTab === "atingimento" && (
+          <div className="space-y-6">
+            <h2 className="text-xl font-bold text-gray-800">Painel Atingimento Nominal — por Meta</h2>
+            {metas.length === 0 ? (
+              <div className="text-center text-gray-400 py-16">Nenhuma meta cadastrada</div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4">
+                {metas.map((m) => {
+                  const metaRealizacoes = realizacoes.filter((r) => r.meta?.id === m.id);
+                  const porColab = colaboradores.filter((c) => {
+                    return metaRealizacoes.some((r) => r.colaborador?.id === c.id);
+                  });
+                  const melhorNota = metaRealizacoes.reduce((max, r) => Math.max(max, r.notaCalculada ?? 0), 0);
+                  const mediaNota = metaRealizacoes.length > 0
+                    ? metaRealizacoes.reduce((s, r) => s + (r.notaCalculada ?? 0), 0) / metaRealizacoes.length : 0;
+                  const polarLabel = (m.indicador as Indicador).polaridade === "MENOR_MELHOR" ? "↓ Menor é Melhor" : "↑ Maior é Melhor";
+                  return (
+                    <div key={m.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <h3 className="font-semibold text-gray-800">{m.indicador.nome}</h3>
+                          <p className="text-xs text-gray-500">{m.centroCusto?.nome ?? "Corporativo"} · Peso: {m.pesoNaCesta}% · Alvo: {m.metaAlvo.toLocaleString("pt-BR")} {m.indicador.unidade}</p>
+                          <p className="text-xs mt-0.5"><span className={`font-medium ${(m.indicador as Indicador).polaridade === "MENOR_MELHOR" ? "text-orange-600" : "text-green-600"}`}>{polarLabel}</span></p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-gray-400">Média: <span className={`font-bold ${mediaNota >= 100 ? "text-green-600" : mediaNota >= 70 ? "text-yellow-600" : "text-red-600"}`}>{mediaNota.toFixed(1)} pts</span></p>
+                          <p className="text-xs text-gray-400">Melhor: <span className="font-bold text-blue-600">{melhorNota.toFixed(1)} pts</span></p>
+                          <StatusBadge status={m.status} />
+                        </div>
+                      </div>
+                      {metaRealizacoes.length > 0 ? (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-xs">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                {["Colaborador","Mês","Realizado","Nota","Prêmio Proj."].map((h) => (
+                                  <th key={h} className="px-3 py-1.5 text-left text-gray-500 uppercase font-medium">{h}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-50">
+                              {metaRealizacoes.slice().sort((a, b) => (b.notaCalculada ?? 0) - (a.notaCalculada ?? 0)).map((r) => (
+                                <tr key={r.id} className="hover:bg-gray-50">
+                                  <td className="px-3 py-1.5 font-medium text-gray-800">{r.colaborador?.nomeCompleto ?? "Corporativo"}</td>
+                                  <td className="px-3 py-1.5 text-gray-500">{MESES[r.mesReferencia - 1]}/{r.anoReferencia}</td>
+                                  <td className="px-3 py-1.5 text-gray-700">{r.valorRealizado.toLocaleString("pt-BR")} {m.indicador.unidade}</td>
+                                  <td className="px-3 py-1.5">
+                                    <span className={`font-bold ${(r.notaCalculada ?? 0) >= 100 ? "text-green-600" : (r.notaCalculada ?? 0) >= 70 ? "text-yellow-600" : "text-red-600"}`}>
+                                      {(r.notaCalculada ?? 0).toFixed(1)} pts
+                                    </span>
+                                  </td>
+                                  <td className="px-3 py-1.5 text-gray-700">{r.premioProjetado != null ? fmt(r.premioProjetado) : "—"}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-gray-400 text-center py-3">Nenhuma realização lançada</p>
+                      )}
+                      {porColab.length === 0 && m._count.colaboradores === 0 && (
+                        <p className="text-xs text-amber-600 mt-2">⚠ Nenhum colaborador atribuído a esta meta</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 

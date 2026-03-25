@@ -4,33 +4,39 @@ import { isJanelaAberta } from "@/app/lib/janelas";
 
 function calcularNota(
   tipo: string,
+  polaridade: string,
   valorRealizado: number,
   metaAlvo: number,
   metaMinima: number | null,
   metaMaxima: number | null
 ): number {
+  if (metaAlvo === 0) return 0;
   let nota = 0;
 
-  if (tipo === "VOLUME_FINANCEIRO") {
-    nota = (valorRealizado / metaAlvo) * 100;
-  } else if (tipo === "CUSTO_PRAZO") {
-    nota = (metaAlvo / valorRealizado) * 100;
-  } else if (tipo === "PROJETO_MARCO") {
+  if (tipo === "PROJETO_MARCO") {
+    // Pass/fail: 100 if realizado >= 1 (true), else 0
     nota = valorRealizado >= 1 ? 100 : 0;
-  }
-
-  // Cap at maxima ratio
-  if (metaMaxima && metaAlvo > 0) {
-    const maxNota = (metaMaxima / metaAlvo) * 100;
-    nota = Math.min(nota, maxNota);
+  } else if (polaridade === "MENOR_MELHOR") {
+    // Ex: custo, prazo, defeitos — menor realizado = melhor nota
+    nota = valorRealizado === 0 ? 120 : (metaAlvo / valorRealizado) * 100;
+    // Below minimum (pior que o piso): zero score
+    if (metaMaxima && valorRealizado > metaMaxima) nota = 0;
   } else {
-    nota = Math.min(nota, 120);
+    // MAIOR_MELHOR (default): maior realizado = melhor nota
+    nota = (valorRealizado / metaAlvo) * 100;
+    // Below minimum: zero score
+    if (metaMinima && valorRealizado < metaMinima) nota = 0;
   }
 
-  // Floor at minima
-  if (metaMinima && metaAlvo > 0) {
-    if (tipo === "VOLUME_FINANCEIRO" && valorRealizado < metaMinima) nota = 0;
-    if (tipo === "CUSTO_PRAZO" && valorRealizado > (metaMaxima ?? Infinity)) nota = 0;
+  // Cap upside: use metaMaxima ratio or default 120
+  if (tipo !== "PROJETO_MARCO") {
+    if (metaMaxima && metaAlvo > 0 && polaridade !== "MENOR_MELHOR") {
+      nota = Math.min(nota, (metaMaxima / metaAlvo) * 100);
+    } else if (polaridade !== "MENOR_MELHOR") {
+      nota = Math.min(nota, 120);
+    } else {
+      nota = Math.min(nota, 120);
+    }
   }
 
   return Math.max(0, nota);
@@ -111,6 +117,7 @@ export async function POST(req: NextRequest) {
 
     const nota = calcularNota(
       meta.indicador.tipo,
+      meta.indicador.polaridade ?? "MAIOR_MELHOR",
       Number(valorRealizado),
       meta.metaAlvo,
       meta.metaMinima,

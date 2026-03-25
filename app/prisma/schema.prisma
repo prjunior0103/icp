@@ -102,17 +102,21 @@ model Indicador {
   codigo      String    @unique
   nome        String
   descricao   String?
-  tipo        String    // VOLUME_FINANCEIRO, CUSTO_PRAZO, PROJETO_MARCO
-  abrangencia String    // CORPORATIVO, AREA, INDIVIDUAL
-  unidade     String    @default("%")
-  metaMinima  Float?
-  metaAlvo    Float?
-  metaMaxima  Float?
-  ciclo       CicloICP  @relation(fields: [cicloId], references: [id])
-  cicloId     Int
-  metas       Meta[]
-  status      String    @default("DRAFT") // DRAFT, ATIVO
-  criadoEm    DateTime  @default(now())
+  tipo              String    // VOLUME_FINANCEIRO, CUSTO_PRAZO, PROJETO_MARCO
+  polaridade        String    @default("MAIOR_MELHOR") // MAIOR_MELHOR, MENOR_MELHOR
+  abrangencia       String    // CORPORATIVO, AREA, INDIVIDUAL
+  unidade           String    @default("%")
+  metaMinima        Float?
+  metaAlvo          Float?
+  metaMaxima        Float?
+  diretivo          String?   // Objetivo estratégico vinculado
+  analistaResp      String?   // Analista responsável pelo indicador
+  origemDado        String?   // Fonte/origem dos dados
+  ciclo             CicloICP  @relation(fields: [cicloId], references: [id])
+  cicloId           Int
+  metas             Meta[]
+  status            String    @default("DRAFT") // DRAFT, ATIVO
+  criadoEm          DateTime  @default(now())
 }
 
 // ─── Metas ───────────────────────────────────────────────────────────────────
