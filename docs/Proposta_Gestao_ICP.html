@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SISTEMA DE GESTÃO DE INCENTIVO DE CURTO PRAZO (ICP)</title>
+    <!-- Injeta Mermaid JS corretamente primeiro -->
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: true, theme: 'default' });
+    </script>
+    <style>
+        :root {
+            --primary: #1e293b;
+            --secondary: #334155;
+            --accent: #2563eb;
+            --bg: #f8fafc;
+            --surface: #ffffff;
+            --text: #0f172a;
+            --text-light: #475569;
+            --border: #e2e8f0;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 2rem;
+            background-color: var(--surface);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        header {
+            text-align: center;
+            padding-bottom: 2rem;
+            border-bottom: 2px solid var(--border);
+            margin-bottom: 2rem;
+        }
+
+        h1 {
+            color: var(--primary);
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            letter-spacing: -0.025em;
+        }
+
+        .subtitle {
+            color: var(--text-light);
+            font-size: 1.1rem;
+            font-weight: 500;
+        }
+
+        h2 {
+            color: var(--secondary);
+            font-size: 1.8rem;
+            margin: 2rem 0 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        h3 {
+            color: var(--primary);
+            font-size: 1.3rem;
+            margin: 1.5rem 0 0.75rem;
+        }
+
+        p {
+            margin-bottom: 1rem;
+            color: var(--text);
+        }
+
+        ul {
+            margin-bottom: 1rem;
+            padding-left: 1.5rem;
+        }
+
+        li {
+            margin-bottom: 0.5rem;
+            color: var(--text);
+        }
+
+        .highlight-box {
+            background-color: #f0fdf4;
+            border-left: 4px solid var(--success);
+            padding: 1rem 1.5rem;
+            margin: 1.5rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+        }
+
+        .blue-box {
+            background-color: #eff6ff;
+            border-left: 4px solid var(--accent);
+            padding: 1rem 1.5rem;
+            margin: 1.5rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+        }
+
+        .section-card {
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            background-color: #e2e8f0;
+            color: #475569;
+            margin-right: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .badge-corp {
+            background-color: #dbeafe;
+            color: #1e40af;
+        }
+
+        .badge-area {
+            background-color: #dcfce7;
+            color: #166534;
+        }
+
+        .mermaid {
+            display: flex;
+            justify-content: center;
+            margin: 1.5rem 0;
+            background-color: white;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            border: 1px solid var(--border);
+        }
+
+        .gov-box {
+            background-color: #f3f4f6;
+            border: 1px solid #d1d5db;
+            border-left: 4px solid #6b7280;
+            padding: 1rem 1.5rem;
+            margin: 1.5rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            font-size: 0.95rem;
+        }
+
+        th,
+        td {
+            padding: 0.75rem;
+            left: 0;
+            border: 1px solid var(--border);
+            text-align: left;
+        }
+
+        th {
+            background-color: #f8fafc;
+            font-weight: 600;
+            color: var(--secondary);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>SISTEMA DE GESTÃO DE ICP</h1>
+            <div class="subtitle">Arquitetura de Produto: Governança, Metas e Painéis (RFP V4)</div>
+        </header>
+
+        <div class="section-card">
+            <h2>1. Governança e Guardião do Modelo de Remuneração</h2>
+            <p>Em linha com as melhores práticas de auditoria (KPMG/EY) e plataformas globais de Remuneração (como Beqom
+                e SuccessFactors), o sistema atua com uma camada estrita de "Guardião do Modelo" (Comitê de Remuneração
+                / Gente e Gestão / PMO). Nenhuma alteração de impacto passa ao usuário final ou compõe o fechamento
+                financeiro sem aceite explícito desta governança central:</p>
+
+            <div class="gov-box">
+                <span class="badge" style="background-color: #4b5563; color: white;">Workflow Master de Aprovação</span>
+                <p><strong>Aprovação Universal Antecipada:</strong> Para qualquer dado vital — criação de meta,
+                    alteração de pesos, valores-teto (Target) de um cargo, ou o envio mensal de orçamentos e planilhas
+                    massivas pelas áreas — <strong>o dado entra no sistema com status <i>Pendente (Draft)</i></strong>.
+                </p>
+                <p>O dado submetido <strong>NÃO FICA VISÍVEL</strong> no painel de nenhum colaborador/diretoria até que
+                    o usuário com perfil de <code>Gestor do Modelo</code> analise a requisição na sua "Caixa de Entrada
+                    Administrativa" e aprove a validação cruzada. (Evitando que inserções erradas alterem a simulação de
+                    R$ do painel e gerem passivo de comunicação).</p>
+            </div>
+        </div>
+
+        <div class="section-card">
+            <h2>2. Mapa Global de Indicadores e Matriz de Abrangência</h2>
+            <p>Para empresas com dezenas de métricas cruzadas, o painel precisa oferecer tangibilidade imediata de "Quem
+                é dono de qual número". Implementamos o módulo de <strong>Matriz de Abrangência e Responsabilidades
+                    (RACI)</strong>.</p>
+
+            <div class="highlight-box">
+                <h3>Visão "Cardápio de Metas" (Contratantes)</h3>
+                <p>O Executivo e o Consolidador possuem acesso a uma malha de dados "De/Para" onde conseguem enxergar o
+                    Big Picture:</p>
+                <ul>
+                    <li><strong>Árvore de Indicadores Consolidados:</strong> Uma tabela pivotante mostrando todas as
+                        metas ativas do programa. Ex: O indicador de "Turnover" está atrelado a 4 Diretorias e 12
+                        Gerências simultaneamente (como meta compartilhada).</li>
+                    <li><strong>Rastreabilidade de Contratantes:</strong> Se a Meta "Entregar ERP" atrasou, o sistema
+                        lista imediatamente os "Contratantes" (todos os CPFs cujo bolso é afetado por aquele indicador
+                        específico), isolando o causador ou departamento responsável.</li>
+                </ul>
+            </div>
+
+            <div class="blue-box">
+                <h3>O Scorecard Individual (A Cesta do Colaborador)</h3>
+                <p>Do lado do funcionário, o oposto ocorre. Ele vê um resumo destilado focando exclusivamente em sua
+                    carteira, contendo: Meta Corporativa (imexível), Metas da Área (herdados) e Metas Individuais
+                    (Projetos).</p>
+            </div>
+        </div>
+
+        <div class="section-card">
+            <h2>3. Gestão de Prazos (SLA do Ciclo) e Justificativas</h2>
+            <p>O sucesso do engajamento em ferramentas como Scoreplan/Mereo baseia-se na restrição rítmica. A plataforma
+                de ICP possui um <strong>Controle Rígido de Janelas de Apuração Mensal</strong>.</p>
+
+            <table>
+                <tr>
+                    <th style="width: 25%">Módulo Calendário</th>
+                    <th>Comportamento Sistêmico de Compliance</th>
+                </tr>
+                <tr>
+                    <td><strong>Travas de Preenchimento</strong></td>
+                    <td>O Administrador define que a Área "Dona do Indicador" só pode inserir o "Realizado Mensal" ou
+                        "Evidência" entre os dias 01 e 05 do mês subsequente. Após o 5º dia útil, o botão de Upload
+                        congela (<i>Lock</i>).</td>
+                </tr>
+                <tr>
+                    <td><strong>Pedido de Prorrogação (Waiver)</strong></td>
+                    <td>Caso o Operador tenha perdido o limite de envio da nota de Fevereiro, ele deve iniciar um fluxo
+                        de exceção no painel: clica em "Solicitar Prorrogação", redige a Justificativa formal (Ex:
+                        Sistema Contábil caiu) e assinala o novo prazo necessário.</td>
+                </tr>
+                <tr>
+                    <td><strong>Desbloqueio Monitorado</strong></td>
+                    <td>O <i>Guardião do Modelo</i> recebe a requisição, analisa a Desculpa e aprova/rejeita reabrir a
+                        gaveta de Fevereiro isoladamente para aquele usuário por +48hrs. Todo o desvio fica marcado no
+                        Log de Auditoria.</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="section-card">
+            <h2>4. Tipologia de Indicadores e Motor Matemático</h2>
+
+            <ul>
+                <li><strong>Metas de Volume Financeiro (Quanto Mais, Melhor):</strong> Receita, Quantidade de Vendas.
+                    Curvas Payout Ranges para superação.</li>
+                <li><strong>Metas Temporais e de Custos (Inversamente Proporcionais):</strong> SLA, Erros, Despesa. O
+                    ICP sobe se o resultado lançado for <i>menor</i> que a restrição da meta.</li>
+                <li><strong>Metas Baseadas em Entregáveis / Marcos de Projetos:</strong> Condição pass/fail atrelada a
+                    uma data. Se houver atraso na entrega homologada, aplica penalização/decaimento automático sobre a
+                    nota. A comprovação de projeto exige Workflow de Submissão de Documento.</li>
+            </ul>
+        </div>
+
+        <div class="section-card">
+            <h2>5. Tratamento de Mudanças Diárias (Movimentações RH)</h2>
+
+            <ul>
+                <li><strong>Painéis Duplos (Dual-Scorecard para Cross-Transfer):</strong> Colaborador mudou de área do
+                    Marketing (Até Maio) para TI (Junho em diante)? O Motor Pró-Rateia o peso dos projetos e finanças
+                    dos 5 meses que ele deixou "fotografados" no seu cargo anterior, contraindo com os meses finais que
+                    ele passará nas entregas da nova rotina. O Painel YTD dele exibirá temporariamente essas duas cestas
+                    separadas mas somando o valor final R$.</li>
+                <li><strong>Handover Massivo via Carga (BP de Negócio → Remuneração):</strong> Uma filial rodou, dezenas
+                    de Demissões. Em vez de abrir chamado na TI, há um **Processo Administrativo de Transferência**: O
+                    usuário perfil *BP (Business Partner) / Consolidador HR* sobe uma planilha mapeando as chaves
+                    <code><Posição Hierárquica Vaga></code> para o novo <code><CPF Substituto></code>. Esta carga sobe
+                    como "Pendente". Em seguida, o Perfil da **Área de Remuneração** atua como verificador, confere o
+                    pró-rata financeiro da planilha e aperta *Aprovar*. Só então os arquivos do demitido são congelados
+                    para a auditoria, e a obrigação das métricas corre fluida pro novo dono com seu teto de bônus
+                    reduzido aos avos trabalhaveis.</li>
+            </ul>
+        </div>
+
+        <div class="section-card">
+            <h2>6. UI: Dashboards de Visibilidade e Interação</h2>
+            <p>O aplicativo servirá camadas visuais distintas visando prender a atenção tanto do peão de fábrica quanto
+                do CEO.</p>
+
+            <div class="blue-box">
+                <h3>A) Cockpit do Usuário / Contribuidor Base</h3>
+                <p>Uma tela minimalista (comumente lida pelo celular) ancorada na tangibilidade da remuneração:</p>
+                <ul>
+                    <li><strong>Simulador R$ Vivo:</strong> Um card grande onde o target teto dele é cruzado com a nota
+                        que ele tem hoje. <i>"Seu prêmio projetado YTD é de <strong>R$ 15.400</strong>"</i>.</li>
+                    <li><strong>As Minhas Metas (A Cesta):</strong> Visão das 5 ou 6 caixas individuais que ele possui
+                        (Corporativa, Área, Específica), sua polaridade e os links com a possibilidade das entregas de
+                        projeto.</li>
+                    <li><strong>Semáforo de Ofensores:</strong> Tabela rápida que acusa em vermelho quais são os 2
+                        piores indicadores puxando o bônus final daquela pessoa pra baixo.</li>
+                </ul>
+            </div>
+
+            <div class="highlight-box" style="background-color: #f5f3ff; border-left-color: #8b5cf6;">
+                <h3>B) Painel do Líder / Gestor</h3>
+                <p>Soma a visão do Painel Individual com as ferramentas de Gestão de Equipe:</p>
+                <ul>
+                    <li><strong>Inbox de Liderança:</strong> Aba prioritária indicando quantos PDFs/Arquivos
+                        "Realizados" a sua base operacional anexou neste mês aguardando seu endosso inicial.</li>
+                    <li><strong>Heatmap do Time:</strong> "Visão por Funcionário" exibindo uma tabela térmica ranqueando
+                        os membros da sua área que estão tracionando ou atrasando o coletivo.</li>
+                </ul>
+            </div>
+
+            <div class="gov-box">
+                <h3>C) Master Dashboard (Direx & Guardião do Modelo)</h3>
+                <p>Painel Administrativo da "Torre de Controle":</p>
+                <ul>
+                    <li><strong>Medidor de Budget / Fundo (Bonus Pool):</strong> Em tempo real o sistema plota "Se
+                        pagássemos todos hoje, a empresa gastaria R$ 12 milhões" – permitindo aos diretores confrontar
+                        esse dinheiro projetado vs O custo alocado garantido por Ebitda/Tesouraria.</li>
+                    <li><strong>Monitor de Engajamento e Prazos:</strong> Cards de Alerta Administrativo (Ex:
+                        <i>"Atenção: A filial Nordeste está há 2 meses letivos sem fazer input dos indicadores numéricos
+                            previstos, comprometendo o simulador"</i>). Interface dedicada a aprovar Exceções e
+                        Prorrogações.
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="section-card">
+            <h2>7. Macro-Fluxos Sistêmicos (Engenharia de Interações)</h2>
+            <p>Os desenhos abaixo sumarizam o processo da ferramenta considerando as duas frentes em funcionamento:</p>
+
+            <div class="blue-box">
+                <h3>Fluxo 1: Setup da Governança (Descentralizado)</h3>
+                <div class="mermaid">
+                    graph TD
+                    A[Diretoria: Lança Metas da Área] --> B(Status do Dado: Elaboração)
+                    B --> C{Guardião do Modelo: Audita Payouts}
+                    C -- "Aprova" --> E[Libera Cascateamento]
+                    C -- "Rejeita / Comentarios" --> A
+                    E --> F[Gerente Distribui Metas]
+                    F --> G[Colaborador: Assina Contrato na Ferramenta]
+                </div>
+                <p>Mesmo na operação descentralizada liderada pelo Chefe, o Guardião intercepta (para evitar promessas
+                    de verba irreais inseridas pelo Diretor sem cobertura de Caixa C-Level).</p>
+            </div>
+
+            <div class="highlight-box" style="background-color: #f5f3ff; border-left-color: #8b5cf6;">
+                <h3>Fluxo 2: Gestão Centralizada pelo BP (Visão Consolidador)</h3>
+                <div class="mermaid">
+                    graph TD
+                    A[Diretores Acordam Fechamentos das Áreas Offline/Comitê Semanal] --> B[BP / Consolidador ICP:
+                    Recebe as Notas e Metas Gerais]
+                    B --> C[Acessa Acesso Irrestrito/Proxy]
+                    C --> D[Consolidador: Imputa os Pesos Makros, KPIs e Uploads Massivos Mensais de todas as bases
+                    Elegíveis]
+                    D --> E[Motor Matemático Processa e Reflete nos Dashboards CPFs Base]
+                </div>
+                <p>Pula a fragmentação operacional: um operador senior (BP) centraliza em lotes massivos de Excel os
+                    fechamentos e lança pra "rodar" a malha de CPFs.</p>
+            </div>
+
+            <div class="highlight-box" style="background-color: #fef2f2; border-left-color: #ef4444;">
+                <h3>Fluxo 3: Ciclo de Prazos, Realizado e Compliance</h3>
+                <div class="mermaid">
+                    graph TD
+                    A[Janela Mensal de Input 'Apurável Agosto' Aberta d.01 a d.05] --> B
+                    B[Operador: Anexa Evidência Projeto ou Insere % Númerico] --> C{Abaixo do Prazo Limite?}
+                    C -- "Fora do Prazo - Botão Travado" --> D[Operador: Abre Exceção de Prorrogação Justificada]
+                    D --> E{Guardião do Modelo: Analisa o Atraso}
+                    E -- "Aprova 48h Extra" --> B
+                    C -- "Dentro do Prazo" --> F[Workflow Aprovação Subida 1º Líder -> 2º Guardião Modelo]
+                    F --> G[Integra no YTD do Funcionário]
+                </div>
+            </div>
+
+            <div class="highlight-box" style="background-color: #f0fdfa; border-left-color: #14b8a6;">
+                <h3>Fluxo 4: Encerramento do Ano Comercial e Exportação</h3>
+                <div class="mermaid">
+                    graph TD
+                    A[Guardião: Congela Jan e Fev] --> B{Gatilho Global Financeiro Atingido?}
+                    B -- "Nao" --> C[Processamento Travado. Excecoes pelo C-Level]
+                    B -- "Sim" --> D[Motor Algoritmico Computa o MID e Pros-Ratas]
+                    D --> E[Simulação de Caixa vs Auditoria]
+                    E --> F((Exporta Payout para Totvs SAP))
+                </div>
+            </div>
+
+        </div>
+
+        <footer class="footer">
+            <p><strong>Squad de Engenharia | Arquitetura do Produto V4</strong></p>
+            <p>Governança Estrita, Matrizes RACI, Trava de Prazos e Escalabilidade em Consolidação de Bônus.</p>
+        </footer>
+    </div>
+</body>
+
+</html>
