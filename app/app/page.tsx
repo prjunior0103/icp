@@ -124,6 +124,17 @@ export default function Home() {
   const [filterColabId, setFilterColabId] = useState<string>("");
   const [filterMes, setFilterMes] = useState<string>("");
 
+  // Indicadores state
+  const [indicadores, setIndicadores] = useState<Indicador[]>([]);
+  const [centrosCusto, setCentrosCusto] = useState<CentroCusto[]>([]);
+
+  // Nova Meta form state
+  const [showMetaForm, setShowMetaForm] = useState(false);
+  const [metaForm, setMetaForm] = useState({
+    indicadorId: "", centroCustoId: "", pesoNaCesta: "100", metaAlvo: "",
+    metaMinima: "", metaMaxima: "",
+  });
+
   // Janelas state
   const [janelas, setJanelas] = useState<JanelaApuracao[]>([]);
   const [showJanelaForm, setShowJanelaForm] = useState(false);
@@ -168,6 +179,20 @@ export default function Home() {
     setMetas(res.data ?? []);
   }, []);
 
+  const loadIndicadores = useCallback(async (cicloId?: number) => {
+    const url = cicloId ? `/api/indicadores?cicloId=${cicloId}` : "/api/indicadores";
+    const res = await fetch(url).then((r) => r.json()).catch(() => ({ data: [] }));
+    setIndicadores(res.data ?? []);
+  }, []);
+
+  const loadCentrosCusto = useCallback(async () => {
+    const res = await fetch("/api/colaboradores").then((r) => r.json()).catch(() => ({ data: [] }));
+    const cols: Colaborador[] = res.data ?? [];
+    const map = new Map<number, CentroCusto>();
+    cols.forEach((c) => { if (c.centroCusto) map.set(c.centroCusto.id, c.centroCusto); });
+    setCentrosCusto(Array.from(map.values()));
+  }, []);
+
   const loadRealizacoes = useCallback(async () => {
     const res = await fetch("/api/realizacoes").then((r) => r.json()).catch(() => ({ data: [] }));
     setRealizacoes(res.data ?? []);
@@ -207,11 +232,12 @@ export default function Home() {
       await Promise.all([
         loadColaboradores(), loadMetas(ativo?.id), loadRealizacoes(),
         loadWorkflow(), checkSeeded(), loadJanelas(ativo?.id),
+        loadIndicadores(ativo?.id), loadCentrosCusto(),
         loadWaivers(), loadDashboard(ativo?.id),
       ]);
       setLoading(false);
     })();
-  }, [loadCiclos, loadColaboradores, loadMetas, loadRealizacoes, loadWorkflow, checkSeeded, loadJanelas, loadWaivers, loadDashboard]);
+  }, [loadCiclos, loadColaboradores, loadMetas, loadRealizacoes, loadWorkflow, checkSeeded, loadJanelas, loadWaivers, loadDashboard, loadIndicadores, loadCentrosCusto]);
 
   async function handleSeed() {
     setSeedLoading(true);
@@ -245,6 +271,26 @@ export default function Home() {
       body: JSON.stringify({ id, status: "APROVADO" }),
     });
     loadMetas(cicloAtivo?.id);
+  }
+
+  async function handleCriarMeta(e: React.FormEvent) {
+    e.preventDefault();
+    if (!cicloAtivo) return;
+    await fetch("/api/metas", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        indicadorId: Number(metaForm.indicadorId),
+        cicloId: cicloAtivo.id,
+        centroCustoId: metaForm.centroCustoId ? Number(metaForm.centroCustoId) : null,
+        pesoNaCesta: Number(metaForm.pesoNaCesta),
+        metaAlvo: Number(metaForm.metaAlvo),
+        metaMinima: metaForm.metaMinima ? Number(metaForm.metaMinima) : null,
+        metaMaxima: metaForm.metaMaxima ? Number(metaForm.metaMaxima) : null,
+      }),
+    });
+    setMetaForm({ indicadorId: "", centroCustoId: "", pesoNaCesta: "100", metaAlvo: "", metaMinima: "", metaMaxima: "" });
+    setShowMetaForm(false);
+    loadMetas(cicloAtivo.id);
   }
 
   async function handleWorkflowAction(id: number, status: "APROVADO" | "REJEITADO") {
@@ -644,8 +690,77 @@ export default function Home() {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-bold text-gray-800">Metas</h2>
-              <p className="text-sm text-gray-500">{metas.length} metas encontradas</p>
+              <div className="flex items-center gap-3">
+                <p className="text-sm text-gray-500">{metas.length} metas encontradas</p>
+                <button
+                  onClick={() => setShowMetaForm(!showMetaForm)}
+                  className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-1.5 rounded-lg transition-colors"
+                >
+                  + Nova Meta
+                </button>
+              </div>
             </div>
+
+            {showMetaForm && (
+              <form onSubmit={handleCriarMeta} className="bg-blue-50 border border-blue-200 rounded-xl p-5 grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div className="col-span-2 md:col-span-3">
+                  <h3 className="text-sm font-semibold text-blue-900">Nova Meta</h3>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Indicador *</label>
+                  <select required value={metaForm.indicadorId} onChange={(e) => setMetaForm({ ...metaForm, indicadorId: e.target.value })}
+                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
+                    <option value="">Selecionar...</option>
+                    {indicadores.map((i) => (
+                      <option key={i.id} value={i.id}>{i.nome}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Centro de Custo</label>
+                  <select value={metaForm.centroCustoId} onChange={(e) => setMetaForm({ ...metaForm, centroCustoId: e.target.value })}
+                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
+                    <option value="">Corporativo</option>
+                    {centrosCusto.map((cc) => (
+                      <option key={cc.id} value={cc.id}>{cc.nome}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Peso na Cesta (%) *</label>
+                  <input required type="number" min="1" max="100" value={metaForm.pesoNaCesta}
+                    onChange={(e) => setMetaForm({ ...metaForm, pesoNaCesta: e.target.value })}
+                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Meta Alvo *</label>
+                  <input required type="number" step="any" value={metaForm.metaAlvo}
+                    onChange={(e) => setMetaForm({ ...metaForm, metaAlvo: e.target.value })}
+                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Meta Mínima</label>
+                  <input type="number" step="any" value={metaForm.metaMinima}
+                    onChange={(e) => setMetaForm({ ...metaForm, metaMinima: e.target.value })}
+                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Meta Máxima</label>
+                  <input type="number" step="any" value={metaForm.metaMaxima}
+                    onChange={(e) => setMetaForm({ ...metaForm, metaMaxima: e.target.value })}
+                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
+                </div>
+                <div className="col-span-2 md:col-span-3 flex gap-2">
+                  <button type="submit" className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-1.5 rounded-lg">
+                    Criar Meta
+                  </button>
+                  <button type="button" onClick={() => setShowMetaForm(false)}
+                    className="text-sm text-gray-500 hover:text-gray-700 px-4 py-1.5">
+                    Cancelar
+                  </button>
+                </div>
+              </form>
+            )}
 
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
               <div className="overflow-x-auto">
