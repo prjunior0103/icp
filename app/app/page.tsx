@@ -8,7 +8,7 @@ import MasterDashboard from "@/components/MasterDashboard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type TabId = "dashboard" | "cockpit" | "gestor" | "scorecard" | "indicadores" | "metas" | "atingimento" | "realizacoes" | "colaboradores" | "workflow" | "janelas" | "importacao";
+type TabId = "dashboard" | "cockpit" | "gestor" | "scorecard" | "indicadores" | "metas" | "atingimento" | "elegiveis" | "relatorio" | "realizacoes" | "colaboradores" | "workflow" | "janelas" | "importacao";
 
 interface Cargo { id: number; nome: string; nivelHierarquico: string; targetBonusPerc: number; }
 interface CentroCusto { id: number; nome: string; codigo: string; }
@@ -440,6 +440,32 @@ export default function Home() {
 
   const pendingCount = workflowItems.length;
 
+  // Elegíveis ranking
+  type ElegívelRow = {
+    colaborador: Colaborador;
+    notaMedia: number;
+    premioYTD: number;
+    targetAnual: number;
+    totalRealizacoes: number;
+  };
+  const rankingElegiveis: ElegívelRow[] = colaboradores
+    .map((c) => {
+      const colRealizacoes = realizacoes.filter((r) => r.colaborador?.id === c.id);
+      if (colRealizacoes.length === 0) return null;
+      const notaMedia =
+        colRealizacoes.reduce((sum, r) => sum + (r.notaCalculada ?? 0), 0) /
+        colRealizacoes.length;
+      const premioYTD = colRealizacoes.reduce((sum, r) => sum + (r.premioProjetado ?? 0), 0);
+      const targetAnual = c.salarioBase * 12 * (c.cargo.targetBonusPerc / 100);
+      return { colaborador: c, notaMedia, premioYTD, targetAnual, totalRealizacoes: colRealizacoes.length };
+    })
+    .filter((x): x is ElegívelRow => x !== null)
+    .sort((a, b) => b.notaMedia - a.notaMedia);
+
+  // Relatório metrics
+  const totalPremioProjetado = realizacoes.reduce((sum, r) => sum + (r.premioProjetado ?? 0), 0);
+  const totalRealizacoesAprovadas = realizacoes.filter((r) => r.status === "APROVADO").length;
+
   const janelaAtualHeader = janelas.find((j) => j.isOpen) ?? null;
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -527,7 +553,7 @@ export default function Home() {
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4">
           <nav className="flex gap-1 overflow-x-auto">
-            {(["dashboard","cockpit","gestor","scorecard","indicadores","metas","atingimento","realizacoes","colaboradores","workflow","janelas","importacao"] as TabId[]).map((tab) => (
+            {(["dashboard","cockpit","gestor","scorecard","indicadores","metas","atingimento","elegiveis","relatorio","realizacoes","colaboradores","workflow","janelas","importacao"] as TabId[]).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -543,6 +569,8 @@ export default function Home() {
                  tab === "importacao" ? "Importação BP" :
                  tab === "cockpit" ? "Cockpit" :
                  tab === "gestor" ? "Painel Gestor" :
+                 tab === "elegiveis" ? "Elegíveis" :
+                 tab === "relatorio" ? "Relatório" :
                  tab.charAt(0).toUpperCase() + tab.slice(1)}
                 {tab === "workflow" && pendingCount > 0 && (
                   <span className="bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
@@ -1577,6 +1605,194 @@ export default function Home() {
         {activeTab === "importacao" && role !== "BP" && role !== "GUARDIAO" && (
           <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-8 text-center text-yellow-800">
             Acesso restrito a papéis BP e GUARDIÃO.
+          </div>
+        )}
+
+        {/* ── ELEGÍVEIS ─────────────────────────────────────────────────── */}
+        {activeTab === "elegiveis" && (
+          <div className="space-y-6">
+            <h2 className="text-xl font-bold text-gray-800">Comparação entre Elegíveis</h2>
+            <p className="text-sm text-gray-500">Ranking de todos os colaboradores com realizações lançadas no ciclo, ordenado por nota média.</p>
+            {rankingElegiveis.length === 0 ? (
+              <div className="text-center text-gray-400 py-16">Nenhuma realização lançada ainda</div>
+            ) : (
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        {["#","Colaborador","Cargo","Nível","Realizações","Nota Média","Prêmio YTD","Target Anual","% do Target"].map((h) => (
+                          <th key={h} className="text-left px-4 py-2.5 text-gray-500 font-medium text-xs uppercase">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {rankingElegiveis.map((row, idx) => {
+                        const percTarget = row.targetAnual > 0 ? (row.premioYTD / row.targetAnual) * 100 : 0;
+                        const medal = idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : null;
+                        return (
+                          <tr key={row.colaborador.id} className={idx < 3 ? "bg-amber-50" : "hover:bg-gray-50"}>
+                            <td className="px-4 py-3 text-gray-500 font-medium">
+                              {medal ? <span>{medal}</span> : <span className="text-gray-400">{idx + 1}</span>}
+                            </td>
+                            <td className="px-4 py-3 font-medium text-gray-800">{row.colaborador.nomeCompleto}</td>
+                            <td className="px-4 py-3 text-gray-600">{row.colaborador.cargo.nome}</td>
+                            <td className="px-4 py-3 text-gray-500">{row.colaborador.cargo.nivelHierarquico}</td>
+                            <td className="px-4 py-3 text-gray-500">{row.totalRealizacoes}</td>
+                            <td className={`px-4 py-3 ${notaColor(row.notaMedia)}`}>{fmtN(row.notaMedia)}</td>
+                            <td className="px-4 py-3 text-blue-700 font-medium">{fmt(row.premioYTD)}</td>
+                            <td className="px-4 py-3 text-gray-600">{fmt(row.targetAnual)}</td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                <div className="flex-1 bg-gray-200 rounded-full h-1.5 min-w-[60px]">
+                                  <div
+                                    className={`h-1.5 rounded-full ${percTarget >= 100 ? "bg-green-500" : percTarget >= 70 ? "bg-yellow-500" : "bg-red-400"}`}
+                                    style={{ width: `${Math.min(percTarget, 100)}%` }}
+                                  />
+                                </div>
+                                <span className={`text-xs font-medium ${percTarget >= 100 ? "text-green-600" : percTarget >= 70 ? "text-yellow-600" : "text-red-500"}`}>
+                                  {percTarget.toFixed(0)}%
+                                </span>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── RELATÓRIO DE FECHAMENTO ──────────────────────────────────────── */}
+        {activeTab === "relatorio" && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-800">Relatório de Fechamento — Ciclo {cicloAtivo?.anoFiscal}</h2>
+              <button
+                onClick={() => window.print()}
+                className="bg-gray-800 hover:bg-gray-900 text-white text-sm font-medium px-4 py-1.5 rounded-lg transition-colors"
+              >
+                Imprimir / Exportar PDF
+              </button>
+            </div>
+
+            {/* Summary cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                { label: "Colaboradores Elegíveis", value: String(rankingElegiveis.length) },
+                { label: "Metas Ativas", value: String(metas.filter((m) => m.status === "APROVADO" || m.status === "ATIVO").length) },
+                { label: "Realizações Lançadas", value: String(realizacoes.length) },
+                { label: "Total Prêmio Projetado", value: fmt(totalPremioProjetado) },
+              ].map((card) => (
+                <div key={card.label} className="bg-white rounded-xl border border-gray-200 p-4">
+                  <p className="text-xs text-gray-500 mb-1">{card.label}</p>
+                  <p className="text-2xl font-bold text-gray-800">{card.value}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Ciclo info */}
+            <div className="bg-white rounded-xl border border-gray-200 p-5">
+              <h3 className="font-semibold text-gray-700 mb-3">Informações do Ciclo</h3>
+              <dl className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div><dt className="text-gray-500">Ano Fiscal</dt><dd className="font-medium">{cicloAtivo?.anoFiscal}</dd></div>
+                <div><dt className="text-gray-500">Status</dt><dd><StatusBadge status={cicloAtivo?.status ?? "—"} /></dd></div>
+                <div><dt className="text-gray-500">Bonus Pool</dt><dd className="font-medium">{cicloAtivo?.bonusPool ? fmt(cicloAtivo.bonusPool) : "—"}</dd></div>
+                <div><dt className="text-gray-500">Realizações Aprovadas</dt><dd className="font-medium">{totalRealizacoesAprovadas}</dd></div>
+              </dl>
+            </div>
+
+            {/* Full elegíveis table */}
+            {rankingElegiveis.length > 0 && (
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="px-5 py-3 border-b border-gray-100">
+                  <h3 className="font-semibold text-gray-700">Atingimento por Colaborador</h3>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        {["Colaborador","Matrícula","Cargo","Nível","Nota Média","Prêmio YTD","Target Anual","% Target"].map((h) => (
+                          <th key={h} className="text-left px-4 py-2.5 text-gray-500 font-medium text-xs uppercase">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {rankingElegiveis.map((row) => {
+                        const percTarget = row.targetAnual > 0 ? (row.premioYTD / row.targetAnual) * 100 : 0;
+                        return (
+                          <tr key={row.colaborador.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 font-medium text-gray-800">{row.colaborador.nomeCompleto}</td>
+                            <td className="px-4 py-3 text-gray-500">{row.colaborador.matricula}</td>
+                            <td className="px-4 py-3 text-gray-600">{row.colaborador.cargo.nome}</td>
+                            <td className="px-4 py-3 text-gray-500">{row.colaborador.cargo.nivelHierarquico}</td>
+                            <td className={`px-4 py-3 ${notaColor(row.notaMedia)}`}>{fmtN(row.notaMedia)}</td>
+                            <td className="px-4 py-3 text-blue-700 font-medium">{fmt(row.premioYTD)}</td>
+                            <td className="px-4 py-3 text-gray-600">{fmt(row.targetAnual)}</td>
+                            <td className={`px-4 py-3 font-medium ${percTarget >= 100 ? "text-green-600" : percTarget >= 70 ? "text-yellow-600" : "text-red-500"}`}>
+                              {percTarget.toFixed(0)}%
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot className="bg-gray-50 border-t-2 border-gray-200">
+                      <tr>
+                        <td colSpan={5} className="px-4 py-2.5 text-xs font-semibold text-gray-600">TOTAL</td>
+                        <td className="px-4 py-2.5 text-blue-700 font-bold">{fmt(totalPremioProjetado)}</td>
+                        <td className="px-4 py-2.5 text-gray-600 font-semibold">
+                          {fmt(rankingElegiveis.reduce((s, r) => s + r.targetAnual, 0))}
+                        </td>
+                        <td className="px-4 py-2.5 font-semibold text-gray-700">
+                          {rankingElegiveis.reduce((s, r) => s + r.targetAnual, 0) > 0
+                            ? ((totalPremioProjetado / rankingElegiveis.reduce((s, r) => s + r.targetAnual, 0)) * 100).toFixed(0)
+                            : "0"}%
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Meta breakdown */}
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="px-5 py-3 border-b border-gray-100">
+                <h3 className="font-semibold text-gray-700">Metas do Ciclo</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      {["Indicador","CC","Polaridade","Peso","Alvo","Colaboradores","Realizações","Status"].map((h) => (
+                        <th key={h} className="text-left px-4 py-2.5 text-gray-500 font-medium text-xs uppercase">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {metas.map((m) => (
+                      <tr key={m.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 font-medium text-gray-800">{m.indicador.nome}</td>
+                        <td className="px-4 py-3 text-gray-500">{m.centroCusto?.nome ?? "Corporativo"}</td>
+                        <td className="px-4 py-3">
+                          <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${m.indicador.polaridade === "MENOR_MELHOR" ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"}`}>
+                            {m.indicador.polaridade === "MENOR_MELHOR" ? "↓ Menor" : "↑ Maior"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-gray-600">{m.pesoNaCesta}%</td>
+                        <td className="px-4 py-3 text-gray-600">{m.metaAlvo.toLocaleString("pt-BR")}</td>
+                        <td className="px-4 py-3 text-gray-500">{m._count.colaboradores}</td>
+                        <td className="px-4 py-3 text-gray-500">{m._count.realizacoes}</td>
+                        <td className="px-4 py-3"><StatusBadge status={m.status} /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         )}
 

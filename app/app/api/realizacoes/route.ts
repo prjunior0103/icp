@@ -115,14 +115,35 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const nota = calcularNota(
-      meta.indicador.tipo,
-      meta.indicador.polaridade ?? "MAIOR_MELHOR",
-      Number(valorRealizado),
-      meta.metaAlvo,
-      meta.metaMinima,
-      meta.metaMaxima
-    );
+    // Check if record exists — only recalculate nota if valorRealizado changed
+    const existing = await prisma.realizacao.findFirst({
+      where: {
+        metaId: Number(metaId),
+        colaboradorId: colaboradorId ? Number(colaboradorId) : null,
+        mesReferencia: Number(mesReferencia),
+        anoReferencia: Number(anoReferencia),
+      },
+    });
+
+    const valorChanged = !existing || existing.valorRealizado !== Number(valorRealizado);
+
+    const nota = valorChanged
+      ? calcularNota(
+          meta.indicador.tipo,
+          meta.indicador.polaridade ?? "MAIOR_MELHOR",
+          Number(valorRealizado),
+          meta.metaAlvo,
+          meta.metaMinima,
+          meta.metaMaxima
+        )
+      : (existing.notaCalculada ?? calcularNota(
+          meta.indicador.tipo,
+          meta.indicador.polaridade ?? "MAIOR_MELHOR",
+          Number(valorRealizado),
+          meta.metaAlvo,
+          meta.metaMinima,
+          meta.metaMaxima
+        ));
 
     let premioProjetado: number | undefined;
     if (colaboradorId) {
