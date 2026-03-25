@@ -1,0 +1,242 @@
+generator client {
+  provider        = "prisma-client-js"
+  output          = "../app/generated/prisma"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ─── Auth / Users ────────────────────────────────────────────────────────────
+
+model User {
+  id             String        @id @default(uuid())
+  email          String        @unique
+  name           String
+  passwordHash   String
+  role           String        @default("COLABORADOR") // GUARDIAO, BP, GESTOR, COLABORADOR
+  ativo          Boolean       @default(true)
+  colaborador    Colaborador?
+  workflowItems  WorkflowItem[]
+  criadoEm       DateTime      @default(now())
+}
+
+// ─── Estrutura Organizacional ────────────────────────────────────────────────
+
+model Empresa {
+  id            Int           @id @default(autoincrement())
+  codigo        String        @unique
+  nome          String
+  colaboradores Colaborador[]
+  centrosCusto  CentroCusto[]
+}
+
+model CentroCusto {
+  id            Int           @id @default(autoincrement())
+  codigo        String        @unique
+  nome          String
+  nivel         Int           @default(1)
+  empresa       Empresa       @relation(fields: [empresaId], references: [id])
+  empresaId     Int
+  colaboradores Colaborador[]
+  metas         Meta[]
+}
+
+model Cargo {
+  id               Int           @id @default(autoincrement())
+  codigo           String        @unique
+  nome             String
+  nivelHierarquico String        @default("N4")
+  targetBonusPerc  Float         @default(0)
+  salarioTeto      Float?
+  colaboradores    Colaborador[]
+}
+
+model Colaborador {
+  id               Int                @id @default(autoincrement())
+  matricula        String             @unique
+  nomeCompleto     String
+  cpf              String             @unique
+  email            String             @unique
+  salarioBase      Float
+  dataAdmissao     DateTime
+  dataDesligamento DateTime?
+  ativo            Boolean            @default(true)
+  empresa          Empresa            @relation(fields: [empresaId], references: [id])
+  empresaId        Int
+  cargo            Cargo              @relation(fields: [cargoId], references: [id])
+  cargoId          Int
+  centroCusto      CentroCusto        @relation(fields: [centroCustoId], references: [id])
+  centroCustoId    Int
+  gestorId         Int?
+  gestor           Colaborador?       @relation("GestorSubordinados", fields: [gestorId], references: [id])
+  subordinados     Colaborador[]      @relation("GestorSubordinados")
+  user             User?              @relation(fields: [userId], references: [id])
+  userId           String?            @unique
+  metas            MetaColaborador[]
+  realizacoes      Realizacao[]
+  movimentacoes    MovimentacaoRH[]
+}
+
+// ─── Ciclo ICP ───────────────────────────────────────────────────────────────
+
+model CicloICP {
+  id             Int              @id @default(autoincrement())
+  anoFiscal      Int              @unique
+  status         String           @default("SETUP") // SETUP, ATIVO, ENCERRADO
+  mesInicio      Int              @default(1)
+  mesFim         Int              @default(12)
+  gatilhoEbitda  Float?
+  bonusPool      Float?
+  criadoEm       DateTime         @default(now())
+  indicadores    Indicador[]
+  metas          Meta[]
+  janelas        JanelaApuracao[]
+}
+
+// ─── Indicadores ─────────────────────────────────────────────────────────────
+
+model Indicador {
+  id          Int       @id @default(autoincrement())
+  codigo      String    @unique
+  nome        String
+  descricao   String?
+  tipo        String    // VOLUME_FINANCEIRO, CUSTO_PRAZO, PROJETO_MARCO
+  abrangencia String    // CORPORATIVO, AREA, INDIVIDUAL
+  unidade     String    @default("%")
+  metaMinima  Float?
+  metaAlvo    Float?
+  metaMaxima  Float?
+  ciclo       CicloICP  @relation(fields: [cicloId], references: [id])
+  cicloId     Int
+  metas       Meta[]
+  status      String    @default("DRAFT") // DRAFT, ATIVO
+  criadoEm    DateTime  @default(now())
+}
+
+// ─── Metas ───────────────────────────────────────────────────────────────────
+
+model Meta {
+  id              Int               @id @default(autoincrement())
+  indicador       Indicador         @relation(fields: [indicadorId], references: [id])
+  indicadorId     Int
+  ciclo           CicloICP          @relation(fields: [cicloId], references: [id])
+  cicloId         Int
+  centroCusto     CentroCusto?      @relation(fields: [centroCustoId], references: [id])
+  centroCustoId   Int?
+  pesoNaCesta     Float             @default(100)
+  metaMinima      Float?
+  metaAlvo        Float             @default(100)
+  metaMaxima      Float?
+  status          String            @default("DRAFT") // DRAFT, ATIVO, APROVADO
+  colaboradores   MetaColaborador[]
+  realizacoes     Realizacao[]
+  workflowItems   WorkflowItem[]
+}
+
+model MetaColaborador {
+  id                Int         @id @default(autoincrement())
+  meta              Meta        @relation(fields: [metaId], references: [id])
+  metaId            Int
+  colaborador       Colaborador @relation(fields: [colaboradorId], references: [id])
+  colaboradorId     Int
+  pesoPersonalizado Float?
+  targetBonus       Float?
+  ativo             Boolean     @default(true)
+
+  @@unique([metaId, colaboradorId])
+}
+
+// ─── Realizações ─────────────────────────────────────────────────────────────
+
+model Realizacao {
+  id               Int          @id @default(autoincrement())
+  meta             Meta         @relation(fields: [metaId], references: [id])
+  metaId           Int
+  colaborador      Colaborador? @relation(fields: [colaboradorId], references: [id])
+  colaboradorId    Int?
+  mesReferencia    Int
+  anoReferencia    Int
+  valorRealizado   Float
+  notaCalculada    Float?
+  premioProjetado  Float?
+  evidenciaUrl     String?
+  observacao       String?
+  status           String       @default("RASCUNHO") // RASCUNHO, SUBMETIDO, APROVADO, REJEITADO
+  submissao        DateTime?
+  aprovacao        DateTime?
+  workflowItems    WorkflowItem[]
+
+  @@unique([metaId, colaboradorId, mesReferencia, anoReferencia])
+}
+
+// ─── Janela de Apuração ───────────────────────────────────────────────────────
+
+model JanelaApuracao {
+  id              Int                 @id @default(autoincrement())
+  ciclo           CicloICP            @relation(fields: [cicloId], references: [id])
+  cicloId         Int
+  mesReferencia   Int
+  anoReferencia   Int
+  dataAbertura    DateTime
+  dataFechamento  DateTime
+  status          String              @default("ABERTA") // ABERTA, FECHADA, PRORROGADA
+  prorrogacoes    ProrrogacaoWaiver[]
+
+  @@unique([cicloId, mesReferencia, anoReferencia])
+}
+
+model ProrrogacaoWaiver {
+  id              Int            @id @default(autoincrement())
+  janela          JanelaApuracao @relation(fields: [janelaId], references: [id])
+  janelaId        Int
+  colaboradorId   Int
+  justificativa   String
+  novaDataLimite  DateTime
+  status          String         @default("PENDENTE") // PENDENTE, APROVADO, REJEITADO
+  criadoEm        DateTime       @default(now())
+  resolvidoEm     DateTime?
+}
+
+// ─── Workflow ─────────────────────────────────────────────────────────────────
+
+model WorkflowItem {
+  id            Int          @id @default(autoincrement())
+  tipo          String       // META_NOVA, ALTERACAO_META, REALIZACAO, PRORROGACAO, MOVIMENTACAO_RH
+  status        String       @default("PENDENTE") // PENDENTE, APROVADO, REJEITADO
+  descricao     String
+  metaId        Int?
+  meta          Meta?        @relation(fields: [metaId], references: [id])
+  realizacaoId  Int?
+  realizacao    Realizacao?  @relation(fields: [realizacaoId], references: [id])
+  solicitanteId String
+  solicitante   User         @relation(fields: [solicitanteId], references: [id])
+  comentario    String?
+  criadoEm      DateTime     @default(now())
+  resolvidoEm   DateTime?
+}
+
+// ─── Movimentações RH ─────────────────────────────────────────────────────────
+
+model MovimentacaoRH {
+  id              Int         @id @default(autoincrement())
+  colaborador     Colaborador @relation(fields: [colaboradorId], references: [id])
+  colaboradorId   Int
+  tipo            String      // ADMISSAO, TRANSFERENCIA, PROMOCAO, DESLIGAMENTO
+  dataEfetiva     DateTime
+  cargoAnteriorId Int?
+  cargoNovoId     Int?
+  ccAnteriorId    Int?
+  ccNovoId        Int?
+  status          String      @default("PENDENTE")
+  criadoEm        DateTime    @default(now())
+}
+
+// ─── Parâmetro Sistema ────────────────────────────────────────────────────────
+
+model ParametroSistema {
+  id           Int     @id @default(1)
+  seeded       Boolean @default(false)
+  cicloAtivoId Int?
+}
