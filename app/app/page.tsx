@@ -8,7 +8,7 @@ import MasterDashboard from "@/components/MasterDashboard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type TabId = "dashboard" | "cockpit" | "gestor" | "scorecard" | "indicadores" | "metas" | "atingimento" | "elegiveis" | "relatorio" | "realizacoes" | "colaboradores" | "workflow" | "janelas" | "importacao" | "ajuda";
+type TabId = "dashboard" | "cockpit" | "gestor" | "scorecard" | "indicadores" | "metas" | "atingimento" | "elegiveis" | "relatorio" | "conferencia" | "realizacoes" | "colaboradores" | "workflow" | "janelas" | "importacao" | "ajuda";
 
 interface Cargo { id: number; nome: string; nivelHierarquico: string; targetBonusPerc: number; }
 interface CentroCusto { id: number; nome: string; codigo: string; }
@@ -469,6 +469,62 @@ export default function Home() {
   const totalPremioProjetado = realizacoes.reduce((sum, r) => sum + (r.premioProjetado ?? 0), 0);
   const totalRealizacoesAprovadas = realizacoes.filter((r) => r.status === "APROVADO").length;
 
+  // Conferência — validação e consolidados
+  const validacaoMetas = metas.map((m) => {
+    const metaRealizacoes = realizacoes.filter((r) => r.meta?.id === m.id);
+    const pendentes = metaRealizacoes.filter((r) => r.status === "SUBMETIDO").length;
+    const erros: string[] = [];
+    const avisos: string[] = [];
+    if (m._count.colaboradores === 0) erros.push("Nenhum colaborador atribuído");
+    if (m._count.realizacoes === 0) avisos.push("Sem realizações lançadas");
+    if (pendentes > 0) avisos.push(`${pendentes} realização(ões) aguardando aprovação`);
+    if (m.status === "DRAFT") avisos.push("Meta ainda em rascunho — não aprovada");
+    if (!m.metaMinima) avisos.push("Meta mínima não definida");
+    return { meta: m, erros, avisos, ok: erros.length === 0 && avisos.length === 0 };
+  });
+
+  const totalErros = validacaoMetas.reduce((s, v) => s + v.erros.length, 0);
+  const totalAvisos = validacaoMetas.reduce((s, v) => s + v.avisos.length, 0);
+
+  // Por Centro de Custo
+  type CCRow = { nome: string; metas: number; colaboradores: number; premioYTD: number; notaMedia: number; realizacoesCount: number };
+  const porCC = new Map<string, CCRow>();
+  metas.forEach((m) => {
+    const ccNome = m.centroCusto?.nome ?? "Corporativo";
+    const existing = porCC.get(ccNome) ?? { nome: ccNome, metas: 0, colaboradores: 0, premioYTD: 0, notaMedia: 0, realizacoesCount: 0 };
+    const metaRealizacoes = realizacoes.filter((r) => r.meta?.id === m.id);
+    const notaMedia = metaRealizacoes.length > 0 ? metaRealizacoes.reduce((s, r) => s + (r.notaCalculada ?? 0), 0) / metaRealizacoes.length : 0;
+    const premioYTD = metaRealizacoes.reduce((s, r) => s + (r.premioProjetado ?? 0), 0);
+    porCC.set(ccNome, {
+      nome: ccNome,
+      metas: existing.metas + 1,
+      colaboradores: existing.colaboradores + m._count.colaboradores,
+      premioYTD: existing.premioYTD + premioYTD,
+      notaMedia: existing.notaMedia + notaMedia,
+      realizacoesCount: existing.realizacoesCount + metaRealizacoes.length,
+    });
+  });
+  const ccRows = Array.from(porCC.values()).map((r) => ({ ...r, notaMedia: r.metas > 0 ? r.notaMedia / r.metas : 0 })).sort((a, b) => b.premioYTD - a.premioYTD);
+
+  // Por Cargo/Nível
+  type CargoRow = { cargo: string; nivel: string; count: number; notaMedia: number; premioYTD: number; targetTotal: number };
+  const porCargo = new Map<string, CargoRow>();
+  rankingElegiveis.forEach((row) => {
+    const key = `${row.colaborador.cargo.nome}|${row.colaborador.cargo.nivelHierarquico}`;
+    const ex = porCargo.get(key) ?? { cargo: row.colaborador.cargo.nome, nivel: row.colaborador.cargo.nivelHierarquico, count: 0, notaMedia: 0, premioYTD: 0, targetTotal: 0 };
+    porCargo.set(key, { ...ex, count: ex.count + 1, notaMedia: ex.notaMedia + row.notaMedia, premioYTD: ex.premioYTD + row.premioYTD, targetTotal: ex.targetTotal + row.targetAnual });
+  });
+  const cargoRows = Array.from(porCargo.values()).map((r) => ({ ...r, notaMedia: r.count > 0 ? r.notaMedia / r.count : 0 })).sort((a, b) => b.premioYTD - a.premioYTD);
+
+  // Evolução mês a mês
+  const evolucaoMensal = MESES.map((mes, idx) => {
+    const mesNum = idx + 1;
+    const mesRealizacoes = realizacoes.filter((r) => r.mesReferencia === mesNum);
+    const notaMedia = mesRealizacoes.length > 0 ? mesRealizacoes.reduce((s, r) => s + (r.notaCalculada ?? 0), 0) / mesRealizacoes.length : null;
+    const premioTotal = mesRealizacoes.reduce((s, r) => s + (r.premioProjetado ?? 0), 0);
+    return { mes, mesNum, count: mesRealizacoes.length, notaMedia, premioTotal };
+  }).filter((m) => m.count > 0);
+
   const janelaAtualHeader = janelas.find((j) => j.isOpen) ?? null;
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -556,7 +612,7 @@ export default function Home() {
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4">
           <nav className="flex gap-1 overflow-x-auto">
-            {(["dashboard","cockpit","gestor","scorecard","indicadores","metas","atingimento","elegiveis","relatorio","realizacoes","colaboradores","workflow","janelas","importacao","ajuda"] as TabId[]).map((tab) => (
+            {(["dashboard","cockpit","gestor","scorecard","indicadores","metas","atingimento","elegiveis","relatorio","conferencia","realizacoes","colaboradores","workflow","janelas","importacao","ajuda"] as TabId[]).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -574,6 +630,7 @@ export default function Home() {
                  tab === "gestor" ? "Painel Gestor" :
                  tab === "elegiveis" ? "Elegíveis" :
                  tab === "relatorio" ? "Relatório" :
+                 tab === "conferencia" ? "Conferência" :
                  tab === "ajuda" ? "? Ajuda" :
                  tab.charAt(0).toUpperCase() + tab.slice(1)}
                 {tab === "workflow" && pendingCount > 0 && (
@@ -1849,6 +1906,161 @@ export default function Home() {
                 </table>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* ── CONFERÊNCIA E VALIDAÇÃO ───────────────────────────────────── */}
+        {activeTab === "conferencia" && (
+          <div className="space-y-6">
+            <h2 className="text-xl font-bold text-gray-800">Conferência e Validação</h2>
+
+            {/* Status geral */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                { label: "Metas sem problemas", value: String(validacaoMetas.filter((v) => v.ok).length), color: "text-green-700", bg: "bg-green-50 border-green-200" },
+                { label: "Erros críticos", value: String(totalErros), color: totalErros > 0 ? "text-red-700" : "text-gray-500", bg: totalErros > 0 ? "bg-red-50 border-red-200" : "bg-gray-50 border-gray-200" },
+                { label: "Avisos", value: String(totalAvisos), color: totalAvisos > 0 ? "text-amber-700" : "text-gray-500", bg: totalAvisos > 0 ? "bg-amber-50 border-amber-200" : "bg-gray-50 border-gray-200" },
+                { label: "Total de metas", value: String(metas.length), color: "text-blue-700", bg: "bg-blue-50 border-blue-200" },
+              ].map((c) => (
+                <div key={c.label} className={`rounded-xl border p-4 ${c.bg}`}>
+                  <p className="text-xs text-gray-500 mb-1">{c.label}</p>
+                  <p className={`text-2xl font-bold ${c.color}`}>{c.value}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Checklist por meta */}
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+                <h3 className="font-semibold text-gray-700">Checklist por Meta</h3>
+                <span className="text-xs text-gray-400">{validacaoMetas.filter((v) => v.ok).length}/{metas.length} ok</span>
+              </div>
+              <div className="divide-y divide-gray-100">
+                {validacaoMetas.map((v) => (
+                  <div key={v.meta.id} className={`px-5 py-3 flex items-start gap-3 ${v.erros.length > 0 ? "bg-red-50" : v.avisos.length > 0 ? "bg-amber-50" : "bg-green-50"}`}>
+                    <span className="text-lg mt-0.5 flex-shrink-0">
+                      {v.erros.length > 0 ? "🔴" : v.avisos.length > 0 ? "🟡" : "🟢"}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-gray-800 text-sm">{v.meta.indicador.nome}
+                        <span className="ml-2 text-xs text-gray-500">{v.meta.centroCusto?.nome ?? "Corporativo"} · Peso {v.meta.pesoNaCesta}%</span>
+                      </p>
+                      {v.erros.map((e, i) => (
+                        <p key={i} className="text-xs text-red-700 mt-0.5">✗ {e}</p>
+                      ))}
+                      {v.avisos.map((a, i) => (
+                        <p key={i} className="text-xs text-amber-700 mt-0.5">⚠ {a}</p>
+                      ))}
+                      {v.ok && <p className="text-xs text-green-700 mt-0.5">Tudo ok</p>}
+                    </div>
+                    <StatusBadge status={v.meta.status} />
+                  </div>
+                ))}
+                {metas.length === 0 && <div className="px-5 py-8 text-center text-gray-400 text-sm">Nenhuma meta cadastrada</div>}
+              </div>
+            </div>
+
+            {/* Por Centro de Custo */}
+            {ccRows.length > 0 && (
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="px-5 py-3 border-b border-gray-100">
+                  <h3 className="font-semibold text-gray-700">Consolidado por Centro de Custo</h3>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        {["Centro de Custo","Metas","Colaboradores","Realizações","Nota Média","Prêmio YTD"].map((h) => (
+                          <th key={h} className="text-left px-4 py-2.5 text-gray-500 font-medium text-xs uppercase">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {ccRows.map((row) => (
+                        <tr key={row.nome} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 font-medium text-gray-800">{row.nome}</td>
+                          <td className="px-4 py-3 text-gray-600">{row.metas}</td>
+                          <td className="px-4 py-3 text-gray-600">{row.colaboradores}</td>
+                          <td className="px-4 py-3 text-gray-600">{row.realizacoesCount}</td>
+                          <td className={`px-4 py-3 ${notaColor(row.notaMedia)}`}>{row.realizacoesCount > 0 ? fmtN(row.notaMedia) : "—"}</td>
+                          <td className="px-4 py-3 text-blue-700 font-medium">{fmt(row.premioYTD)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Por Cargo/Nível */}
+            {cargoRows.length > 0 && (
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="px-5 py-3 border-b border-gray-100">
+                  <h3 className="font-semibold text-gray-700">Consolidado por Cargo / Nível</h3>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        {["Cargo","Nível","Colaboradores","Nota Média","Prêmio YTD","Target Total","% Target"].map((h) => (
+                          <th key={h} className="text-left px-4 py-2.5 text-gray-500 font-medium text-xs uppercase">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {cargoRows.map((row) => {
+                        const perc = row.targetTotal > 0 ? (row.premioYTD / row.targetTotal) * 100 : 0;
+                        return (
+                          <tr key={`${row.cargo}|${row.nivel}`} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 font-medium text-gray-800">{row.cargo}</td>
+                            <td className="px-4 py-3"><span className="bg-indigo-50 text-indigo-700 text-xs font-semibold px-2 py-0.5 rounded">{row.nivel}</span></td>
+                            <td className="px-4 py-3 text-gray-600">{row.count}</td>
+                            <td className={`px-4 py-3 ${notaColor(row.notaMedia)}`}>{fmtN(row.notaMedia)}</td>
+                            <td className="px-4 py-3 text-blue-700 font-medium">{fmt(row.premioYTD)}</td>
+                            <td className="px-4 py-3 text-gray-600">{fmt(row.targetTotal)}</td>
+                            <td className={`px-4 py-3 font-medium ${perc >= 100 ? "text-green-600" : perc >= 70 ? "text-yellow-600" : "text-red-500"}`}>{perc.toFixed(0)}%</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Evolução mês a mês */}
+            {evolucaoMensal.length > 0 && (
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="px-5 py-3 border-b border-gray-100">
+                  <h3 className="font-semibold text-gray-700">Evolução Mês a Mês</h3>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        {["Mês","Realizações","Nota Média","Prêmio Projetado"].map((h) => (
+                          <th key={h} className="text-left px-4 py-2.5 text-gray-500 font-medium text-xs uppercase">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {evolucaoMensal.map((m) => (
+                        <tr key={m.mesNum} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 font-medium text-gray-800">{m.mes}</td>
+                          <td className="px-4 py-3 text-gray-600">{m.count}</td>
+                          <td className={`px-4 py-3 ${notaColor(m.notaMedia)}`}>{m.notaMedia !== null ? fmtN(m.notaMedia) : "—"}</td>
+                          <td className="px-4 py-3 text-blue-700 font-medium">{fmt(m.premioTotal)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {evolucaoMensal.length === 0 && ccRows.length === 0 && (
+              <div className="text-center text-gray-400 py-12">Nenhuma realização lançada ainda — os painéis consolidados aparecerão aqui.</div>
+            )}
           </div>
         )}
 
