@@ -180,6 +180,12 @@ export default function Home() {
   // Dashboard API state
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
 
+  // Colaboradores import state
+  const [showColabImport, setShowColabImport] = useState(false);
+  const [colabCsvText, setColabCsvText] = useState("");
+  const [colabImportResult, setColabImportResult] = useState<{ processed: number; updated: number; erros: { linha: number; motivo: string }[] } | null>(null);
+  const [colabImportLoading, setColabImportLoading] = useState(false);
+
   // Bulk import state
   const [importForm, setImportForm] = useState({
     mesReferencia: "", anoReferencia: "2026", csvText: "",
@@ -486,6 +492,28 @@ export default function Home() {
     if (res?.data) setImportResult(res.data);
     setImportLoading(false);
     loadRealizacoes();
+  }
+
+  async function handleColabImport(e: React.FormEvent) {
+    e.preventDefault();
+    setColabImportLoading(true);
+    setColabImportResult(null);
+    const lines = colabCsvText.split("\n").map((l) => l.trim()).filter(Boolean);
+    if (lines.length < 2) { setColabImportLoading(false); return; }
+    const headerLine = lines[0].split(";").map((h) => h.trim());
+    const rows = lines.slice(1).map((line) => {
+      const vals = line.split(";");
+      const obj: Record<string, string> = {};
+      headerLine.forEach((h, i) => { obj[h] = (vals[i] ?? "").trim(); });
+      return obj;
+    });
+    const res = await fetch("/api/import-colaboradores", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rows }),
+    }).then((r) => r.json()).catch(() => null);
+    if (res?.data) setColabImportResult(res.data);
+    setColabImportLoading(false);
+    loadColaboradores();
   }
 
   // ── Derived data ───────────────────────────────────────────────────────────
@@ -1476,15 +1504,72 @@ export default function Home() {
         {/* ── COLABORADORES ─────────────────────────────────────────────── */}
         {activeTab === "colaboradores" && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-800">Colaboradores</h2>
-              <button
-                onClick={() => alert("Funcionalidade em desenvolvimento. Use a API POST /api/colaboradores.")}
-                className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-1.5 rounded-lg transition-colors"
-              >
-                + Novo Colaborador
-              </button>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h2 className="text-xl font-bold text-gray-800">Colaboradores <span className="text-sm font-normal text-gray-400">({colaboradores.length})</span></h2>
+              <div className="flex gap-2 flex-wrap">
+                <a
+                  href="/api/import-colaboradores"
+                  download="template_colaboradores.csv"
+                  className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium px-4 py-1.5 rounded-lg transition-colors border border-gray-300"
+                >
+                  ⬇ Baixar Template CSV
+                </a>
+                <button
+                  onClick={() => { setShowColabImport((v) => !v); setColabImportResult(null); }}
+                  className="bg-green-700 hover:bg-green-800 text-white text-sm font-medium px-4 py-1.5 rounded-lg transition-colors"
+                >
+                  ⬆ Importar CSV
+                </button>
+              </div>
             </div>
+
+            {/* Import form */}
+            {showColabImport && (
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 space-y-4">
+                <h3 className="font-semibold text-blue-800">Importação em Massa de Colaboradores</h3>
+                <p className="text-sm text-blue-700">
+                  Cole o conteúdo do CSV abaixo (com cabeçalho). Colunas obrigatórias separadas por <code>;</code>:<br />
+                  <code className="bg-white px-1 rounded text-xs">matricula; nomeCompleto; cpf; email; salarioBase; dataAdmissao; empresaCodigo; cargoCodigo; centroCustoCodigo; gestorMatricula</code>
+                </p>
+                <form onSubmit={handleColabImport} className="space-y-3">
+                  <textarea
+                    rows={8}
+                    value={colabCsvText}
+                    onChange={(e) => setColabCsvText(e.target.value)}
+                    placeholder={"matricula;nomeCompleto;cpf;email;salarioBase;dataAdmissao;empresaCodigo;cargoCodigo;centroCustoCodigo;gestorMatricula\n001;João Silva;123.456.789-00;joao@emp.com;8000;2024-01-15;EMP001;GER-COM;CC-VENDAS;"}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs font-mono bg-white resize-y"
+                  />
+                  <div className="flex gap-3">
+                    <button
+                      type="submit"
+                      disabled={colabImportLoading || !colabCsvText.trim()}
+                      className="bg-blue-700 hover:bg-blue-800 disabled:opacity-50 text-white text-sm font-medium px-5 py-2 rounded-lg transition-colors"
+                    >
+                      {colabImportLoading ? "Importando..." : "Importar"}
+                    </button>
+                    <button type="button" onClick={() => setShowColabImport(false)} className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2">Cancelar</button>
+                  </div>
+                </form>
+                {colabImportResult && (
+                  <div className="space-y-2">
+                    <div className="flex gap-4 text-sm">
+                      <span className="text-green-700 font-semibold">✓ {colabImportResult.processed} processados</span>
+                      <span className="text-blue-700 font-semibold">↻ {colabImportResult.updated} atualizados</span>
+                      {colabImportResult.erros.length > 0 && (
+                        <span className="text-red-700 font-semibold">✗ {colabImportResult.erros.length} erros</span>
+                      )}
+                    </div>
+                    {colabImportResult.erros.length > 0 && (
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-3 space-y-1">
+                        {colabImportResult.erros.map((e, i) => (
+                          <div key={i} className="text-xs text-red-700">Linha {e.linha}: {e.motivo}</div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
               <div className="overflow-x-auto">
