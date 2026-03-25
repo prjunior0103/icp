@@ -8,11 +8,11 @@ import MasterDashboard from "@/components/MasterDashboard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type TabId = "dashboard" | "cockpit" | "gestor" | "scorecard" | "indicadores" | "metas" | "atingimento" | "elegiveis" | "relatorio" | "conferencia" | "movimentacoes" | "realizacoes" | "colaboradores" | "workflow" | "janelas" | "importacao" | "ajuda";
+type TabId = "dashboard" | "cockpit" | "gestor" | "scorecard" | "indicadores" | "metas" | "atingimento" | "elegiveis" | "relatorio" | "conferencia" | "movimentacoes" | "realizacoes" | "colaboradores" | "workflow" | "janelas" | "importacao" | "cadastros" | "ajuda";
 
-interface Cargo { id: number; nome: string; nivelHierarquico: string; targetBonusPerc: number; }
-interface CentroCusto { id: number; nome: string; codigo: string; }
-interface Empresa { id: number; nome: string; }
+interface Cargo { id: number; nome: string; codigo: string; nivelHierarquico: string; targetBonusPerc: number; salarioTeto?: number | null; _count?: { colaboradores: number }; }
+interface CentroCusto { id: number; nome: string; codigo: string; nivel?: number; empresaId?: number; empresa?: { id: number; nome: string; codigo: string }; _count?: { colaboradores: number; metas: number }; }
+interface Empresa { id: number; nome: string; codigo: string; _count?: { colaboradores: number; centrosCusto: number }; }
 interface Colaborador {
   id: number; matricula: string; nomeCompleto: string; email: string;
   salarioBase: number; ativo: boolean;
@@ -167,6 +167,16 @@ export default function Home() {
   });
   const [cargos, setCargos] = useState<Cargo[]>([]);
 
+  // Cadastros state (Empresa / Cargo / CC)
+  const [empresas, setEmpresas] = useState<Empresa[]>([]);
+  const [cadastroSub, setCadastroSub] = useState<"empresa" | "cargo" | "cc">("empresa");
+  const [empresaForm, setEmpresaForm] = useState({ codigo: "", nome: "" });
+  const [showEmpresaForm, setShowEmpresaForm] = useState(false);
+  const [cargoForm, setCargoForm] = useState({ codigo: "", nome: "", nivelHierarquico: "N4", targetBonusPerc: "0", salarioTeto: "" });
+  const [showCargoForm, setShowCargoForm] = useState(false);
+  const [ccForm, setCcForm] = useState({ codigo: "", nome: "", nivel: "1", empresaId: "" });
+  const [showCcForm, setShowCcForm] = useState(false);
+
   // Janelas state
   const [janelas, setJanelas] = useState<JanelaApuracao[]>([]);
   const [showJanelaForm, setShowJanelaForm] = useState(false);
@@ -224,11 +234,8 @@ export default function Home() {
   }, []);
 
   const loadCentrosCusto = useCallback(async () => {
-    const res = await fetch("/api/colaboradores").then((r) => r.json()).catch(() => ({ data: [] }));
-    const cols: Colaborador[] = res.data ?? [];
-    const map = new Map<number, CentroCusto>();
-    cols.forEach((c) => { if (c.centroCusto) map.set(c.centroCusto.id, c.centroCusto); });
-    setCentrosCusto(Array.from(map.values()));
+    const res = await fetch("/api/centros-custo").then((r) => r.json()).catch(() => ({ data: [] }));
+    setCentrosCusto(res.data ?? []);
   }, []);
 
   const loadRealizacoes = useCallback(async () => {
@@ -259,11 +266,13 @@ export default function Home() {
   }, []);
 
   const loadCargos = useCallback(async () => {
-    const res = await fetch("/api/colaboradores").then((r) => r.json()).catch(() => ({ data: [] }));
-    const cols: Colaborador[] = res.data ?? [];
-    const map = new Map<number, Cargo>();
-    cols.forEach((c) => { if (c.cargo) map.set(c.cargo.id, c.cargo); });
-    setCargos(Array.from(map.values()));
+    const res = await fetch("/api/cargos").then((r) => r.json()).catch(() => ({ data: [] }));
+    setCargos(res.data ?? []);
+  }, []);
+
+  const loadEmpresas = useCallback(async () => {
+    const res = await fetch("/api/empresas").then((r) => r.json()).catch(() => ({ data: [] }));
+    setEmpresas(res.data ?? []);
   }, []);
 
   const loadDashboard = useCallback(async (cicloId?: number) => {
@@ -286,11 +295,11 @@ export default function Home() {
         loadWorkflow(), checkSeeded(), loadJanelas(ativo?.id),
         loadIndicadores(ativo?.id), loadCentrosCusto(),
         loadWaivers(), loadDashboard(ativo?.id),
-        loadMovimentacoes(ativo?.id), loadCargos(),
+        loadMovimentacoes(ativo?.id), loadCargos(), loadEmpresas(),
       ]);
       setLoading(false);
     })();
-  }, [loadCiclos, loadColaboradores, loadMetas, loadRealizacoes, loadWorkflow, checkSeeded, loadJanelas, loadWaivers, loadDashboard, loadIndicadores, loadCentrosCusto, loadMovimentacoes, loadCargos]);
+  }, [loadCiclos, loadColaboradores, loadMetas, loadRealizacoes, loadWorkflow, checkSeeded, loadJanelas, loadWaivers, loadDashboard, loadIndicadores, loadCentrosCusto, loadMovimentacoes, loadCargos, loadEmpresas]);
 
   async function handleSeed() {
     setSeedLoading(true);
@@ -465,6 +474,39 @@ export default function Home() {
     setMovForm({ colaboradorId: "", tipo: "ADMISSAO", dataEfetiva: "", cargoAnteriorId: "", cargoNovoId: "", ccAnteriorId: "", ccNovoId: "" });
     setShowMovForm(false);
     loadMovimentacoes(cicloAtivo?.id);
+  }
+
+  async function handleCriarEmpresa(e: React.FormEvent) {
+    e.preventDefault();
+    await fetch("/api/empresas", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(empresaForm),
+    });
+    setEmpresaForm({ codigo: "", nome: "" });
+    setShowEmpresaForm(false);
+    loadEmpresas();
+  }
+
+  async function handleCriarCargo(e: React.FormEvent) {
+    e.preventDefault();
+    await fetch("/api/cargos", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(cargoForm),
+    });
+    setCargoForm({ codigo: "", nome: "", nivelHierarquico: "N4", targetBonusPerc: "0", salarioTeto: "" });
+    setShowCargoForm(false);
+    loadCargos();
+  }
+
+  async function handleCriarCC(e: React.FormEvent) {
+    e.preventDefault();
+    await fetch("/api/centros-custo", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(ccForm),
+    });
+    setCcForm({ codigo: "", nome: "", nivel: "1", empresaId: "" });
+    setShowCcForm(false);
+    loadCentrosCusto();
   }
 
   async function handleBulkImport(e: React.FormEvent) {
@@ -735,7 +777,7 @@ export default function Home() {
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4">
           <nav className="flex gap-1 overflow-x-auto">
-            {(["dashboard","cockpit","gestor","scorecard","indicadores","metas","atingimento","elegiveis","relatorio","conferencia","realizacoes","colaboradores","workflow","janelas","importacao","ajuda"] as TabId[]).map((tab) => (
+            {(["dashboard","cockpit","gestor","scorecard","indicadores","metas","atingimento","elegiveis","relatorio","conferencia","realizacoes","colaboradores","workflow","janelas","importacao","cadastros","ajuda"] as TabId[]).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -755,6 +797,7 @@ export default function Home() {
                  tab === "relatorio" ? "Relatório" :
                  tab === "conferencia" ? "Conferência" :
                  tab === "movimentacoes" ? "Movimentações RH" :
+                 tab === "cadastros" ? "Cadastros" :
                  tab === "ajuda" ? "? Ajuda" :
                  tab.charAt(0).toUpperCase() + tab.slice(1)}
                 {tab === "workflow" && pendingCount > 0 && (
@@ -2453,6 +2496,219 @@ export default function Home() {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* ── CADASTROS ─────────────────────────────────────────────────── */}
+        {activeTab === "cadastros" && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-800">Cadastros</h2>
+            </div>
+
+            {/* Sub-tabs */}
+            <div className="flex gap-2 border-b border-gray-200">
+              {(["empresa","cargo","cc"] as const).map((sub) => (
+                <button key={sub} onClick={() => setCadastroSub(sub)}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${cadastroSub === sub ? "border-blue-600 text-blue-700" : "border-transparent text-gray-500 hover:text-gray-700"}`}>
+                  {sub === "empresa" ? "Empresas" : sub === "cargo" ? "Cargos" : "Centros de Custo"}
+                </button>
+              ))}
+            </div>
+
+            {/* EMPRESA */}
+            {cadastroSub === "empresa" && (
+              <div className="space-y-4">
+                <div className="flex justify-end">
+                  <button onClick={() => setShowEmpresaForm((v) => !v)}
+                    className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-1.5 rounded-lg transition-colors">
+                    + Nova Empresa
+                  </button>
+                </div>
+                {showEmpresaForm && (
+                  <form onSubmit={handleCriarEmpresa} className="bg-blue-50 border border-blue-200 rounded-xl p-5 grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Código *</label>
+                      <input required value={empresaForm.codigo} onChange={(e) => setEmpresaForm((f) => ({ ...f, codigo: e.target.value }))}
+                        placeholder="EMP001" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Nome *</label>
+                      <input required value={empresaForm.nome} onChange={(e) => setEmpresaForm((f) => ({ ...f, nome: e.target.value }))}
+                        placeholder="Razão Social" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div className="col-span-2 flex gap-3">
+                      <button type="submit" className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-5 py-2 rounded-lg">Salvar</button>
+                      <button type="button" onClick={() => setShowEmpresaForm(false)} className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2">Cancelar</button>
+                    </div>
+                  </form>
+                )}
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50"><tr>
+                      {["Código","Nome","Colaboradores","CCs"].map((h) => (
+                        <th key={h} className="text-left px-4 py-2.5 text-gray-500 font-medium text-xs uppercase">{h}</th>
+                      ))}
+                    </tr></thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {empresas.map((e) => (
+                        <tr key={e.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 font-mono text-gray-500 text-xs">{e.codigo}</td>
+                          <td className="px-4 py-3 font-medium text-gray-800">{e.nome}</td>
+                          <td className="px-4 py-3 text-gray-600">{e._count?.colaboradores ?? 0}</td>
+                          <td className="px-4 py-3 text-gray-600">{e._count?.centrosCusto ?? 0}</td>
+                        </tr>
+                      ))}
+                      {empresas.length === 0 && (
+                        <tr><td colSpan={4} className="px-4 py-8 text-center text-gray-400">Nenhuma empresa cadastrada</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* CARGO */}
+            {cadastroSub === "cargo" && (
+              <div className="space-y-4">
+                <div className="flex justify-end">
+                  <button onClick={() => setShowCargoForm((v) => !v)}
+                    className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-1.5 rounded-lg transition-colors">
+                    + Novo Cargo
+                  </button>
+                </div>
+                {showCargoForm && (
+                  <form onSubmit={handleCriarCargo} className="bg-blue-50 border border-blue-200 rounded-xl p-5 grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Código *</label>
+                      <input required value={cargoForm.codigo} onChange={(e) => setCargoForm((f) => ({ ...f, codigo: e.target.value }))}
+                        placeholder="GER-COM" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Nome *</label>
+                      <input required value={cargoForm.nome} onChange={(e) => setCargoForm((f) => ({ ...f, nome: e.target.value }))}
+                        placeholder="Gerente Comercial" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Grade (Nível Hierárquico)</label>
+                      <select value={cargoForm.nivelHierarquico} onChange={(e) => setCargoForm((f) => ({ ...f, nivelHierarquico: e.target.value }))}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+                        {["N1","N2","N3","N4","N5","N6"].map((n) => <option key={n}>{n}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Target Bonus (%)</label>
+                      <input type="number" step="0.1" min="0" max="100" value={cargoForm.targetBonusPerc}
+                        onChange={(e) => setCargoForm((f) => ({ ...f, targetBonusPerc: e.target.value }))}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Salário Teto (opcional)</label>
+                      <input type="number" step="0.01" value={cargoForm.salarioTeto}
+                        onChange={(e) => setCargoForm((f) => ({ ...f, salarioTeto: e.target.value }))}
+                        placeholder="0.00" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div className="col-span-2 flex gap-3">
+                      <button type="submit" className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-5 py-2 rounded-lg">Salvar</button>
+                      <button type="button" onClick={() => setShowCargoForm(false)} className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2">Cancelar</button>
+                    </div>
+                  </form>
+                )}
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50"><tr>
+                      {["Código","Nome","Grade","Target Bonus","Salário Teto","Colaboradores"].map((h) => (
+                        <th key={h} className="text-left px-4 py-2.5 text-gray-500 font-medium text-xs uppercase">{h}</th>
+                      ))}
+                    </tr></thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {cargos.map((c) => (
+                        <tr key={c.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 font-mono text-gray-500 text-xs">{c.codigo}</td>
+                          <td className="px-4 py-3 font-medium text-gray-800">{c.nome}</td>
+                          <td className="px-4 py-3"><span className="bg-indigo-50 text-indigo-700 text-xs font-semibold px-2 py-0.5 rounded">{c.nivelHierarquico}</span></td>
+                          <td className="px-4 py-3 text-green-700 font-semibold">{c.targetBonusPerc}%</td>
+                          <td className="px-4 py-3 text-gray-600">{c.salarioTeto ? fmt(c.salarioTeto) : "—"}</td>
+                          <td className="px-4 py-3 text-gray-600">{c._count?.colaboradores ?? 0}</td>
+                        </tr>
+                      ))}
+                      {cargos.length === 0 && (
+                        <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">Nenhum cargo cadastrado</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* CENTRO DE CUSTO */}
+            {cadastroSub === "cc" && (
+              <div className="space-y-4">
+                <div className="flex justify-end">
+                  <button onClick={() => setShowCcForm((v) => !v)}
+                    className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-1.5 rounded-lg transition-colors">
+                    + Novo Centro de Custo
+                  </button>
+                </div>
+                {showCcForm && (
+                  <form onSubmit={handleCriarCC} className="bg-blue-50 border border-blue-200 rounded-xl p-5 grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Código *</label>
+                      <input required value={ccForm.codigo} onChange={(e) => setCcForm((f) => ({ ...f, codigo: e.target.value }))}
+                        placeholder="CC-VENDAS" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Nome *</label>
+                      <input required value={ccForm.nome} onChange={(e) => setCcForm((f) => ({ ...f, nome: e.target.value }))}
+                        placeholder="Vendas" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Empresa *</label>
+                      <select required value={ccForm.empresaId} onChange={(e) => setCcForm((f) => ({ ...f, empresaId: e.target.value }))}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+                        <option value="">Selecione...</option>
+                        {empresas.map((e) => <option key={e.id} value={e.id}>{e.nome} ({e.codigo})</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Nível</label>
+                      <select value={ccForm.nivel} onChange={(e) => setCcForm((f) => ({ ...f, nivel: e.target.value }))}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+                        {["1","2","3","4"].map((n) => <option key={n} value={n}>Nível {n}</option>)}
+                      </select>
+                    </div>
+                    <div className="col-span-2 flex gap-3">
+                      <button type="submit" className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-5 py-2 rounded-lg">Salvar</button>
+                      <button type="button" onClick={() => setShowCcForm(false)} className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2">Cancelar</button>
+                    </div>
+                  </form>
+                )}
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50"><tr>
+                      {["Código","Nome","Empresa","Nível","Colaboradores","Metas"].map((h) => (
+                        <th key={h} className="text-left px-4 py-2.5 text-gray-500 font-medium text-xs uppercase">{h}</th>
+                      ))}
+                    </tr></thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {centrosCusto.map((cc) => (
+                        <tr key={cc.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 font-mono text-gray-500 text-xs">{cc.codigo}</td>
+                          <td className="px-4 py-3 font-medium text-gray-800">{cc.nome}</td>
+                          <td className="px-4 py-3 text-gray-600">{cc.empresa?.nome ?? "—"}</td>
+                          <td className="px-4 py-3 text-gray-600">{cc.nivel ?? 1}</td>
+                          <td className="px-4 py-3 text-gray-600">{cc._count?.colaboradores ?? 0}</td>
+                          <td className="px-4 py-3 text-gray-600">{cc._count?.metas ?? 0}</td>
+                        </tr>
+                      ))}
+                      {centrosCusto.length === 0 && (
+                        <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">Nenhum centro de custo cadastrado</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
