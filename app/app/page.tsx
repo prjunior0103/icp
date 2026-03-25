@@ -8,7 +8,7 @@ import MasterDashboard from "@/components/MasterDashboard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type TabId = "dashboard" | "cockpit" | "gestor" | "scorecard" | "metas" | "realizacoes" | "colaboradores" | "workflow" | "janelas" | "importacao";
+type TabId = "dashboard" | "cockpit" | "gestor" | "scorecard" | "indicadores" | "metas" | "realizacoes" | "colaboradores" | "workflow" | "janelas" | "importacao";
 
 interface Cargo { id: number; nome: string; nivelHierarquico: string; targetBonusPerc: number; }
 interface CentroCusto { id: number; nome: string; codigo: string; }
@@ -19,7 +19,7 @@ interface Colaborador {
   cargo: Cargo; centroCusto: CentroCusto; empresa: Empresa;
 }
 interface CicloICP { id: number; anoFiscal: number; status: string; bonusPool: number | null; }
-interface Indicador { id: number; codigo: string; nome: string; tipo: string; abrangencia: string; status: string; }
+interface Indicador { id: number; codigo: string; nome: string; tipo: string; abrangencia: string; unidade: string; status: string; }
 interface Meta {
   id: number; pesoNaCesta: number; metaAlvo: number; metaMinima: number | null;
   metaMaxima: number | null; status: string;
@@ -127,6 +127,12 @@ export default function Home() {
   // Indicadores state
   const [indicadores, setIndicadores] = useState<Indicador[]>([]);
   const [centrosCusto, setCentrosCusto] = useState<CentroCusto[]>([]);
+
+  // Novo Indicador form state
+  const [showIndicadorForm, setShowIndicadorForm] = useState(false);
+  const [indicadorForm, setIndicadorForm] = useState({
+    codigo: "", nome: "", tipo: "VOLUME_FINANCEIRO", abrangencia: "CORPORATIVO", unidade: "%", descricao: "",
+  });
 
   // Nova Meta form state
   const [showMetaForm, setShowMetaForm] = useState(false);
@@ -291,6 +297,27 @@ export default function Home() {
     setMetaForm({ indicadorId: "", centroCustoId: "", pesoNaCesta: "100", metaAlvo: "", metaMinima: "", metaMaxima: "" });
     setShowMetaForm(false);
     loadMetas(cicloAtivo.id);
+  }
+
+  async function handleCriarIndicador(e: React.FormEvent) {
+    e.preventDefault();
+    if (!cicloAtivo) return;
+    await fetch("/api/indicadores", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        codigo: indicadorForm.codigo,
+        nome: indicadorForm.nome,
+        tipo: indicadorForm.tipo,
+        abrangencia: indicadorForm.abrangencia,
+        unidade: indicadorForm.unidade || "%",
+        descricao: indicadorForm.descricao || undefined,
+        cicloId: cicloAtivo.id,
+        status: "ATIVO",
+      }),
+    });
+    setIndicadorForm({ codigo: "", nome: "", tipo: "VOLUME_FINANCEIRO", abrangencia: "CORPORATIVO", unidade: "%", descricao: "" });
+    setShowIndicadorForm(false);
+    loadIndicadores(cicloAtivo.id);
   }
 
   async function handleWorkflowAction(id: number, status: "APROVADO" | "REJEITADO") {
@@ -478,7 +505,7 @@ export default function Home() {
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4">
           <nav className="flex gap-1 overflow-x-auto">
-            {(["dashboard","cockpit","gestor","scorecard","metas","realizacoes","colaboradores","workflow","janelas","importacao"] as TabId[]).map((tab) => (
+            {(["dashboard","cockpit","gestor","scorecard","indicadores","metas","realizacoes","colaboradores","workflow","janelas","importacao"] as TabId[]).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -682,6 +709,109 @@ export default function Home() {
                 </div>
               </>
             )}
+          </div>
+        )}
+
+        {/* ── INDICADORES ───────────────────────────────────────────────── */}
+        {activeTab === "indicadores" && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-800">Indicadores</h2>
+              <button
+                onClick={() => setShowIndicadorForm(!showIndicadorForm)}
+                className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-1.5 rounded-lg transition-colors"
+              >
+                + Novo Indicador
+              </button>
+            </div>
+
+            {showIndicadorForm && (
+              <form onSubmit={handleCriarIndicador} className="bg-blue-50 border border-blue-200 rounded-xl p-5 grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div className="col-span-2 md:col-span-3">
+                  <h3 className="text-sm font-semibold text-blue-900">Novo Indicador</h3>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Código *</label>
+                  <input required value={indicadorForm.codigo} onChange={(e) => setIndicadorForm({ ...indicadorForm, codigo: e.target.value })}
+                    placeholder="Ex: IND-001" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Nome *</label>
+                  <input required value={indicadorForm.nome} onChange={(e) => setIndicadorForm({ ...indicadorForm, nome: e.target.value })}
+                    placeholder="Ex: Volume de Vendas" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Unidade</label>
+                  <input value={indicadorForm.unidade} onChange={(e) => setIndicadorForm({ ...indicadorForm, unidade: e.target.value })}
+                    placeholder="%, R$, un..." className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Tipo *</label>
+                  <select required value={indicadorForm.tipo} onChange={(e) => setIndicadorForm({ ...indicadorForm, tipo: e.target.value })}
+                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
+                    <option value="VOLUME_FINANCEIRO">Volume Financeiro</option>
+                    <option value="CUSTO_PRAZO">Custo / Prazo</option>
+                    <option value="PROJETO_MARCO">Projeto / Marco</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Abrangência *</label>
+                  <select required value={indicadorForm.abrangencia} onChange={(e) => setIndicadorForm({ ...indicadorForm, abrangencia: e.target.value })}
+                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
+                    <option value="CORPORATIVO">Corporativo</option>
+                    <option value="AREA">Área</option>
+                    <option value="INDIVIDUAL">Individual</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Descrição</label>
+                  <input value={indicadorForm.descricao} onChange={(e) => setIndicadorForm({ ...indicadorForm, descricao: e.target.value })}
+                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
+                </div>
+                <div className="col-span-2 md:col-span-3 flex gap-2">
+                  <button type="submit" className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-1.5 rounded-lg">
+                    Criar Indicador
+                  </button>
+                  <button type="button" onClick={() => setShowIndicadorForm(false)}
+                    className="text-sm text-gray-500 hover:text-gray-700 px-4 py-1.5">
+                    Cancelar
+                  </button>
+                </div>
+              </form>
+            )}
+
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      {["#","Código","Nome","Tipo","Abrangência","Unidade","Status","Metas"].map((h) => (
+                        <th key={h} className="text-left px-4 py-2.5 text-gray-500 font-medium text-xs uppercase">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {indicadores.map((i) => (
+                      <tr key={i.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 text-gray-400">{i.id}</td>
+                        <td className="px-4 py-3 text-xs font-mono text-gray-600">{i.codigo}</td>
+                        <td className="px-4 py-3 font-medium text-gray-800">{i.nome}</td>
+                        <td className="px-4 py-3 text-xs text-gray-600">
+                          {i.tipo === "VOLUME_FINANCEIRO" ? "Volume" : i.tipo === "CUSTO_PRAZO" ? "Custo/Prazo" : "Projeto"}
+                        </td>
+                        <td className="px-4 py-3 text-xs text-gray-600">{i.abrangencia}</td>
+                        <td className="px-4 py-3 text-xs text-gray-600">{i.unidade}</td>
+                        <td className="px-4 py-3"><StatusBadge status={i.status} /></td>
+                        <td className="px-4 py-3 text-xs text-gray-500">{(i as unknown as { _count?: { metas?: number } })._count?.metas ?? 0}</td>
+                      </tr>
+                    ))}
+                    {indicadores.length === 0 && (
+                      <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">Nenhum indicador cadastrado</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         )}
 
