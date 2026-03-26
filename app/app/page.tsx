@@ -1218,6 +1218,17 @@ export default function Home() {
                 </table>
               </div>
             </div>
+
+            {/* Seed / Demo */}
+            <div className="rounded-lg p-4 flex items-center justify-between gap-4" style={{ background: "var(--surface-raised)", border: "1px solid var(--border)" }}>
+              <div>
+                <p className="text-xs font-semibold" style={{ color: "var(--ink)" }}>Dados de demonstração</p>
+                <p className="text-xs mt-0.5" style={{ color: "var(--ink-muted)" }}>Popula o banco com colaboradores, metas e realizações de exemplo.</p>
+              </div>
+              <button onClick={handleSeed} disabled={seedLoading} className="btn-ghost text-xs flex-shrink-0">
+                {seedLoading ? "Carregando..." : "Carregar Demo"}
+              </button>
+            </div>
           </div>
         )}
 
