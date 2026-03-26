@@ -1,46 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 import { isJanelaAberta } from "@/app/lib/janelas";
-
-function calcularNota(
-  tipo: string,
-  polaridade: string,
-  valorRealizado: number,
-  metaAlvo: number,
-  metaMinima: number | null,
-  metaMaxima: number | null
-): number {
-  if (metaAlvo === 0) return 0;
-  let nota = 0;
-
-  if (tipo === "PROJETO_MARCO") {
-    // Pass/fail: 100 if realizado >= 1 (true), else 0
-    nota = valorRealizado >= 1 ? 100 : 0;
-  } else if (polaridade === "MENOR_MELHOR") {
-    // Ex: custo, prazo, defeitos — menor realizado = melhor nota
-    nota = valorRealizado === 0 ? 120 : (metaAlvo / valorRealizado) * 100;
-    // Below minimum (pior que o piso): zero score
-    if (metaMaxima && valorRealizado > metaMaxima) nota = 0;
-  } else {
-    // MAIOR_MELHOR (default): maior realizado = melhor nota
-    nota = (valorRealizado / metaAlvo) * 100;
-    // Below minimum: zero score
-    if (metaMinima && valorRealizado < metaMinima) nota = 0;
-  }
-
-  // Cap upside: use metaMaxima ratio or default 120
-  if (tipo !== "PROJETO_MARCO") {
-    if (metaMaxima && metaAlvo > 0 && polaridade !== "MENOR_MELHOR") {
-      nota = Math.min(nota, (metaMaxima / metaAlvo) * 100);
-    } else if (polaridade !== "MENOR_MELHOR") {
-      nota = Math.min(nota, 120);
-    } else {
-      nota = Math.min(nota, 120);
-    }
-  }
-
-  return Math.max(0, nota);
-}
+import { calcularNota, calcularPremio } from "@/app/lib/calc";
 
 export async function GET(req: NextRequest) {
   try {
@@ -159,10 +120,12 @@ export async function POST(req: NextRequest) {
         include: { cargo: true },
       });
       if (colaborador) {
-        premioProjetado =
-          (colaborador.salarioBase * 12 * (colaborador.cargo.targetBonusPerc / 100)) *
-          (nota / 100) *
-          (meta.pesoNaCesta / 100);
+        premioProjetado = calcularPremio(
+          colaborador.salarioBase,
+          colaborador.cargo.targetBonusPerc,
+          nota,
+          meta.pesoNaCesta
+        );
       }
     }
 
