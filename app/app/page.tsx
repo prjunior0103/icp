@@ -87,26 +87,65 @@ function notaColor(nota: number | null) {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, string> = {
-    DRAFT: "bg-gray-100 text-gray-600",
-    ATIVO: "bg-blue-100 text-blue-700",
-    APROVADO: "bg-green-100 text-green-700",
-    REJEITADO: "bg-red-100 text-red-700",
-    PENDENTE: "bg-yellow-100 text-yellow-700",
-    RASCUNHO: "bg-gray-100 text-gray-600",
-    SUBMETIDO: "bg-blue-100 text-blue-700",
-    ENCERRADO: "bg-gray-200 text-gray-500",
-    SETUP: "bg-purple-100 text-purple-700",
-    ABERTA: "bg-green-100 text-green-700",
-    FECHADA: "bg-red-100 text-red-700",
-    PRORROGADA: "bg-orange-100 text-orange-700",
+  type BadgeStyle = { bg: string; text: string; border: string };
+  const map: Record<string, BadgeStyle> = {
+    DRAFT:      { bg: "var(--muted-bg)",  text: "var(--muted-text)", border: "var(--muted-border)" },
+    RASCUNHO:   { bg: "var(--muted-bg)",  text: "var(--muted-text)", border: "var(--muted-border)" },
+    ENCERRADO:  { bg: "var(--muted-bg)",  text: "var(--muted-text)", border: "var(--muted-border)" },
+    CANCELADO:  { bg: "var(--muted-bg)",  text: "var(--muted-text)", border: "var(--muted-border)" },
+    ATIVO:      { bg: "var(--info-bg)",   text: "var(--info-text)",  border: "var(--info-border)"  },
+    SUBMETIDO:  { bg: "var(--info-bg)",   text: "var(--info-text)",  border: "var(--info-border)"  },
+    APROVADO:   { bg: "var(--ok-bg)",     text: "var(--ok-text)",    border: "var(--ok-border)"    },
+    ABERTA:     { bg: "var(--ok-bg)",     text: "var(--ok-text)",    border: "var(--ok-border)"    },
+    REJEITADO:  { bg: "var(--err-bg)",    text: "var(--err-text)",   border: "var(--err-border)"   },
+    FECHADA:    { bg: "var(--err-bg)",    text: "var(--err-text)",   border: "var(--err-border)"   },
+    PENDENTE:   { bg: "var(--warn-bg)",   text: "var(--warn-text)",  border: "var(--warn-border)"  },
+    PRORROGADA: { bg: "var(--warn-bg)",   text: "var(--warn-text)",  border: "var(--warn-border)"  },
+    SETUP:      { bg: "#f5f3ff",          text: "#6d28d9",           border: "rgba(109,40,217,0.2)" },
   };
+  const s = map[status] ?? map.DRAFT;
   return (
-    <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded-full ${map[status] ?? "bg-gray-100 text-gray-600"}`}>
+    <span
+      style={{ background: s.bg, color: s.text, border: `1px solid ${s.border}` }}
+      className="inline-block text-xs font-semibold px-2 py-0.5 rounded tracking-wide"
+    >
       {status}
     </span>
   );
 }
+
+// ─── Tab groups ───────────────────────────────────────────────────────────────
+
+const TAB_GROUPS: { id: TabId; label: string }[][] = [
+  [
+    { id: "dashboard",   label: "Dashboard" },
+    { id: "cockpit",     label: "Cockpit" },
+    { id: "gestor",      label: "Painel Gestor" },
+    { id: "scorecard",   label: "Scorecard" },
+  ],
+  [
+    { id: "indicadores", label: "Indicadores" },
+    { id: "metas",       label: "Metas" },
+    { id: "realizacoes", label: "Realizações" },
+    { id: "atingimento", label: "Atingimento" },
+  ],
+  [
+    { id: "colaboradores",  label: "Colaboradores" },
+    { id: "elegiveis",      label: "Elegíveis" },
+    { id: "movimentacoes",  label: "Movimentações" },
+  ],
+  [
+    { id: "conferencia", label: "Conferência" },
+    { id: "workflow",    label: "Workflow" },
+    { id: "janelas",     label: "Janelas" },
+    { id: "relatorio",   label: "Relatório" },
+  ],
+  [
+    { id: "importacao",  label: "Importação BP" },
+    { id: "cadastros",   label: "Cadastros" },
+    { id: "ajuda",       label: "Ajuda" },
+  ],
+];
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
@@ -821,58 +860,75 @@ export default function Home() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--canvas)" }}>
         <div className="text-center">
-          <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-gray-500 text-sm">Carregando...</p>
+          <div className="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin mx-auto mb-3" style={{ borderColor: "var(--accent)", borderTopColor: "transparent" }} />
+          <p className="text-sm" style={{ color: "var(--ink-muted)" }}>Carregando...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen flex flex-col" style={{ background: "var(--canvas)" }}>
       {/* Header */}
-      <header className="bg-blue-900 text-white shadow-md">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-4">
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <div className="w-8 h-8 bg-blue-400 rounded flex items-center justify-center font-bold text-sm">ICP</div>
-            <span className="font-semibold text-base">Sistema ICP</span>
+      <header style={{ background: "var(--nav-bg)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+        <div className="max-w-7xl mx-auto px-6 h-14 flex items-center gap-4">
+          {/* Logo */}
+          <div className="flex items-center gap-2.5 flex-shrink-0">
+            <div className="w-7 h-7 rounded-md flex items-center justify-center font-bold text-xs tracking-tight select-none"
+              style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", color: "white" }}>
+              ICP
+            </div>
+            <span className="font-semibold text-sm tracking-tight" style={{ color: "rgba(255,255,255,0.88)" }}>
+              Sistema ICP
+            </span>
           </div>
 
+          <div className="w-px h-5 flex-shrink-0" style={{ background: "rgba(255,255,255,0.1)" }} />
+
           {/* Ciclo selector */}
-          <div className="flex items-center gap-2 ml-4">
-            <span className="text-blue-300 text-xs">Ciclo:</span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs" style={{ color: "rgba(255,255,255,0.38)" }}>Ciclo</span>
             <select
               value={cicloAtivo?.id ?? ""}
               onChange={(e) => {
                 const c = ciclos.find((x) => x.id === Number(e.target.value));
                 if (c) { setCicloAtivo(c); loadMetas(c.id); loadJanelas(c.id); loadDashboard(c.id); }
               }}
-              className="bg-blue-800 border border-blue-600 text-white text-sm rounded px-2 py-1"
+              className="text-xs rounded-md px-2 py-1 focus:outline-none"
+              style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.82)" }}
             >
               {ciclos.map((c) => (
-                <option key={c.id} value={c.id}>{c.anoFiscal} — {c.status}</option>
+                <option key={c.id} value={c.id} style={{ background: "#0e1b2e" }}>{c.anoFiscal} — {c.status}</option>
               ))}
             </select>
           </div>
 
-          {/* Janela status indicator */}
+          {/* Janela status */}
           {janelaAtualHeader ? (
-            <span className="text-xs bg-green-500 text-white px-2 py-0.5 rounded-full font-medium">
-              Janela {MESES[janelaAtualHeader.mesReferencia - 1]} ABERTA
+            <span className="text-xs font-medium px-2 py-0.5 rounded"
+              style={{ background: "rgba(5,150,105,0.18)", color: "#6ee7b7", border: "1px solid rgba(5,150,105,0.22)" }}>
+              Janela {MESES[janelaAtualHeader.mesReferencia - 1]} aberta
             </span>
           ) : (
-            <span className="text-xs bg-gray-600 text-gray-300 px-2 py-0.5 rounded-full font-medium">
+            <span className="text-xs px-2 py-0.5 rounded"
+              style={{ color: "rgba(255,255,255,0.28)", border: "1px solid rgba(255,255,255,0.07)" }}>
               Sem janela aberta
             </span>
           )}
 
           <div className="ml-auto flex items-center gap-3">
-            <span className="bg-purple-600 text-white text-xs font-semibold px-2.5 py-0.5 rounded-full">{role}</span>
+            <span className="text-xs font-semibold px-2 py-0.5 rounded"
+              style={{ background: "rgba(139,92,246,0.18)", color: "#c4b5fd", border: "1px solid rgba(139,92,246,0.22)" }}>
+              {role}
+            </span>
             <button
               onClick={() => signOut({ callbackUrl: "/login" })}
-              className="text-blue-200 hover:text-white text-sm border border-blue-600 hover:border-blue-400 rounded px-3 py-1 transition-colors"
+              className="text-xs rounded-md px-3 py-1.5 transition-colors"
+              style={{ color: "rgba(255,255,255,0.5)", border: "1px solid rgba(255,255,255,0.1)" }}
+              onMouseEnter={(e) => { (e.target as HTMLButtonElement).style.color = "rgba(255,255,255,0.85)"; }}
+              onMouseLeave={(e) => { (e.target as HTMLButtonElement).style.color = "rgba(255,255,255,0.5)"; }}
             >
               Sair
             </button>
@@ -882,15 +938,16 @@ export default function Home() {
 
       {/* Seed Banner */}
       {!seeded && (
-        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2">
+        <div style={{ background: "var(--warn-bg)", borderBottom: "1px solid var(--warn-border)" }} className="px-6 py-2.5">
           <div className="max-w-7xl mx-auto flex items-center justify-between">
-            <p className="text-amber-800 text-sm">
+            <p className="text-sm" style={{ color: "var(--warn-text)" }}>
               Banco de dados vazio. Carregue os dados de demonstração para explorar o sistema.
             </p>
             <button
               onClick={handleSeed}
               disabled={seedLoading}
-              className="ml-4 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 text-white text-sm font-medium px-4 py-1.5 rounded transition-colors"
+              className="ml-4 text-xs font-semibold px-4 py-1.5 rounded-md transition-colors disabled:opacity-50"
+              style={{ background: "var(--warning)", color: "white" }}
             >
               {seedLoading ? "Carregando..." : "Carregar Dados Demo"}
             </button>
@@ -899,43 +956,39 @@ export default function Home() {
       )}
 
       {/* Tabs */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4">
-          <nav className="flex gap-1 overflow-x-auto">
-            {(["dashboard","cockpit","gestor","scorecard","indicadores","metas","atingimento","elegiveis","relatorio","conferencia","realizacoes","colaboradores","workflow","janelas","importacao","cadastros","ajuda"] as TabId[]).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors capitalize flex items-center gap-1.5 ${
-                  activeTab === tab
-                    ? "border-blue-600 text-blue-700"
-                    : "border-transparent text-gray-500 hover:text-gray-800"
-                }`}
-              >
-                {tab === "workflow" ? "Workflow" :
-                 tab === "realizacoes" ? "Realizações" :
-                 tab === "janelas" ? "Janelas" :
-                 tab === "importacao" ? "Importação BP" :
-                 tab === "cockpit" ? "Cockpit" :
-                 tab === "gestor" ? "Painel Gestor" :
-                 tab === "elegiveis" ? "Elegíveis" :
-                 tab === "relatorio" ? "Relatório" :
-                 tab === "conferencia" ? "Conferência" :
-                 tab === "movimentacoes" ? "Movimentações RH" :
-                 tab === "cadastros" ? "Cadastros" :
-                 tab === "ajuda" ? "? Ajuda" :
-                 tab.charAt(0).toUpperCase() + tab.slice(1)}
-                {tab === "workflow" && pendingCount > 0 && (
-                  <span className="bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
-                    {pendingCount}
-                  </span>
+      <div className="bg-white" style={{ borderBottom: "1px solid var(--border-strong)" }}>
+        <div className="max-w-7xl mx-auto px-6">
+          <nav className="flex overflow-x-auto items-end">
+            {TAB_GROUPS.map((group, gi) => (
+              <React.Fragment key={gi}>
+                {gi > 0 && (
+                  <div className="self-center w-px h-4 mx-1 flex-shrink-0" style={{ background: "var(--border-strong)" }} />
                 )}
-                {tab === "workflow" && waivers.length > 0 && (
-                  <span className="bg-orange-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
-                    {waivers.length}
-                  </span>
-                )}
-              </button>
+                {group.map(({ id: tab, label }) => (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={`px-3 py-3.5 text-xs font-medium border-b-2 whitespace-nowrap transition-colors flex items-center gap-1.5 ${
+                      activeTab === tab
+                        ? "border-[var(--accent)] text-[var(--accent)]"
+                        : "border-transparent hover:text-slate-700"
+                    }`}
+                    style={activeTab !== tab ? { color: "var(--ink-muted)" } : {}}
+                  >
+                    {label}
+                    {tab === "workflow" && pendingCount > 0 && (
+                      <span className="bg-red-500 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center font-bold leading-none flex-shrink-0">
+                        {pendingCount}
+                      </span>
+                    )}
+                    {tab === "workflow" && waivers.length > 0 && (
+                      <span className="bg-orange-500 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center font-bold leading-none flex-shrink-0">
+                        {waivers.length}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </React.Fragment>
             ))}
           </nav>
         </div>
@@ -946,40 +999,40 @@ export default function Home() {
 
         {/* ── DASHBOARD (Master) ──────────────────────────────────────────── */}
         {activeTab === "dashboard" && (
-          <div className="space-y-6">
-            <h2 className="text-xl font-bold text-gray-800">Master Dashboard</h2>
+          <div className="space-y-5">
+            <h2 className="text-lg font-semibold" style={{ color: "var(--ink)" }}>Dashboard</h2>
             <MasterDashboard cicloId={cicloAtivo?.id ?? null} />
 
             {/* KPI Cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {[
-                { label: "Total Colaboradores", value: dashboardData?.totalColaboradores ?? colaboradores.length, color: "blue" },
-                { label: "Metas Ativas", value: dashboardData?.totalMetasAtivas ?? metas.filter((m) => m.status !== "DRAFT").length, color: "green" },
-                { label: "Realizações no Mês", value: dashboardData?.realizacoesMes ?? realizacoes.filter((r) => r.mesReferencia === new Date().getMonth() + 1).length, color: "indigo" },
-                { label: "Pendências Workflow", value: dashboardData?.workflowPendente ?? pendingCount, color: "amber" },
+                { label: "Colaboradores", value: dashboardData?.totalColaboradores ?? colaboradores.length, accent: "var(--accent)" },
+                { label: "Metas Ativas", value: dashboardData?.totalMetasAtivas ?? metas.filter((m) => m.status !== "DRAFT").length, accent: "#059669" },
+                { label: "Realizações no Mês", value: dashboardData?.realizacoesMes ?? realizacoes.filter((r) => r.mesReferencia === new Date().getMonth() + 1).length, accent: "#7c3aed" },
+                { label: "Pendências Workflow", value: dashboardData?.workflowPendente ?? pendingCount, accent: "#d97706" },
               ].map((kpi) => (
-                <div key={kpi.label} className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-                  <p className="text-sm text-gray-500">{kpi.label}</p>
-                  <p className={`text-3xl font-bold mt-1 text-${kpi.color}-600`}>{kpi.value}</p>
+                <div key={kpi.label} className="bg-white rounded-lg p-5" style={{ border: "1px solid var(--border)" }}>
+                  <p className="text-xs font-medium uppercase tracking-wide" style={{ color: "var(--ink-muted)" }}>{kpi.label}</p>
+                  <p className="text-3xl font-bold mt-2 tabular-nums" style={{ color: kpi.accent }}>{kpi.value}</p>
                 </div>
               ))}
             </div>
 
             {/* Bonus Pool Card */}
             {dashboardData && dashboardData.bonusPoolTotal !== null && (
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-                <h3 className="font-semibold text-gray-800 mb-3">Bonus Pool</h3>
-                <div className="flex items-center justify-between text-sm mb-2">
-                  <span className="text-gray-500">Utilizado</span>
-                  <span className="font-medium">{fmt(dashboardData.bonusPoolUsado)} / {fmt(dashboardData.bonusPoolTotal)}</span>
+              <div className="bg-white rounded-lg p-5" style={{ border: "1px solid var(--border)" }}>
+                <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--ink)" }}>Bonus Pool</h3>
+                <div className="flex items-center justify-between text-xs mb-2" style={{ color: "var(--ink-secondary)" }}>
+                  <span>Utilizado</span>
+                  <span className="font-medium tabular-nums">{fmt(dashboardData.bonusPoolUsado)} / {fmt(dashboardData.bonusPoolTotal)}</span>
                 </div>
-                <div className="w-full bg-gray-100 rounded-full h-3">
+                <div className="w-full rounded-full h-2" style={{ background: "var(--border-strong)" }}>
                   <div
-                    className="bg-blue-600 h-3 rounded-full transition-all"
-                    style={{ width: `${Math.min(100, (dashboardData.bonusPoolUsado / dashboardData.bonusPoolTotal) * 100)}%` }}
+                    className="h-2 rounded-full transition-all"
+                    style={{ width: `${Math.min(100, (dashboardData.bonusPoolUsado / dashboardData.bonusPoolTotal) * 100)}%`, background: "var(--accent)" }}
                   />
                 </div>
-                <p className="text-xs text-gray-400 mt-1">
+                <p className="text-xs mt-1.5" style={{ color: "var(--ink-muted)" }}>
                   {((dashboardData.bonusPoolUsado / dashboardData.bonusPoolTotal) * 100).toFixed(1)}% utilizado
                 </p>
               </div>
@@ -987,40 +1040,40 @@ export default function Home() {
 
             {/* Alertas de Engajamento */}
             {dashboardData && dashboardData.alertasEngajamento.length > 0 && (
-              <div className="bg-orange-50 border border-orange-200 rounded-xl p-5">
-                <h3 className="font-semibold text-orange-800 mb-2">Alertas de Engajamento</h3>
-                <p className="text-sm text-orange-700 mb-2">
+              <div className="rounded-lg p-4" style={{ background: "var(--warn-bg)", border: "1px solid var(--warn-border)" }}>
+                <h3 className="text-sm font-semibold mb-1.5" style={{ color: "var(--warn-text)" }}>Alertas de Engajamento</h3>
+                <p className="text-xs mb-2.5" style={{ color: "var(--warn-text)", opacity: 0.8 }}>
                   Centros de custo sem realizações nos últimos 2 meses:
                 </p>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-1.5">
                   {dashboardData.alertasEngajamento.map((cc) => (
-                    <span key={cc} className="bg-orange-100 text-orange-700 text-xs px-2.5 py-1 rounded-full font-medium">{cc}</span>
+                    <span key={cc} className="text-xs px-2 py-0.5 rounded font-medium" style={{ background: "var(--warn-border)", color: "var(--warn-text)" }}>{cc}</span>
                   ))}
                 </div>
               </div>
             )}
 
             {/* Top Colaboradores */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-100">
-                <h3 className="font-semibold text-gray-800">Top Colaboradores — Prêmio Projetado YTD</h3>
+            <div className="bg-white rounded-lg overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+              <div className="px-5 py-3.5" style={{ borderBottom: "1px solid var(--border)" }}>
+                <h3 className="text-sm font-semibold" style={{ color: "var(--ink)" }}>Top Colaboradores — Prêmio Projetado YTD</h3>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50">
+                  <thead>
                     <tr>
                       {["Nome","Cargo","Nota Média","Prêmio YTD"].map((h) => (
-                        <th key={h} className="text-left px-4 py-2.5 text-gray-500 font-medium text-xs uppercase">{h}</th>
+                        <th key={h} className="text-left px-4 py-2.5">{h}</th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody>
                     {(dashboardData?.topColaboradores ?? []).map((c) => (
-                      <tr key={c.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 font-medium text-gray-800">{c.nome}</td>
-                        <td className="px-4 py-3 text-gray-600">{c.cargo}</td>
+                      <tr key={c.id}>
+                        <td className="px-4 py-3">{c.nome}</td>
+                        <td className="px-4 py-3">{c.cargo}</td>
                         <td className={`px-4 py-3 ${notaColor(c.notaMedia)}`}>{fmtN(c.notaMedia)}</td>
-                        <td className="px-4 py-3 text-gray-800 font-medium">{fmt(c.premioYTD)}</td>
+                        <td className="px-4 py-3 tabular-nums font-medium" style={{ color: "var(--ink)" }}>{fmt(c.premioYTD)}</td>
                       </tr>
                     ))}
                     {(dashboardData?.topColaboradores ?? []).length === 0 && (
@@ -1037,11 +1090,11 @@ export default function Home() {
         {activeTab === "scorecard" && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-800">Scorecard Individual</h2>
+              <h2 className="icp-page-title">Scorecard Individual</h2>
               <select
                 value={selectedColaborador ?? ""}
                 onChange={(e) => setSelectedColaborador(e.target.value ? Number(e.target.value) : null)}
-                className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="border rounded-md px-3 py-2 text-sm focus:outline-none"
               >
                 <option value="">Selecionar colaborador...</option>
                 {colaboradores.map((c) => (
@@ -1051,7 +1104,7 @@ export default function Home() {
             </div>
 
             {!selectedColaborador && (
-              <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">
+              <div className="bg-white icp-card p-12 text-center text-gray-400">
                 Selecione um colaborador para ver o scorecard
               </div>
             )}
@@ -1060,46 +1113,46 @@ export default function Home() {
               <>
                 {/* Hero cards */}
                 <div className="grid grid-cols-3 gap-4">
-                  <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm col-span-1">
+                  <div className="bg-white icp-card p-6 shadow-sm col-span-1">
                     <p className="text-xs text-gray-500 uppercase tracking-wide">Nota YTD</p>
                     <p className={`text-4xl font-bold mt-1 ${notaColor(scorecardData.notaYTD)}`}>
                       {fmtN(scorecardData.notaYTD)}
                     </p>
                   </div>
-                  <div className="bg-blue-900 text-white rounded-xl p-6 shadow-sm col-span-2">
-                    <p className="text-xs text-blue-300 uppercase tracking-wide">Prêmio Projetado YTD</p>
-                    <p className="text-4xl font-bold mt-1">{fmt(scorecardData.premioYTD)}</p>
-                    <p className="text-blue-300 text-sm mt-2">Target anual: {fmt(scorecardData.targetAnual)}</p>
+                  <div className="rounded-lg p-6 col-span-2" style={{ background: "var(--nav-bg)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                    <p className="text-xs uppercase tracking-wide" style={{ color: "rgba(255,255,255,0.4)" }}>Prêmio Projetado YTD</p>
+                    <p className="text-4xl font-bold mt-1 tabular-nums" style={{ color: "white" }}>{fmt(scorecardData.premioYTD)}</p>
+                    <p className="text-sm mt-2" style={{ color: "rgba(255,255,255,0.45)" }}>Target anual: {fmt(scorecardData.targetAnual)}</p>
                   </div>
                 </div>
 
                 {/* Metas table */}
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                  <div className="px-5 py-4 border-b border-gray-100">
-                    <h3 className="font-semibold text-gray-800">Metas e Resultados</h3>
+                <div className="bg-white icp-card overflow-hidden">
+                  <div className="px-5 py-4 icp-card-header">
+                    <h3 className="icp-section-title">Metas e Resultados</h3>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
-                      <thead className="bg-gray-50">
+                      <thead>
                         <tr>
                           {["Indicador","Peso","Alvo","Realizado (últ.)","Nota Média","Prêmio"].map((h) => (
-                            <th key={h} className="text-left px-4 py-2.5 text-gray-500 font-medium text-xs uppercase">{h}</th>
+                            <th key={h} className="text-left px-4 py-2.5">{h}</th>
                           ))}
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-gray-100">
+                      <tbody className="">
                         {scorecardData.metas.map((item, i) => {
                           const lastR = item.realizacoes[item.realizacoes.length - 1];
                           return (
-                            <tr key={i} className="hover:bg-gray-50">
-                              <td className="px-4 py-3 font-medium text-gray-800">{item.indicador.nome}</td>
-                              <td className="px-4 py-3 text-gray-600">{item.meta.pesoNaCesta}%</td>
-                              <td className="px-4 py-3 text-gray-600">{item.meta.metaAlvo.toLocaleString("pt-BR")}</td>
-                              <td className="px-4 py-3 text-gray-600">
+                            <tr key={i} className="">
+                              <td className="px-4 py-3">{item.indicador.nome}</td>
+                              <td className="px-4 py-3">{item.meta.pesoNaCesta}%</td>
+                              <td className="px-4 py-3">{item.meta.metaAlvo.toLocaleString("pt-BR")}</td>
+                              <td className="px-4 py-3">
                                 {lastR ? lastR.valorRealizado.toLocaleString("pt-BR") : "—"}
                               </td>
                               <td className={`px-4 py-3 ${notaColor(item.notaMedia)}`}>{fmtN(item.notaMedia)}</td>
-                              <td className="px-4 py-3 text-gray-800 font-medium">{fmt(item.premioProjetado)}</td>
+                              <td className="px-4 py-3 font-medium tabular-nums">{fmt(item.premioProjetado)}</td>
                             </tr>
                           );
                         })}
@@ -1119,10 +1172,10 @@ export default function Home() {
         {activeTab === "indicadores" && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-800">Indicadores</h2>
+              <h2 className="icp-page-title">Indicadores</h2>
               <button
                 onClick={() => setShowIndicadorForm(!showIndicadorForm)}
-                className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-1.5 rounded-lg transition-colors"
+                className="btn-primary"
               >
                 + Novo Indicador
               </button>
@@ -1133,7 +1186,7 @@ export default function Home() {
               const codigoDisplay = indicadorForm.codigo || autoCode;
               return (
               <form onSubmit={(e) => { if (!indicadorForm.codigo) setIndicadorForm((f) => ({ ...f, codigo: autoCode })); handleCriarIndicador(e); }}
-                className="bg-blue-50 border border-blue-200 rounded-xl p-5 grid grid-cols-2 md:grid-cols-3 gap-4">
+                className="bg-white icp-card p-5 grid grid-cols-2 md:grid-cols-3 gap-4">
                 <div className="col-span-2 md:col-span-3">
                   <h3 className="text-sm font-semibold text-blue-900">Novo Indicador</h3>
                 </div>
@@ -1238,7 +1291,7 @@ export default function Home() {
                   )}
                 </div>
                 <div className="col-span-2 md:col-span-3 flex gap-2">
-                  <button type="submit" className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-1.5 rounded-lg">
+                  <button type="submit" className="btn-primary">
                     Criar Indicador
                   </button>
                   <button type="button" onClick={() => setShowIndicadorForm(false)}
@@ -1250,22 +1303,22 @@ export default function Home() {
               );
             })()}
 
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="bg-white icp-card overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50">
+                  <thead>
                     <tr>
                       {["#","Código","Nome","Tipo","Polaridade","Unidade","Analista","Divisor","Status","Metas"].map((h) => (
-                        <th key={h} className="text-left px-4 py-2.5 text-gray-500 font-medium text-xs uppercase">{h}</th>
+                        <th key={h} className="text-left px-4 py-2.5">{h}</th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="">
                     {indicadores.map((i) => (
-                      <tr key={i.id} className="hover:bg-gray-50">
+                      <tr key={i.id} className="">
                         <td className="px-4 py-3 text-gray-400">{i.id}</td>
                         <td className="px-4 py-3 text-xs font-mono text-gray-600">{i.codigo}</td>
-                        <td className="px-4 py-3 font-medium text-gray-800">{i.nome}</td>
+                        <td className="px-4 py-3">{i.nome}</td>
                         <td className="px-4 py-3 text-xs text-gray-600">
                           {i.tipo === "VOLUME_FINANCEIRO" ? "Volume" : i.tipo === "CUSTO_PRAZO" ? "Custo/Prazo" : "Projeto"}
                         </td>
@@ -1297,7 +1350,7 @@ export default function Home() {
         {activeTab === "metas" && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-800">Metas</h2>
+              <h2 className="icp-page-title">Metas</h2>
               <div className="flex items-center gap-2 flex-wrap">
                 <p className="text-sm text-gray-500">{metas.length} metas</p>
                 <button onClick={() => setShowBibliotecaTab((v) => !v)}
@@ -1309,7 +1362,7 @@ export default function Home() {
                   ⬆ Importar CSV
                 </button>
                 <button onClick={() => { setShowMetaForm(!showMetaForm); setCloningMetaId(null); setCascateandoMetaId(null); }}
-                  className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-1.5 rounded-lg transition-colors">
+                  className="btn-primary">
                   + Nova Meta
                 </button>
               </div>
@@ -1371,7 +1424,7 @@ export default function Home() {
             )}
 
             {showMetaForm && (
-              <form onSubmit={handleCriarMeta} className="bg-blue-50 border border-blue-200 rounded-xl p-5 grid grid-cols-2 md:grid-cols-3 gap-4">
+              <form onSubmit={handleCriarMeta} className="bg-white icp-card p-5 grid grid-cols-2 md:grid-cols-3 gap-4">
                 <div className="col-span-2 md:col-span-3">
                   <h3 className="text-sm font-semibold text-blue-900">
                     {cloningMetaId ? `Clonar Meta #${cloningMetaId}` : cascateandoMetaId ? `Cascatear Meta #${cascateandoMetaId}` : "Nova Meta"}
@@ -1455,7 +1508,7 @@ export default function Home() {
                   </div>
                 </div>
                 <div className="col-span-2 md:col-span-3 flex gap-2">
-                  <button type="submit" className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-1.5 rounded-lg">
+                  <button type="submit" className="btn-primary">
                     {cloningMetaId ? "Criar Cópia" : cascateandoMetaId ? "Criar Meta Cascateada" : "Criar Meta"}
                   </button>
                   <button type="button" onClick={() => { setShowMetaForm(false); setCascateandoMetaId(null); setCloningMetaId(null); setMetaForm({ indicadorId: "", centroCustoId: "", pesoNaCesta: "100", metaAlvo: "", metaMinima: "", metaMaxima: "", parentMetaId: "", smart_e: "", smart_m: "", smart_a: "", smart_r: "", smart_t: "" }); }}
@@ -1493,17 +1546,17 @@ export default function Home() {
               </div>
             )}
 
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="bg-white icp-card overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50">
+                  <thead>
                     <tr>
                       {["#","Indicador","CC","Peso","Alvo","Colaboradores","Status",""].map((h) => (
-                        <th key={h} className="text-left px-4 py-2.5 text-gray-500 font-medium text-xs uppercase">{h}</th>
+                        <th key={h} className="text-left px-4 py-2.5">{h}</th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="">
                     {metas.map((m) => (
                       <React.Fragment key={m.id}>
                         <tr className={`hover:bg-gray-50 ${m.parentMetaId ? "bg-gray-50/50" : ""}`}>
@@ -1520,10 +1573,10 @@ export default function Home() {
                               <p className="text-xs text-indigo-500 mt-0.5">{m._count.filhas} meta(s) cascateada(s)</p>
                             )}
                           </td>
-                          <td className="px-4 py-3 text-gray-600">{m.centroCusto?.nome ?? "—"}</td>
-                          <td className="px-4 py-3 text-gray-600">{m.pesoNaCesta}%</td>
-                          <td className="px-4 py-3 text-gray-600">{m.metaAlvo.toLocaleString("pt-BR")}</td>
-                          <td className="px-4 py-3 text-gray-600">{m._count.colaboradores}</td>
+                          <td className="px-4 py-3">{m.centroCusto?.nome ?? "—"}</td>
+                          <td className="px-4 py-3">{m.pesoNaCesta}%</td>
+                          <td className="px-4 py-3">{m.metaAlvo.toLocaleString("pt-BR")}</td>
+                          <td className="px-4 py-3">{m._count.colaboradores}</td>
                           <td className="px-4 py-3"><StatusBadge status={m.status} /></td>
                           <td className="px-4 py-3">
                             <div className="flex gap-1 flex-wrap">
@@ -1631,7 +1684,7 @@ export default function Home() {
         {/* ── PAINEL ATINGIMENTO NOMINAL ────────────────────────────────── */}
         {activeTab === "atingimento" && (
           <div className="space-y-6">
-            <h2 className="text-xl font-bold text-gray-800">Painel Atingimento Nominal — por Meta</h2>
+            <h2 className="icp-page-title">Painel Atingimento Nominal — por Meta</h2>
             {metas.length === 0 ? (
               <div className="text-center text-gray-400 py-16">Nenhuma meta cadastrada</div>
             ) : (
@@ -1646,10 +1699,10 @@ export default function Home() {
                     ? metaRealizacoes.reduce((s, r) => s + (r.notaCalculada ?? 0), 0) / metaRealizacoes.length : 0;
                   const polarLabel = (m.indicador as Indicador).polaridade === "MENOR_MELHOR" ? "↓ Menor é Melhor" : "↑ Maior é Melhor";
                   return (
-                    <div key={m.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+                    <div key={m.id} className="bg-white icp-card p-5">
                       <div className="flex items-start justify-between mb-3">
                         <div>
-                          <h3 className="font-semibold text-gray-800">{m.indicador.nome}</h3>
+                          <h3 className="icp-section-title">{m.indicador.nome}</h3>
                           <p className="text-xs text-gray-500">{m.centroCusto?.nome ?? "Corporativo"} · Peso: {m.pesoNaCesta}% · Alvo: {m.metaAlvo.toLocaleString("pt-BR")} {m.indicador.unidade}</p>
                           <p className="text-xs mt-0.5"><span className={`font-medium ${(m.indicador as Indicador).polaridade === "MENOR_MELHOR" ? "text-orange-600" : "text-green-600"}`}>{polarLabel}</span></p>
                         </div>
@@ -1662,7 +1715,7 @@ export default function Home() {
                       {metaRealizacoes.length > 0 ? (
                         <div className="overflow-x-auto">
                           <table className="w-full text-xs">
-                            <thead className="bg-gray-50">
+                            <thead>
                               <tr>
                                 {["Colaborador","Mês","Realizado","Nota","Prêmio Proj."].map((h) => (
                                   <th key={h} className="px-3 py-1.5 text-left text-gray-500 uppercase font-medium">{h}</th>
@@ -1671,7 +1724,7 @@ export default function Home() {
                             </thead>
                             <tbody className="divide-y divide-gray-50">
                               {metaRealizacoes.slice().sort((a, b) => (b.notaCalculada ?? 0) - (a.notaCalculada ?? 0)).map((r) => (
-                                <tr key={r.id} className="hover:bg-gray-50">
+                                <tr key={r.id} className="">
                                   <td className="px-3 py-1.5 font-medium text-gray-800">{r.colaborador?.nomeCompleto ?? "Corporativo"}</td>
                                   <td className="px-3 py-1.5 text-gray-500">{MESES[r.mesReferencia - 1]}/{r.anoReferencia}</td>
                                   <td className="px-3 py-1.5 text-gray-700">{r.valorRealizado.toLocaleString("pt-BR")} {m.indicador.unidade}</td>
@@ -1704,7 +1757,7 @@ export default function Home() {
         {activeTab === "realizacoes" && (
           <div className="space-y-6">
             <div className="flex items-center justify-between flex-wrap gap-3">
-              <h2 className="text-xl font-bold text-gray-800">Realizações</h2>
+              <h2 className="icp-page-title">Realizações</h2>
               <div className="flex items-center gap-3">
                 <select
                   value={filterColabId}
@@ -1728,7 +1781,7 @@ export default function Home() {
                 </select>
                 <button
                   onClick={() => setShowRealizacaoForm(!showRealizacaoForm)}
-                  className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-1.5 rounded-lg transition-colors"
+                  className="btn-primary"
                 >
                   + Lançar Realização
                 </button>
@@ -1737,7 +1790,7 @@ export default function Home() {
 
             {/* Inline form */}
             {showRealizacaoForm && (
-              <form onSubmit={handleLancarRealizacao} className="bg-blue-50 border border-blue-200 rounded-xl p-5 grid grid-cols-2 md:grid-cols-3 gap-4">
+              <form onSubmit={handleLancarRealizacao} className="bg-white icp-card p-5 grid grid-cols-2 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Meta</label>
                   <select required value={realizacaoForm.metaId} onChange={(e) => setRealizacaoForm({ ...realizacaoForm, metaId: e.target.value })}
@@ -1781,7 +1834,7 @@ export default function Home() {
                     className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
                 </div>
                 <div className="flex items-end gap-2">
-                  <button type="submit" className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-1.5 rounded transition-colors">
+                  <button type="submit" className="btn-primary">
                     Salvar
                   </button>
                   <button type="button" onClick={() => setShowRealizacaoForm(false)}
@@ -1792,23 +1845,23 @@ export default function Home() {
               </form>
             )}
 
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="bg-white icp-card overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50">
+                  <thead>
                     <tr>
                       {["Meta / Indicador","Colaborador","Mês/Ano","Realizado","Nota","Prêmio","Status"].map((h) => (
-                        <th key={h} className="text-left px-4 py-2.5 text-gray-500 font-medium text-xs uppercase">{h}</th>
+                        <th key={h} className="text-left px-4 py-2.5">{h}</th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="">
                     {realizacoesFiltradas.map((r) => (
-                      <tr key={r.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 font-medium text-gray-800">{r.meta?.indicador?.nome ?? `Meta #${r.meta?.id}`}</td>
-                        <td className="px-4 py-3 text-gray-600">{r.colaborador?.nomeCompleto ?? "Corporativo"}</td>
-                        <td className="px-4 py-3 text-gray-600">{MESES[(r.mesReferencia ?? 1) - 1]}/{r.anoReferencia}</td>
-                        <td className="px-4 py-3 text-gray-600">{r.valorRealizado?.toLocaleString("pt-BR")}</td>
+                      <tr key={r.id} className="">
+                        <td className="px-4 py-3">{r.meta?.indicador?.nome ?? `Meta #${r.meta?.id}`}</td>
+                        <td className="px-4 py-3">{r.colaborador?.nomeCompleto ?? "Corporativo"}</td>
+                        <td className="px-4 py-3">{MESES[(r.mesReferencia ?? 1) - 1]}/{r.anoReferencia}</td>
+                        <td className="px-4 py-3">{r.valorRealizado?.toLocaleString("pt-BR")}</td>
                         <td className={`px-4 py-3 ${notaColor(r.notaCalculada)}`}>
                           {r.notaCalculada !== null ? fmtN(r.notaCalculada) : "—"}
                         </td>
@@ -1830,7 +1883,7 @@ export default function Home() {
         {activeTab === "colaboradores" && (
           <div className="space-y-6">
             <div className="flex items-center justify-between flex-wrap gap-2">
-              <h2 className="text-xl font-bold text-gray-800">Colaboradores <span className="text-sm font-normal text-gray-400">({colaboradores.length})</span></h2>
+              <h2 className="icp-page-title">Colaboradores <span className="text-sm font-normal text-gray-400">({colaboradores.length})</span></h2>
               <div className="flex gap-2 flex-wrap">
                 <a
                   href="/api/import-colaboradores"
@@ -1896,22 +1949,22 @@ export default function Home() {
               </div>
             )}
 
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="bg-white icp-card overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50">
+                  <thead>
                     <tr>
                       {["Matrícula","Nome","Cargo","Grade","Target Bonus","Centro de Custo","Salário Base","Status"].map((h) => (
-                        <th key={h} className="text-left px-4 py-2.5 text-gray-500 font-medium text-xs uppercase">{h}</th>
+                        <th key={h} className="text-left px-4 py-2.5">{h}</th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="">
                     {colaboradores.map((c) => (
-                      <tr key={c.id} className="hover:bg-gray-50">
+                      <tr key={c.id} className="">
                         <td className="px-4 py-3 font-mono text-gray-500 text-xs">{c.matricula}</td>
-                        <td className="px-4 py-3 font-medium text-gray-800">{c.nomeCompleto}</td>
-                        <td className="px-4 py-3 text-gray-600">{c.cargo.nome}</td>
+                        <td className="px-4 py-3">{c.nomeCompleto}</td>
+                        <td className="px-4 py-3">{c.cargo.nome}</td>
                         <td className="px-4 py-3">
                           <span className="bg-indigo-50 text-indigo-700 text-xs font-semibold px-2 py-0.5 rounded">{c.cargo.nivelHierarquico}</span>
                         </td>
@@ -1921,7 +1974,7 @@ export default function Home() {
                           </span>
                           <span className="text-xs text-gray-400 ml-1">= {fmt(c.salarioBase * 12 * c.cargo.targetBonusPerc / 100)}/ano</span>
                         </td>
-                        <td className="px-4 py-3 text-gray-600">{c.centroCusto.nome}</td>
+                        <td className="px-4 py-3">{c.centroCusto.nome}</td>
                         <td className="px-4 py-3 text-gray-800">{fmt(c.salarioBase)}</td>
                         <td className="px-4 py-3">
                           <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded-full ${c.ativo ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
@@ -1944,7 +1997,7 @@ export default function Home() {
         {activeTab === "workflow" && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-800">
+              <h2 className="icp-page-title">
                 Workflow — Caixa de Entrada
                 {pendingCount > 0 && (
                   <span className="ml-2 bg-red-500 text-white text-sm rounded-full px-2 py-0.5">{pendingCount}</span>
@@ -1962,7 +2015,7 @@ export default function Home() {
               <>
                 <div className="space-y-3">
                   {workflowItems.map((item) => (
-                    <div key={item.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex items-start justify-between gap-4">
+                    <div key={item.id} className="bg-white icp-card p-5 flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-xs font-semibold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
@@ -1998,7 +2051,7 @@ export default function Home() {
                     </div>
                   ))}
                   {workflowItems.length === 0 && (
-                    <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-400">
+                    <div className="bg-white icp-card p-8 text-center text-gray-400">
                       <p className="text-lg mb-1">Nenhuma pendência</p>
                       <p className="text-sm">Todos os itens foram processados.</p>
                     </div>
@@ -2014,32 +2067,32 @@ export default function Home() {
                     )}
                   </h3>
                   {waivers.length === 0 ? (
-                    <div className="bg-white rounded-xl border border-gray-200 p-6 text-center text-gray-400 text-sm">
+                    <div className="bg-white icp-card p-6 text-center text-gray-400 text-sm">
                       Sem solicitações de prorrogação pendentes.
                     </div>
                   ) : (
-                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                    <div className="bg-white icp-card overflow-hidden">
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm">
-                          <thead className="bg-gray-50">
+                          <thead>
                             <tr>
                               {["Colaborador","Janela","Justificativa","Nova Data Limite","Ações"].map((h) => (
-                                <th key={h} className="text-left px-4 py-2.5 text-gray-500 font-medium text-xs uppercase">{h}</th>
+                                <th key={h} className="text-left px-4 py-2.5">{h}</th>
                               ))}
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-gray-100">
+                          <tbody className="">
                             {waivers.map((w) => (
-                              <tr key={w.id} className="hover:bg-gray-50">
-                                <td className="px-4 py-3 font-medium text-gray-800">
+                              <tr key={w.id} className="">
+                                <td className="px-4 py-3">
                                   {w.colaborador?.nomeCompleto ?? `#${w.colaboradorId}`}
                                   <br /><span className="text-xs text-gray-400 font-mono">{w.colaborador?.matricula}</span>
                                 </td>
-                                <td className="px-4 py-3 text-gray-600">
+                                <td className="px-4 py-3">
                                   {MESES[(w.janela.mesReferencia ?? 1) - 1]}/{w.janela.anoReferencia}
                                 </td>
                                 <td className="px-4 py-3 text-gray-600 max-w-xs truncate">{w.justificativa}</td>
-                                <td className="px-4 py-3 text-gray-600">
+                                <td className="px-4 py-3">
                                   {new Date(w.novaDataLimite).toLocaleDateString("pt-BR")}
                                 </td>
                                 <td className="px-4 py-3">
@@ -2075,11 +2128,11 @@ export default function Home() {
         {activeTab === "janelas" && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-800">Janelas de Apuração</h2>
+              <h2 className="icp-page-title">Janelas de Apuração</h2>
               {role === "GUARDIAO" && (
                 <button
                   onClick={() => setShowJanelaForm(!showJanelaForm)}
-                  className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-1.5 rounded-lg transition-colors"
+                  className="btn-primary"
                 >
                   + Nova Janela
                 </button>
@@ -2116,7 +2169,7 @@ export default function Home() {
                     className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
                 </div>
                 <div className="col-span-2 md:col-span-4 flex gap-2">
-                  <button type="submit" className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-1.5 rounded transition-colors">
+                  <button type="submit" className="btn-primary">
                     Criar Janela
                   </button>
                   <button type="button" onClick={() => setShowJanelaForm(false)}
@@ -2127,28 +2180,28 @@ export default function Home() {
               </form>
             )}
 
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="bg-white icp-card overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50">
+                  <thead>
                     <tr>
                       {["Mês","Ano","Abertura","Fechamento","Status","Waivers","Ação"].map((h) => (
-                        <th key={h} className="text-left px-4 py-2.5 text-gray-500 font-medium text-xs uppercase">{h}</th>
+                        <th key={h} className="text-left px-4 py-2.5">{h}</th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="">
                     {janelas.map((j) => (
-                      <tr key={j.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 font-medium text-gray-800">{MESES[j.mesReferencia - 1]}</td>
-                        <td className="px-4 py-3 text-gray-600">{j.anoReferencia}</td>
-                        <td className="px-4 py-3 text-gray-600">{new Date(j.dataAbertura).toLocaleDateString("pt-BR")}</td>
-                        <td className="px-4 py-3 text-gray-600">{new Date(j.dataFechamento).toLocaleDateString("pt-BR")}</td>
+                      <tr key={j.id} className="">
+                        <td className="px-4 py-3">{MESES[j.mesReferencia - 1]}</td>
+                        <td className="px-4 py-3">{j.anoReferencia}</td>
+                        <td className="px-4 py-3">{new Date(j.dataAbertura).toLocaleDateString("pt-BR")}</td>
+                        <td className="px-4 py-3">{new Date(j.dataFechamento).toLocaleDateString("pt-BR")}</td>
                         <td className="px-4 py-3">
                           <StatusBadge status={j.status} />
                           {j.isOpen && <span className="ml-1.5 text-xs text-green-600 font-medium">• ao vivo</span>}
                         </td>
-                        <td className="px-4 py-3 text-gray-600">
+                        <td className="px-4 py-3">
                           {j.waiversPendentes > 0 ? (
                             <span className="bg-orange-100 text-orange-700 text-xs px-2 py-0.5 rounded-full font-medium">
                               {j.waiversPendentes} pendente(s)
@@ -2182,9 +2235,9 @@ export default function Home() {
         {/* ── IMPORTAÇÃO BP ─────────────────────────────────────────────── */}
         {activeTab === "importacao" && (role === "BP" || role === "GUARDIAO") && (
           <div className="space-y-6">
-            <h2 className="text-xl font-bold text-gray-800">Importação em Lote — BP Consolidador</h2>
+            <h2 className="icp-page-title">Importação em Lote — BP Consolidador</h2>
 
-            <form onSubmit={handleBulkImport} className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4">
+            <form onSubmit={handleBulkImport} className="bg-white icp-card p-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Mês Referência</label>
@@ -2227,7 +2280,7 @@ export default function Home() {
             </form>
 
             {importResult && (
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4">
+              <div className="bg-white icp-card p-6 space-y-4">
                 <div className="flex items-center gap-3">
                   <div className="bg-green-100 text-green-700 rounded-lg p-3 text-center min-w-[80px]">
                     <p className="text-2xl font-bold">{importResult.processed}</p>
@@ -2268,22 +2321,22 @@ export default function Home() {
         {/* ── ELEGÍVEIS ─────────────────────────────────────────────────── */}
         {activeTab === "elegiveis" && (
           <div className="space-y-6">
-            <h2 className="text-xl font-bold text-gray-800">Comparação entre Elegíveis</h2>
+            <h2 className="icp-page-title">Comparação entre Elegíveis</h2>
             <p className="text-sm text-gray-500">Ranking de todos os colaboradores com realizações lançadas no ciclo, ordenado por nota média.</p>
             {rankingElegiveis.length === 0 ? (
               <div className="text-center text-gray-400 py-16">Nenhuma realização lançada ainda</div>
             ) : (
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="bg-white icp-card overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead className="bg-gray-50">
+                    <thead>
                       <tr>
                         {["#","Colaborador","Cargo","Nível","Metas","Realizações","Nota Média","Prêmio YTD","Target Anual","% do Target"].map((h) => (
-                          <th key={h} className="text-left px-4 py-2.5 text-gray-500 font-medium text-xs uppercase">{h}</th>
+                          <th key={h} className="text-left px-4 py-2.5">{h}</th>
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="">
                       {rankingElegiveis.map((row, idx) => {
                         const { fator, tipo: movTipo } = calcFatorProRata(row.colaborador.id);
                         const premioAjustado = row.premioYTD * fator;
@@ -2294,8 +2347,8 @@ export default function Home() {
                             <td className="px-4 py-3 text-gray-500 font-medium">
                               {medal ? <span>{medal}</span> : <span className="text-gray-400">{idx + 1}</span>}
                             </td>
-                            <td className="px-4 py-3 font-medium text-gray-800">{row.colaborador.nomeCompleto}</td>
-                            <td className="px-4 py-3 text-gray-600">{row.colaborador.cargo.nome}</td>
+                            <td className="px-4 py-3">{row.colaborador.nomeCompleto}</td>
+                            <td className="px-4 py-3">{row.colaborador.cargo.nome}</td>
                             <td className="px-4 py-3 text-gray-500">{row.colaborador.cargo.nivelHierarquico}</td>
                             <td className="px-4 py-3 text-gray-500">{row.metasAtribuidas}</td>
                             <td className="px-4 py-3 text-gray-500">{row.totalRealizacoes > 0 ? row.totalRealizacoes : <span className="text-gray-300">—</span>}</td>
@@ -2304,7 +2357,7 @@ export default function Home() {
                               <p className="text-blue-700 font-medium">{fmt(premioAjustado)}</p>
                               {movTipo && fator < 1 && <p className="text-xs text-amber-600">{fmt(row.premioYTD)} × {(fator * 100).toFixed(0)}%</p>}
                             </td>
-                            <td className="px-4 py-3 text-gray-600">{fmt(row.targetAnual)}</td>
+                            <td className="px-4 py-3">{fmt(row.targetAnual)}</td>
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-2">
                                 <div className="flex-1 bg-gray-200 rounded-full h-1.5 min-w-[60px]">
@@ -2333,7 +2386,7 @@ export default function Home() {
         {activeTab === "relatorio" && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-800">Relatório de Fechamento — Ciclo {cicloAtivo?.anoFiscal}</h2>
+              <h2 className="icp-page-title">Relatório de Fechamento — Ciclo {cicloAtivo?.anoFiscal}</h2>
               <button
                 onClick={() => window.print()}
                 className="bg-gray-800 hover:bg-gray-900 text-white text-sm font-medium px-4 py-1.5 rounded-lg transition-colors"
@@ -2350,7 +2403,7 @@ export default function Home() {
                 { label: "Realizações Lançadas", value: String(realizacoes.length) },
                 { label: "Total Prêmio Projetado", value: fmt(totalPremioProjetado) },
               ].map((card) => (
-                <div key={card.label} className="bg-white rounded-xl border border-gray-200 p-4">
+                <div key={card.label} className="bg-white icp-card p-4">
                   <p className="text-xs text-gray-500 mb-1">{card.label}</p>
                   <p className="text-2xl font-bold text-gray-800">{card.value}</p>
                 </div>
@@ -2358,7 +2411,7 @@ export default function Home() {
             </div>
 
             {/* Ciclo info */}
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
+            <div className="bg-white icp-card p-5">
               <h3 className="font-semibold text-gray-700 mb-3">Informações do Ciclo</h3>
               <dl className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                 <div><dt className="text-gray-500">Ano Fiscal</dt><dd className="font-medium">{cicloAtivo?.anoFiscal}</dd></div>
@@ -2370,31 +2423,31 @@ export default function Home() {
 
             {/* Full elegíveis table */}
             {rankingElegiveis.length > 0 && (
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                <div className="px-5 py-3 border-b border-gray-100">
+              <div className="bg-white icp-card overflow-hidden">
+                <div className="px-5 py-3 icp-card-header">
                   <h3 className="font-semibold text-gray-700">Atingimento por Colaborador</h3>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead className="bg-gray-50">
+                    <thead>
                       <tr>
                         {["Colaborador","Matrícula","Cargo","Nível","Nota Média","Prêmio YTD","Target Anual","% Target"].map((h) => (
-                          <th key={h} className="text-left px-4 py-2.5 text-gray-500 font-medium text-xs uppercase">{h}</th>
+                          <th key={h} className="text-left px-4 py-2.5">{h}</th>
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="">
                       {rankingElegiveis.map((row) => {
                         const percTarget = row.targetAnual > 0 ? (row.premioYTD / row.targetAnual) * 100 : 0;
                         return (
-                          <tr key={row.colaborador.id} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 font-medium text-gray-800">{row.colaborador.nomeCompleto}</td>
+                          <tr key={row.colaborador.id} className="">
+                            <td className="px-4 py-3">{row.colaborador.nomeCompleto}</td>
                             <td className="px-4 py-3 text-gray-500">{row.colaborador.matricula}</td>
-                            <td className="px-4 py-3 text-gray-600">{row.colaborador.cargo.nome}</td>
+                            <td className="px-4 py-3">{row.colaborador.cargo.nome}</td>
                             <td className="px-4 py-3 text-gray-500">{row.colaborador.cargo.nivelHierarquico}</td>
                             <td className={`px-4 py-3 ${notaColor(row.notaMedia)}`}>{fmtN(row.notaMedia)}</td>
                             <td className="px-4 py-3 text-blue-700 font-medium">{fmt(row.premioYTD)}</td>
-                            <td className="px-4 py-3 text-gray-600">{fmt(row.targetAnual)}</td>
+                            <td className="px-4 py-3">{fmt(row.targetAnual)}</td>
                             <td className={`px-4 py-3 font-medium ${percTarget >= 100 ? "text-green-600" : percTarget >= 70 ? "text-yellow-600" : "text-red-500"}`}>
                               {percTarget.toFixed(0)}%
                             </td>
@@ -2422,31 +2475,31 @@ export default function Home() {
             )}
 
             {/* Meta breakdown */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="px-5 py-3 border-b border-gray-100">
+            <div className="bg-white icp-card overflow-hidden">
+              <div className="px-5 py-3 icp-card-header">
                 <h3 className="font-semibold text-gray-700">Metas do Ciclo</h3>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50">
+                  <thead>
                     <tr>
                       {["Indicador","CC","Polaridade","Peso","Alvo","Colaboradores","Realizações","Status"].map((h) => (
-                        <th key={h} className="text-left px-4 py-2.5 text-gray-500 font-medium text-xs uppercase">{h}</th>
+                        <th key={h} className="text-left px-4 py-2.5">{h}</th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="">
                     {metas.map((m) => (
-                      <tr key={m.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 font-medium text-gray-800">{m.indicador.nome}</td>
+                      <tr key={m.id} className="">
+                        <td className="px-4 py-3">{m.indicador.nome}</td>
                         <td className="px-4 py-3 text-gray-500">{m.centroCusto?.nome ?? "Corporativo"}</td>
                         <td className="px-4 py-3">
                           <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${m.indicador.polaridade === "MENOR_MELHOR" ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"}`}>
                             {m.indicador.polaridade === "MENOR_MELHOR" ? "↓ Menor" : "↑ Maior"}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-gray-600">{m.pesoNaCesta}%</td>
-                        <td className="px-4 py-3 text-gray-600">{m.metaAlvo.toLocaleString("pt-BR")}</td>
+                        <td className="px-4 py-3">{m.pesoNaCesta}%</td>
+                        <td className="px-4 py-3">{m.metaAlvo.toLocaleString("pt-BR")}</td>
                         <td className="px-4 py-3 text-gray-500">{m._count.colaboradores}</td>
                         <td className="px-4 py-3 text-gray-500">{m._count.realizacoes}</td>
                         <td className="px-4 py-3"><StatusBadge status={m.status} /></td>
@@ -2462,7 +2515,7 @@ export default function Home() {
         {/* ── CONFERÊNCIA E VALIDAÇÃO ───────────────────────────────────── */}
         {activeTab === "conferencia" && (
           <div className="space-y-6">
-            <h2 className="text-xl font-bold text-gray-800">Conferência e Validação</h2>
+            <h2 className="icp-page-title">Conferência e Validação</h2>
 
             {/* Status geral */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -2480,12 +2533,12 @@ export default function Home() {
             </div>
 
             {/* Checklist por meta */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+            <div className="bg-white icp-card overflow-hidden">
+              <div className="px-5 py-3 icp-card-header flex items-center justify-between">
                 <h3 className="font-semibold text-gray-700">Checklist por Meta</h3>
                 <span className="text-xs text-gray-400">{validacaoMetas.filter((v) => v.ok).length}/{metas.length} ok</span>
               </div>
-              <div className="divide-y divide-gray-100">
+              <div className="">
                 {validacaoMetas.map((v) => (
                   <div key={v.meta.id} className={`px-5 py-3 flex items-start gap-3 ${v.erros.length > 0 ? "bg-red-50" : v.avisos.length > 0 ? "bg-amber-50" : "bg-green-50"}`}>
                     <span className="text-lg mt-0.5 flex-shrink-0">
@@ -2512,26 +2565,26 @@ export default function Home() {
 
             {/* Por Centro de Custo */}
             {ccRows.length > 0 && (
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                <div className="px-5 py-3 border-b border-gray-100">
+              <div className="bg-white icp-card overflow-hidden">
+                <div className="px-5 py-3 icp-card-header">
                   <h3 className="font-semibold text-gray-700">Consolidado por Centro de Custo</h3>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead className="bg-gray-50">
+                    <thead>
                       <tr>
                         {["Centro de Custo","Metas","Colaboradores","Realizações","Nota Média","Prêmio YTD"].map((h) => (
-                          <th key={h} className="text-left px-4 py-2.5 text-gray-500 font-medium text-xs uppercase">{h}</th>
+                          <th key={h} className="text-left px-4 py-2.5">{h}</th>
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="">
                       {ccRows.map((row) => (
-                        <tr key={row.nome} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 font-medium text-gray-800">{row.nome}</td>
-                          <td className="px-4 py-3 text-gray-600">{row.metas}</td>
-                          <td className="px-4 py-3 text-gray-600">{row.colaboradores}</td>
-                          <td className="px-4 py-3 text-gray-600">{row.realizacoesCount}</td>
+                        <tr key={row.nome} className="">
+                          <td className="px-4 py-3">{row.nome}</td>
+                          <td className="px-4 py-3">{row.metas}</td>
+                          <td className="px-4 py-3">{row.colaboradores}</td>
+                          <td className="px-4 py-3">{row.realizacoesCount}</td>
                           <td className={`px-4 py-3 ${notaColor(row.notaMedia)}`}>{row.realizacoesCount > 0 ? fmtN(row.notaMedia) : "—"}</td>
                           <td className="px-4 py-3 text-blue-700 font-medium">{fmt(row.premioYTD)}</td>
                         </tr>
@@ -2544,30 +2597,30 @@ export default function Home() {
 
             {/* Por Cargo/Nível */}
             {cargoRows.length > 0 && (
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                <div className="px-5 py-3 border-b border-gray-100">
+              <div className="bg-white icp-card overflow-hidden">
+                <div className="px-5 py-3 icp-card-header">
                   <h3 className="font-semibold text-gray-700">Consolidado por Cargo / Nível</h3>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead className="bg-gray-50">
+                    <thead>
                       <tr>
                         {["Cargo","Nível","Colaboradores","Nota Média","Prêmio YTD","Target Total","% Target"].map((h) => (
-                          <th key={h} className="text-left px-4 py-2.5 text-gray-500 font-medium text-xs uppercase">{h}</th>
+                          <th key={h} className="text-left px-4 py-2.5">{h}</th>
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="">
                       {cargoRows.map((row) => {
                         const perc = row.targetTotal > 0 ? (row.premioYTD / row.targetTotal) * 100 : 0;
                         return (
-                          <tr key={`${row.cargo}|${row.nivel}`} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 font-medium text-gray-800">{row.cargo}</td>
+                          <tr key={`${row.cargo}|${row.nivel}`} className="">
+                            <td className="px-4 py-3">{row.cargo}</td>
                             <td className="px-4 py-3"><span className="bg-indigo-50 text-indigo-700 text-xs font-semibold px-2 py-0.5 rounded">{row.nivel}</span></td>
-                            <td className="px-4 py-3 text-gray-600">{row.count}</td>
+                            <td className="px-4 py-3">{row.count}</td>
                             <td className={`px-4 py-3 ${notaColor(row.notaMedia)}`}>{fmtN(row.notaMedia)}</td>
                             <td className="px-4 py-3 text-blue-700 font-medium">{fmt(row.premioYTD)}</td>
-                            <td className="px-4 py-3 text-gray-600">{fmt(row.targetTotal)}</td>
+                            <td className="px-4 py-3">{fmt(row.targetTotal)}</td>
                             <td className={`px-4 py-3 font-medium ${perc >= 100 ? "text-green-600" : perc >= 70 ? "text-yellow-600" : "text-red-500"}`}>{perc.toFixed(0)}%</td>
                           </tr>
                         );
@@ -2580,24 +2633,24 @@ export default function Home() {
 
             {/* Evolução mês a mês */}
             {evolucaoMensal.length > 0 && (
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                <div className="px-5 py-3 border-b border-gray-100">
+              <div className="bg-white icp-card overflow-hidden">
+                <div className="px-5 py-3 icp-card-header">
                   <h3 className="font-semibold text-gray-700">Evolução Mês a Mês</h3>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead className="bg-gray-50">
+                    <thead>
                       <tr>
                         {["Mês","Realizações","Nota Média","Prêmio Projetado"].map((h) => (
-                          <th key={h} className="text-left px-4 py-2.5 text-gray-500 font-medium text-xs uppercase">{h}</th>
+                          <th key={h} className="text-left px-4 py-2.5">{h}</th>
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="">
                       {evolucaoMensal.map((m) => (
-                        <tr key={m.mesNum} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 font-medium text-gray-800">{m.mes}</td>
-                          <td className="px-4 py-3 text-gray-600">{m.count}</td>
+                        <tr key={m.mesNum} className="">
+                          <td className="px-4 py-3">{m.mes}</td>
+                          <td className="px-4 py-3">{m.count}</td>
                           <td className={`px-4 py-3 ${notaColor(m.notaMedia)}`}>{m.notaMedia !== null ? fmtN(m.notaMedia) : "—"}</td>
                           <td className="px-4 py-3 text-blue-700 font-medium">{fmt(m.premioTotal)}</td>
                         </tr>
@@ -2649,17 +2702,17 @@ export default function Home() {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-bold text-gray-800">Movimentações RH</h2>
+                <h2 className="icp-page-title">Movimentações RH</h2>
                 <p className="text-sm text-gray-500 mt-0.5">Admissões, transferências, promoções e desligamentos — com cálculo pro-rata automático</p>
               </div>
               <button onClick={() => setShowMovForm(!showMovForm)}
-                className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-1.5 rounded-lg transition-colors">
+                className="btn-primary">
                 + Registrar Movimentação
               </button>
             </div>
 
             {showMovForm && (
-              <form onSubmit={handleCriarMovimentacao} className="bg-blue-50 border border-blue-200 rounded-xl p-5 grid grid-cols-2 md:grid-cols-3 gap-4">
+              <form onSubmit={handleCriarMovimentacao} className="bg-white icp-card p-5 grid grid-cols-2 md:grid-cols-3 gap-4">
                 <div className="col-span-2 md:col-span-3">
                   <h3 className="text-sm font-semibold text-blue-900">Nova Movimentação</h3>
                 </div>
@@ -2723,7 +2776,7 @@ export default function Home() {
                   </div>
                 </>)}
                 <div className="col-span-2 md:col-span-3 flex gap-2">
-                  <button type="submit" className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-1.5 rounded-lg">Registrar</button>
+                  <button type="submit" className="btn-primary">Registrar</button>
                   <button type="button" onClick={() => setShowMovForm(false)} className="text-sm text-gray-500 px-4 py-1.5">Cancelar</button>
                 </div>
               </form>
@@ -2731,37 +2784,37 @@ export default function Home() {
 
             {/* Pro-rata summary por colaborador */}
             {movimentacoes.length > 0 && (
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                <div className="px-5 py-3 border-b border-gray-100">
+              <div className="bg-white icp-card overflow-hidden">
+                <div className="px-5 py-3 icp-card-header">
                   <h3 className="font-semibold text-gray-700">Impacto Pro-Rata por Colaborador</h3>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead className="bg-gray-50">
+                    <thead>
                       <tr>
                         {["Colaborador","Tipo","Data Efetiva","Fator Pro-Rata","Situação","Prêmio Bruto","Prêmio Ajustado"].map((h) => (
-                          <th key={h} className="text-left px-4 py-2.5 text-gray-500 font-medium text-xs uppercase">{h}</th>
+                          <th key={h} className="text-left px-4 py-2.5">{h}</th>
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="">
                       {movimentacoes.map((mv) => {
                         const { fator, descricao } = calcFatorProRata(mv.colaboradorId);
                         const colRealizacoes = realizacoes.filter((r) => r.colaborador?.id === mv.colaboradorId);
                         const premioBruto = colRealizacoes.reduce((s, r) => s + (r.premioProjetado ?? 0), 0);
                         const premioAjustado = premioBruto * fator;
                         return (
-                          <tr key={mv.id} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 font-medium text-gray-800">{mv.colaborador.nomeCompleto}</td>
+                          <tr key={mv.id} className="">
+                            <td className="px-4 py-3">{mv.colaborador.nomeCompleto}</td>
                             <td className="px-4 py-3">
                               <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${mv.tipo === "ADMISSAO" ? "bg-green-100 text-green-700" : mv.tipo === "DESLIGAMENTO" ? "bg-red-100 text-red-700" : mv.tipo === "PROMOCAO" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}>
                                 {mv.tipo}
                               </span>
                             </td>
-                            <td className="px-4 py-3 text-gray-600">{new Date(mv.dataEfetiva).toLocaleDateString("pt-BR")}</td>
+                            <td className="px-4 py-3">{new Date(mv.dataEfetiva).toLocaleDateString("pt-BR")}</td>
                             <td className="px-4 py-3 font-semibold text-blue-700">{(fator * 100).toFixed(0)}%</td>
                             <td className="px-4 py-3 text-xs text-gray-500">{descricao}</td>
-                            <td className="px-4 py-3 text-gray-600">{fmt(premioBruto)}</td>
+                            <td className="px-4 py-3">{fmt(premioBruto)}</td>
                             <td className="px-4 py-3 font-semibold text-green-700">{fmt(premioAjustado)}</td>
                           </tr>
                         );
@@ -2773,8 +2826,8 @@ export default function Home() {
             )}
 
             {/* Full list */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+            <div className="bg-white icp-card overflow-hidden">
+              <div className="px-5 py-3 icp-card-header flex items-center justify-between">
                 <h3 className="font-semibold text-gray-700">Histórico de Movimentações</h3>
                 <span className="text-xs text-gray-400">{movimentacoes.length} registros</span>
               </div>
@@ -2783,19 +2836,19 @@ export default function Home() {
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead className="bg-gray-50">
+                    <thead>
                       <tr>
                         {["Colaborador","Tipo","Data","Cargo Ant.","Cargo Novo","CC Ant.","CC Novo","Status"].map((h) => (
-                          <th key={h} className="text-left px-4 py-2.5 text-gray-500 font-medium text-xs uppercase">{h}</th>
+                          <th key={h} className="text-left px-4 py-2.5">{h}</th>
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="">
                       {movimentacoes.map((mv) => (
-                        <tr key={mv.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 font-medium text-gray-800">{mv.colaborador.nomeCompleto}</td>
+                        <tr key={mv.id} className="">
+                          <td className="px-4 py-3">{mv.colaborador.nomeCompleto}</td>
                           <td className="px-4 py-3"><StatusBadge status={mv.tipo} /></td>
-                          <td className="px-4 py-3 text-gray-600">{new Date(mv.dataEfetiva).toLocaleDateString("pt-BR")}</td>
+                          <td className="px-4 py-3">{new Date(mv.dataEfetiva).toLocaleDateString("pt-BR")}</td>
                           <td className="px-4 py-3 text-xs text-gray-500">{mv.cargoAnterior?.nome ?? "—"}</td>
                           <td className="px-4 py-3 text-xs text-gray-500">{mv.cargoNovo?.nome ?? "—"}</td>
                           <td className="px-4 py-3 text-xs text-gray-500">{mv.ccAnterior?.nome ?? "—"}</td>
@@ -2847,7 +2900,7 @@ export default function Home() {
         {activeTab === "cadastros" && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-800">Cadastros</h2>
+              <h2 className="icp-page-title">Cadastros</h2>
             </div>
 
             {/* Sub-tabs */}
@@ -2865,7 +2918,7 @@ export default function Home() {
               <div className="space-y-4">
                 <div className="flex justify-end">
                   <button onClick={() => setShowEmpresaForm((v) => !v)}
-                    className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-1.5 rounded-lg transition-colors">
+                    className="btn-primary">
                     + Nova Empresa
                   </button>
                 </div>
@@ -2882,25 +2935,25 @@ export default function Home() {
                         placeholder="Razão Social" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
                     </div>
                     <div className="col-span-2 flex gap-3">
-                      <button type="submit" className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-5 py-2 rounded-lg">Salvar</button>
+                      <button type="submit" className="btn-primary">Salvar</button>
                       <button type="button" onClick={() => setShowEmpresaForm(false)} className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2">Cancelar</button>
                     </div>
                   </form>
                 )}
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="bg-white icp-card overflow-hidden">
                   <table className="w-full text-sm">
-                    <thead className="bg-gray-50"><tr>
+                    <thead><tr>
                       {["Código","Nome","Colaboradores","CCs"].map((h) => (
-                        <th key={h} className="text-left px-4 py-2.5 text-gray-500 font-medium text-xs uppercase">{h}</th>
+                        <th key={h} className="text-left px-4 py-2.5">{h}</th>
                       ))}
                     </tr></thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="">
                       {empresas.map((e) => (
-                        <tr key={e.id} className="hover:bg-gray-50">
+                        <tr key={e.id} className="">
                           <td className="px-4 py-3 font-mono text-gray-500 text-xs">{e.codigo}</td>
-                          <td className="px-4 py-3 font-medium text-gray-800">{e.nome}</td>
-                          <td className="px-4 py-3 text-gray-600">{e._count?.colaboradores ?? 0}</td>
-                          <td className="px-4 py-3 text-gray-600">{e._count?.centrosCusto ?? 0}</td>
+                          <td className="px-4 py-3">{e.nome}</td>
+                          <td className="px-4 py-3">{e._count?.colaboradores ?? 0}</td>
+                          <td className="px-4 py-3">{e._count?.centrosCusto ?? 0}</td>
                         </tr>
                       ))}
                       {empresas.length === 0 && (
@@ -2917,7 +2970,7 @@ export default function Home() {
               <div className="space-y-4">
                 <div className="flex justify-end">
                   <button onClick={() => setShowCargoForm((v) => !v)}
-                    className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-1.5 rounded-lg transition-colors">
+                    className="btn-primary">
                     + Novo Cargo
                   </button>
                 </div>
@@ -2953,27 +3006,27 @@ export default function Home() {
                         placeholder="0.00" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
                     </div>
                     <div className="col-span-2 flex gap-3">
-                      <button type="submit" className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-5 py-2 rounded-lg">Salvar</button>
+                      <button type="submit" className="btn-primary">Salvar</button>
                       <button type="button" onClick={() => setShowCargoForm(false)} className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2">Cancelar</button>
                     </div>
                   </form>
                 )}
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="bg-white icp-card overflow-hidden">
                   <table className="w-full text-sm">
-                    <thead className="bg-gray-50"><tr>
+                    <thead><tr>
                       {["Código","Nome","Grade","Target Bonus","Salário Teto","Colaboradores"].map((h) => (
-                        <th key={h} className="text-left px-4 py-2.5 text-gray-500 font-medium text-xs uppercase">{h}</th>
+                        <th key={h} className="text-left px-4 py-2.5">{h}</th>
                       ))}
                     </tr></thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="">
                       {cargos.map((c) => (
-                        <tr key={c.id} className="hover:bg-gray-50">
+                        <tr key={c.id} className="">
                           <td className="px-4 py-3 font-mono text-gray-500 text-xs">{c.codigo}</td>
-                          <td className="px-4 py-3 font-medium text-gray-800">{c.nome}</td>
+                          <td className="px-4 py-3">{c.nome}</td>
                           <td className="px-4 py-3"><span className="bg-indigo-50 text-indigo-700 text-xs font-semibold px-2 py-0.5 rounded">{c.nivelHierarquico}</span></td>
                           <td className="px-4 py-3 text-green-700 font-semibold">{c.targetBonusPerc}%</td>
-                          <td className="px-4 py-3 text-gray-600">{c.salarioTeto ? fmt(c.salarioTeto) : "—"}</td>
-                          <td className="px-4 py-3 text-gray-600">{c._count?.colaboradores ?? 0}</td>
+                          <td className="px-4 py-3">{c.salarioTeto ? fmt(c.salarioTeto) : "—"}</td>
+                          <td className="px-4 py-3">{c._count?.colaboradores ?? 0}</td>
                         </tr>
                       ))}
                       {cargos.length === 0 && (
@@ -2990,7 +3043,7 @@ export default function Home() {
               <div className="space-y-4">
                 <div className="flex justify-end">
                   <button onClick={() => setShowCcForm((v) => !v)}
-                    className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-1.5 rounded-lg transition-colors">
+                    className="btn-primary">
                     + Novo Centro de Custo
                   </button>
                 </div>
@@ -3022,27 +3075,27 @@ export default function Home() {
                       </select>
                     </div>
                     <div className="col-span-2 flex gap-3">
-                      <button type="submit" className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-5 py-2 rounded-lg">Salvar</button>
+                      <button type="submit" className="btn-primary">Salvar</button>
                       <button type="button" onClick={() => setShowCcForm(false)} className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2">Cancelar</button>
                     </div>
                   </form>
                 )}
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="bg-white icp-card overflow-hidden">
                   <table className="w-full text-sm">
-                    <thead className="bg-gray-50"><tr>
+                    <thead><tr>
                       {["Código","Nome","Empresa","Nível","Colaboradores","Metas"].map((h) => (
-                        <th key={h} className="text-left px-4 py-2.5 text-gray-500 font-medium text-xs uppercase">{h}</th>
+                        <th key={h} className="text-left px-4 py-2.5">{h}</th>
                       ))}
                     </tr></thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="">
                       {centrosCusto.map((cc) => (
-                        <tr key={cc.id} className="hover:bg-gray-50">
+                        <tr key={cc.id} className="">
                           <td className="px-4 py-3 font-mono text-gray-500 text-xs">{cc.codigo}</td>
-                          <td className="px-4 py-3 font-medium text-gray-800">{cc.nome}</td>
-                          <td className="px-4 py-3 text-gray-600">{cc.empresa?.nome ?? "—"}</td>
-                          <td className="px-4 py-3 text-gray-600">{cc.nivel ?? 1}</td>
-                          <td className="px-4 py-3 text-gray-600">{cc._count?.colaboradores ?? 0}</td>
-                          <td className="px-4 py-3 text-gray-600">{cc._count?.metas ?? 0}</td>
+                          <td className="px-4 py-3">{cc.nome}</td>
+                          <td className="px-4 py-3">{cc.empresa?.nome ?? "—"}</td>
+                          <td className="px-4 py-3">{cc.nivel ?? 1}</td>
+                          <td className="px-4 py-3">{cc._count?.colaboradores ?? 0}</td>
+                          <td className="px-4 py-3">{cc._count?.metas ?? 0}</td>
                         </tr>
                       ))}
                       {centrosCusto.length === 0 && (
@@ -3060,7 +3113,7 @@ export default function Home() {
         {activeTab === "ajuda" && (
           <div className="space-y-8 max-w-3xl">
             <div>
-              <h2 className="text-xl font-bold text-gray-800">Manual do Sistema ICP</h2>
+              <h2 className="icp-page-title">Manual do Sistema ICP</h2>
               <p className="text-sm text-gray-500 mt-1">Incentivo de Curto Prazo — guia completo de uso.</p>
             </div>
 
@@ -3082,7 +3135,7 @@ export default function Home() {
                 <div key={s.step} className="flex gap-3">
                   <div className="w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">{s.step}</div>
                   <div>
-                    <p className="font-semibold text-gray-800 text-sm">{s.title}</p>
+                    <p className="icp-section-title text-sm">{s.title}</p>
                     <p className="text-sm text-gray-600 mt-0.5">{s.desc}</p>
                   </div>
                 </div>
@@ -3203,10 +3256,10 @@ export default function Home() {
                 desc: "Importação em lote de realizações via CSV. O BP cola as linhas no formato: matrícula; código da meta; valor realizado; observação — e submete tudo de uma vez.",
               },
             ].map((item) => (
-              <div key={item.tab} className="bg-white rounded-xl border border-gray-200 p-5 flex gap-4">
+              <div key={item.tab} className="bg-white icp-card p-5 flex gap-4">
                 <span className="text-2xl flex-shrink-0">{item.icon}</span>
                 <div>
-                  <h3 className="font-semibold text-gray-800 mb-1">{item.tab}</h3>
+                  <h3 className="icp-section-title mb-1">{item.tab}</h3>
                   <p className="text-sm text-gray-600 leading-relaxed">{item.desc}</p>
                 </div>
               </div>
