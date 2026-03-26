@@ -9,7 +9,17 @@ import MasterDashboard from "@/components/MasterDashboard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type TabId = "dashboard" | "cockpit" | "gestor" | "scorecard" | "indicadores" | "metas" | "atingimento" | "elegiveis" | "relatorio" | "conferencia" | "movimentacoes" | "realizacoes" | "colaboradores" | "workflow" | "janelas" | "importacao" | "cadastros" | "ajuda";
+type TabId = "dashboard" | "cockpit" | "gestor" | "scorecard" | "indicadores" | "metas" | "atingimento" | "elegiveis" | "relatorio" | "conferencia" | "movimentacoes" | "realizacoes" | "colaboradores" | "workflow" | "janelas" | "importacao" | "cadastros" | "diagnostico" | "ajuda";
+
+type CheckResult = {
+  id: string;
+  tipo: "ERRO" | "AVISO" | "OK";
+  categoria: string;
+  titulo: string;
+  descricao: string;
+  count: number;
+  detalhes: string[];
+};
 
 interface Cargo { id: number; nome: string; codigo: string; nivelHierarquico: string; targetBonusPerc: number; salarioTeto?: number | null; _count?: { colaboradores: number }; }
 interface CentroCusto { id: number; nome: string; codigo: string; nivel?: number; empresaId?: number; empresa?: { id: number; nome: string; codigo: string }; _count?: { colaboradores: number; metas: number }; }
@@ -181,9 +191,10 @@ const TAB_GROUPS: NavGroup[] = [
   {
     name: "Configuração",
     tabs: [
-      { id: "importacao",  label: "Importação BP" },
-      { id: "cadastros",   label: "Cadastros" },
-      { id: "ajuda",       label: "Ajuda" },
+      { id: "importacao",   label: "Importação BP" },
+      { id: "cadastros",    label: "Cadastros" },
+      { id: "diagnostico",  label: "Diagnóstico" },
+      { id: "ajuda",        label: "Ajuda" },
     ],
   },
 ];
@@ -243,6 +254,20 @@ export default function Home() {
   });
   const [cascateandoMetaId, setCascateandoMetaId] = useState<number | null>(null);
   const [cloningMetaId, setCloningMetaId] = useState<number | null>(null);
+
+  // Diagnóstico
+  const [diagnosticoResults, setDiagnosticoResults] = useState<CheckResult[]>([]);
+  const [diagnosticoLoading, setDiagnosticoLoading] = useState(false);
+  const [diagnosticoRodou, setDiagnosticoRodou] = useState(false);
+
+  async function handleDiagnostico() {
+    setDiagnosticoLoading(true);
+    const url = cicloAtivo ? `/api/consistencia?cicloId=${cicloAtivo.id}` : "/api/consistencia";
+    const res = await fetch(url).then((r) => r.json()).catch(() => ({ data: [] }));
+    setDiagnosticoResults(res.data ?? []);
+    setDiagnosticoRodou(true);
+    setDiagnosticoLoading(false);
+  }
 
   // Reset
   const [resetLoading, setResetLoading] = useState(false);
@@ -3504,6 +3529,108 @@ export default function Home() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ── DIAGNÓSTICO ───────────────────────────────────────────────── */}
+        {activeTab === "diagnostico" && (
+          <div className="space-y-6 max-w-3xl">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div>
+                <h2 className="icp-page-title">Diagnóstico de Consistência</h2>
+                <p className="text-sm mt-0.5" style={{ color: "var(--ink-muted)" }}>
+                  Verifica a integridade dos dados do ciclo {cicloAtivo?.anoFiscal ?? "–"} e aponta inconsistências.
+                </p>
+              </div>
+              <button
+                onClick={handleDiagnostico}
+                disabled={diagnosticoLoading}
+                className="btn-primary"
+              >
+                {diagnosticoLoading ? "Analisando..." : diagnosticoRodou ? "Reanalisar" : "Executar Diagnóstico"}
+              </button>
+            </div>
+
+            {!diagnosticoRodou && !diagnosticoLoading && (
+              <div className="bg-white icp-card p-10 text-center">
+                <div className="text-4xl mb-3">🔍</div>
+                <p className="font-medium text-sm" style={{ color: "var(--ink)" }}>Pronto para analisar</p>
+                <p className="text-xs mt-1 max-w-xs mx-auto" style={{ color: "var(--ink-muted)" }}>
+                  Clique em "Executar Diagnóstico" para verificar a consistência dos dados do ciclo ativo.
+                </p>
+              </div>
+            )}
+
+            {diagnosticoLoading && (
+              <div className="bg-white icp-card p-10 text-center">
+                <div className="text-3xl mb-3 animate-spin inline-block">⚙️</div>
+                <p className="text-sm font-medium mt-2" style={{ color: "var(--ink-muted)" }}>Analisando dados...</p>
+              </div>
+            )}
+
+            {diagnosticoRodou && !diagnosticoLoading && (() => {
+              const erros = diagnosticoResults.filter((r) => r.tipo === "ERRO");
+              const avisos = diagnosticoResults.filter((r) => r.tipo === "AVISO");
+              const oks = diagnosticoResults.filter((r) => r.tipo === "OK");
+              return (
+                <div className="space-y-4">
+                  {/* Resumo */}
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="bg-white icp-card p-4 text-center">
+                      <p className="text-2xl font-bold" style={{ color: erros.length > 0 ? "var(--err-text)" : "var(--ok-text)" }}>{erros.length}</p>
+                      <p className="text-xs mt-0.5 font-medium" style={{ color: "var(--ink-secondary)" }}>Erros</p>
+                    </div>
+                    <div className="bg-white icp-card p-4 text-center">
+                      <p className="text-2xl font-bold" style={{ color: avisos.length > 0 ? "var(--warn-text)" : "var(--ok-text)" }}>{avisos.length}</p>
+                      <p className="text-xs mt-0.5 font-medium" style={{ color: "var(--ink-secondary)" }}>Avisos</p>
+                    </div>
+                    <div className="bg-white icp-card p-4 text-center">
+                      <p className="text-2xl font-bold" style={{ color: "var(--ok-text)" }}>{oks.length}</p>
+                      <p className="text-xs mt-0.5 font-medium" style={{ color: "var(--ink-secondary)" }}>OK</p>
+                    </div>
+                  </div>
+
+                  {/* Lista de checks */}
+                  {diagnosticoResults.map((check) => {
+                    const colors = {
+                      ERRO:  { bg: "var(--err-bg)",  border: "var(--err-border)",  text: "var(--err-text)",  icon: "❌" },
+                      AVISO: { bg: "var(--warn-bg)", border: "var(--warn-border)", text: "var(--warn-text)", icon: "⚠️" },
+                      OK:    { bg: "var(--ok-bg)",   border: "var(--ok-border)",   text: "var(--ok-text)",   icon: "✓" },
+                    }[check.tipo];
+                    return (
+                      <div
+                        key={check.id}
+                        style={{ background: colors.bg, border: `1px solid ${colors.border}` }}
+                        className="rounded-xl p-4"
+                      >
+                        <div className="flex items-start gap-3">
+                          <span className="text-base flex-shrink-0 mt-0.5">{colors.icon}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-xs font-medium px-2 py-0.5 rounded" style={{ background: "rgba(0,0,0,0.06)", color: colors.text }}>
+                                {check.categoria}
+                              </span>
+                              <p className="font-semibold text-sm" style={{ color: "var(--ink)" }}>{check.titulo}</p>
+                            </div>
+                            <p className="text-sm mt-1" style={{ color: "var(--ink-secondary)" }}>{check.descricao}</p>
+                            {check.detalhes.length > 0 && (
+                              <ul className="mt-2 space-y-0.5">
+                                {check.detalhes.slice(0, 8).map((d, i) => (
+                                  <li key={i} className="text-xs font-mono" style={{ color: "var(--ink-secondary)" }}>• {d}</li>
+                                ))}
+                                {check.detalhes.length > 8 && (
+                                  <li className="text-xs" style={{ color: "var(--ink-muted)" }}>... e mais {check.detalhes.length - 8}</li>
+                                )}
+                              </ul>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
         )}
 
