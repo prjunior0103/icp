@@ -802,21 +802,46 @@ export default function Home() {
     e.preventDefault();
     setColabImportLoading(true);
     setColabImportResult(null);
-    let rawText = colabCsvText;
-    if (colabCsvFile) rawText = await colabCsvFile.text();
-    // Strip BOM and normalize line endings
-    rawText = rawText.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-    const lines = rawText.split("\n").map((l) => l.trim()).filter(Boolean);
-    if (lines.length < 2) { setColabImportLoading(false); return; }
-    // Auto-detect delimiter: semicolon or comma
-    const delim = lines[0].includes(";") ? ";" : ",";
-    const headerLine = lines[0].split(delim).map((h) => h.replace(/^\uFEFF/, "").trim().replace(/^"|"$/g, ""));
-    const rows = lines.slice(1).map((line) => {
-      const vals = line.split(delim);
-      const obj: Record<string, string> = {};
-      headerLine.forEach((h, i) => { obj[h] = (vals[i] ?? "").trim().replace(/^"|"$/g, ""); });
-      return obj;
-    });
+    let rows: Record<string, string>[] = [];
+    if (colabCsvFile) {
+      const isXlsx = colabCsvFile.name.match(/\.xlsx?$/i);
+      if (isXlsx) {
+        const XLSX = await import("xlsx");
+        const buffer = await colabCsvFile.arrayBuffer();
+        const wb = XLSX.read(buffer, { type: "array" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const data = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: "" });
+        rows = data.map((r) => {
+          const obj: Record<string, string> = {};
+          for (const [k, v] of Object.entries(r)) obj[k.trim()] = String(v ?? "").trim();
+          return obj;
+        });
+      } else {
+        const rawText = (await colabCsvFile.text()).replace(/^\uFEFF/, "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+        const lines = rawText.split("\n").map((l) => l.trim()).filter(Boolean);
+        if (lines.length < 2) { setColabImportLoading(false); return; }
+        const delim = lines[0].includes(";") ? ";" : ",";
+        const headerLine = lines[0].split(delim).map((h) => h.replace(/^\uFEFF/, "").trim().replace(/^"|"$/g, ""));
+        rows = lines.slice(1).map((line) => {
+          const vals = line.split(delim);
+          const obj: Record<string, string> = {};
+          headerLine.forEach((h, i) => { obj[h] = (vals[i] ?? "").trim().replace(/^"|"$/g, ""); });
+          return obj;
+        });
+      }
+    } else {
+      const rawText = colabCsvText.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+      const lines = rawText.split("\n").map((l) => l.trim()).filter(Boolean);
+      if (lines.length < 2) { setColabImportLoading(false); return; }
+      const delim = lines[0].includes(";") ? ";" : ",";
+      const headerLine = lines[0].split(delim).map((h) => h.replace(/^\uFEFF/, "").trim().replace(/^"|"$/g, ""));
+      rows = lines.slice(1).map((line) => {
+        const vals = line.split(delim);
+        const obj: Record<string, string> = {};
+        headerLine.forEach((h, i) => { obj[h] = (vals[i] ?? "").trim().replace(/^"|"$/g, ""); });
+        return obj;
+      });
+    }
     const res = await fetch("/api/import-colaboradores", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ rows }),
@@ -2215,7 +2240,7 @@ export default function Home() {
                   <div>
                     <input
                       type="file"
-                      accept=".csv,.txt"
+                      accept=".csv,.xlsx,.xls,.txt"
                       onChange={(e) => { setColabCsvFile(e.target.files?.[0] ?? null); setColabCsvText(""); }}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"
                     />
@@ -2583,7 +2608,7 @@ export default function Home() {
                 </label>
                 <input
                   type="file"
-                  accept=".csv,.txt"
+                  accept=".csv,.xlsx,.xls,.txt"
                   onChange={(e) => setImportCsvFile(e.target.files?.[0] ?? null)}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"
                 />
