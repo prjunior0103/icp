@@ -334,10 +334,12 @@ export default function Home() {
   // Colaboradores import state
   const [showColabImport, setShowColabImport] = useState(false);
   const [colabCsvText, setColabCsvText] = useState("");
+  const [colabCsvFile, setColabCsvFile] = useState<File | null>(null);
   const [colabImportResult, setColabImportResult] = useState<{ processed: number; updated: number; erros: { linha: number; motivo: string }[] } | null>(null);
   const [colabImportLoading, setColabImportLoading] = useState(false);
 
   // Bulk import state
+  const [importCsvFile, setImportCsvFile] = useState<File | null>(null);
   const [importForm, setImportForm] = useState({
     mesReferencia: "", anoReferencia: "2026", csvText: "",
   });
@@ -772,7 +774,9 @@ export default function Home() {
     if (!cicloAtivo) return;
     setImportLoading(true);
     setImportResult(null);
-    const rows = importForm.csvText
+    let csvContent = importForm.csvText;
+    if (importCsvFile) csvContent = await importCsvFile.text();
+    const rows = csvContent
       .split("\n")
       .map((l) => l.trim())
       .filter(Boolean)
@@ -798,7 +802,9 @@ export default function Home() {
     e.preventDefault();
     setColabImportLoading(true);
     setColabImportResult(null);
-    const lines = colabCsvText.split("\n").map((l) => l.trim()).filter(Boolean);
+    let rawText = colabCsvText;
+    if (colabCsvFile) rawText = await colabCsvFile.text();
+    const lines = rawText.split("\n").map((l) => l.trim()).filter(Boolean);
     if (lines.length < 2) { setColabImportLoading(false); return; }
     const headerLine = lines[0].split(";").map((h) => h.trim());
     const rows = lines.slice(1).map((line) => {
@@ -2202,17 +2208,29 @@ export default function Home() {
                   <code className="bg-white px-1 rounded text-xs">matricula; nomeCompleto; cpf; email; salarioBase; dataAdmissao; empresaCodigo; cargoCodigo; centroCustoCodigo; gestorMatricula</code>
                 </p>
                 <form onSubmit={handleColabImport} className="space-y-3">
-                  <textarea
-                    rows={8}
-                    value={colabCsvText}
-                    onChange={(e) => setColabCsvText(e.target.value)}
-                    placeholder={"matricula;nomeCompleto;cpf;email;salarioBase;dataAdmissao;empresaCodigo;cargoCodigo;centroCustoCodigo;gestorMatricula\n001;João Silva;123.456.789-00;joao@emp.com;8000;2024-01-15;EMP001;GER-COM;CC-VENDAS;"}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs font-mono bg-white resize-y"
-                  />
+                  <div>
+                    <input
+                      type="file"
+                      accept=".csv,.txt"
+                      onChange={(e) => { setColabCsvFile(e.target.files?.[0] ?? null); setColabCsvText(""); }}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"
+                    />
+                    {colabCsvFile ? (
+                      <p className="text-xs text-green-700 mt-1 font-medium">✓ {colabCsvFile.name} ({(colabCsvFile.size / 1024).toFixed(0)} KB)</p>
+                    ) : (
+                      <textarea
+                        rows={5}
+                        value={colabCsvText}
+                        onChange={(e) => setColabCsvText(e.target.value)}
+                        placeholder={"matricula;nomeCompleto;cpf;email;salarioBase;dataAdmissao;empresaCodigo;cargoCodigo;centroCustoCodigo;gestorMatricula\n001;João Silva;123.456.789-00;joao@emp.com;8000;2024-01-15;EMP001;GER-COM;CC-VENDAS;"}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs font-mono bg-white resize-y mt-2"
+                      />
+                    )}
+                  </div>
                   <div className="flex gap-3">
                     <button
                       type="submit"
-                      disabled={colabImportLoading || !colabCsvText.trim()}
+                      disabled={colabImportLoading || (!colabCsvText.trim() && !colabCsvFile)}
                       className="bg-blue-700 hover:bg-blue-800 disabled:opacity-50 text-white text-sm font-medium px-5 py-2 rounded-lg transition-colors"
                     >
                       {colabImportLoading ? "Importando..." : "Importar"}
@@ -2557,16 +2575,26 @@ export default function Home() {
 
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Dados CSV <span className="text-gray-400 font-normal">(formato: matricula;codigo_indicador;valor_realizado[;observacao])</span>
+                  Arquivo CSV <span className="text-gray-400 font-normal">(formato: matricula;codigo_indicador;valor_realizado[;observacao])</span>
                 </label>
-                <textarea
-                  required
-                  rows={8}
-                  placeholder={"EMP001;REC-001;1500000;Resultado forte\nEMP002;EBITDA-001;25.5"}
-                  value={importForm.csvText}
-                  onChange={(e) => setImportForm({ ...importForm, csvText: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                <input
+                  type="file"
+                  accept=".csv,.txt"
+                  onChange={(e) => setImportCsvFile(e.target.files?.[0] ?? null)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"
                 />
+                {!importCsvFile && (
+                  <textarea
+                    rows={4}
+                    placeholder={"EMP001;REC-001;1500000;Resultado forte\nEMP002;EBITDA-001;25.5"}
+                    value={importForm.csvText}
+                    onChange={(e) => setImportForm({ ...importForm, csvText: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono mt-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                )}
+                {importCsvFile && (
+                  <p className="text-xs text-green-700 mt-1 font-medium">✓ {importCsvFile.name} ({(importCsvFile.size / 1024).toFixed(0)} KB)</p>
+                )}
               </div>
 
               <button
