@@ -52,15 +52,58 @@ export async function POST(req: NextRequest) {
     }
 
     // Pre-load lookup maps
-    const empresas = await prisma.empresa.findMany({ select: { id: true, codigo: true } });
-    const cargos = await prisma.cargo.findMany({ select: { id: true, codigo: true } });
-    const ccs = await prisma.centroCusto.findMany({ select: { id: true, codigo: true } });
+    const empresas = await prisma.empresa.findMany({ select: { id: true, codigo: true, nome: true } });
+    const cargos = await prisma.cargo.findMany({ select: { id: true, codigo: true, nome: true } });
+    const ccs = await prisma.centroCusto.findMany({ select: { id: true, codigo: true, nome: true } });
     const colabs = await prisma.colaborador.findMany({ select: { id: true, matricula: true } });
 
     const empresaMap = new Map(empresas.map((e) => [e.codigo, e.id]));
     const cargoMap = new Map(cargos.map((c) => [c.codigo, c.id]));
     const ccMap = new Map(ccs.map((c) => [c.codigo, c.id]));
     const colabMap = new Map(colabs.map((c) => [c.matricula, c.id]));
+
+    // Helper: auto-create entities if not found
+    async function getOrCreateEmpresa(codigo: string): Promise<number> {
+      if (!codigo) codigo = "EMP-DEFAULT";
+      const existing = empresaMap.get(codigo);
+      if (existing) return existing;
+      const created = await prisma.empresa.upsert({
+        where: { codigo },
+        update: {},
+        create: { codigo, nome: codigo },
+        select: { id: true },
+      });
+      empresaMap.set(codigo, created.id);
+      return created.id;
+    }
+
+    async function getOrCreateCargo(codigo: string, nome?: string, nivel?: string, bonus?: number): Promise<number> {
+      if (!codigo) codigo = "CARGO-DEFAULT";
+      const existing = cargoMap.get(codigo);
+      if (existing) return existing;
+      const created = await prisma.cargo.upsert({
+        where: { codigo },
+        update: {},
+        create: { codigo, nome: nome || codigo, nivelHierarquico: nivel || "N4", targetBonusPerc: bonus || 0 },
+        select: { id: true },
+      });
+      cargoMap.set(codigo, created.id);
+      return created.id;
+    }
+
+    async function getOrCreateCC(codigo: string, empresaId: number): Promise<number> {
+      if (!codigo) codigo = "CC-DEFAULT";
+      const existing = ccMap.get(codigo);
+      if (existing) return existing;
+      const created = await prisma.centroCusto.upsert({
+        where: { codigo },
+        update: {},
+        create: { codigo, nome: codigo, empresaId },
+        select: { id: true },
+      });
+      ccMap.set(codigo, created.id);
+      return created.id;
+    }
 
     let processed = 0;
     let updated = 0;
@@ -69,6 +112,12 @@ export async function POST(req: NextRequest) {
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       const linha = i + 2; // header is row 1
+
+      // Normalize keys — strip BOM and whitespace
+      const normalized: Record<string, string> = {};
+      for (const [k, v] of Object.entries(row)) {
+        normalized[k.replace(/^\uFEFF/, "").trim()] = String(v ?? "").trim();
+      }
 
       const {
         matricula,
@@ -81,35 +130,34 @@ export async function POST(req: NextRequest) {
         cargoCodigo,
         centroCustoCodigo,
         gestorMatricula,
-      } = row;
+        cargoNome,
+        nivelHierarquico,
+        targetBonusPerc,
+      } = normalized;
 
-      if (!matricula || !nomeCompleto || !cpf || !email) {
-        erros.push({ linha, motivo: "Campos obrigatórios faltando (matricula, nomeCompleto, cpf, email)" });
+      if (!matricula || !nomeCompleto) {
+        erros.push({ linha, motivo: "Campos obrigatórios faltando (matricula, nomeCompleto)" });
         continue;
       }
 
-      const empresaId = empresaMap.get(empresaCodigo);
-      if (!empresaId) {
-        erros.push({ linha, motivo: `Empresa '${empresaCodigo}' não encontrada` });
-        continue;
-      }
-
-      const cargoId = cargoMap.get(cargoCodigo);
-      if (!cargoId) {
-        erros.push({ linha, motivo: `Cargo '${cargoCodigo}' não encontrado` });
-        continue;
-      }
-
-      const centroCustoId = ccMap.get(centroCustoCodigo);
-      if (!centroCustoId) {
-        erros.push({ linha, motivo: `Centro de Custo '${centroCustoCodigo}' não encontrado` });
-        continue;
-      }
+      const empresaId = await getOrCreateEmpresa(empresaCodigo || "EMP-DEFAULT");
+      const cargoId = await getOrCreateCargo(
+        cargoCodigo || "CARGO-DEFAULT",
+        cargoNome,
+        nivelHierarquico,
+        targetBonusPerc ? Number(targetBonusPerc) : undefined
+      );
+      const centroCustoId = await getOrCreateCC(centroCustoCodigo || "CC-DEFAULT", empresaId);
 
       const gestorId = gestorMatricula ? colabMap.get(gestorMatricula) ?? undefined : undefined;
 
       try {
         const existingId = colabMap.get(matricula);
+
+        const admissaoDate = dataAdmissao ? new Date(dataAdmissao) : new Date("2020-01-01");
+        const salario = salarioBase ? Number(String(salarioBase).replace(",", ".")) : 0;
+        const emailVal = email || `${matricula}@empresa.com`;
+        const cpfVal = cpf || matricula;
 
         if (existingId) {
           // Update
@@ -117,10 +165,10 @@ export async function POST(req: NextRequest) {
             where: { id: existingId },
             data: {
               nomeCompleto,
-              cpf,
-              email,
-              salarioBase: Number(salarioBase),
-              dataAdmissao: new Date(dataAdmissao),
+              cpf: cpfVal,
+              email: emailVal,
+              salarioBase: salario,
+              dataAdmissao: admissaoDate,
               empresaId,
               cargoId,
               centroCustoId,
@@ -134,10 +182,10 @@ export async function POST(req: NextRequest) {
             data: {
               matricula,
               nomeCompleto,
-              cpf,
-              email,
-              salarioBase: Number(salarioBase),
-              dataAdmissao: new Date(dataAdmissao),
+              cpf: cpfVal,
+              email: emailVal,
+              salarioBase: salario,
+              dataAdmissao: admissaoDate,
               empresaId,
               cargoId,
               centroCustoId,

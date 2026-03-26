@@ -804,13 +804,17 @@ export default function Home() {
     setColabImportResult(null);
     let rawText = colabCsvText;
     if (colabCsvFile) rawText = await colabCsvFile.text();
+    // Strip BOM and normalize line endings
+    rawText = rawText.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
     const lines = rawText.split("\n").map((l) => l.trim()).filter(Boolean);
     if (lines.length < 2) { setColabImportLoading(false); return; }
-    const headerLine = lines[0].split(";").map((h) => h.trim());
+    // Auto-detect delimiter: semicolon or comma
+    const delim = lines[0].includes(";") ? ";" : ",";
+    const headerLine = lines[0].split(delim).map((h) => h.replace(/^\uFEFF/, "").trim().replace(/^"|"$/g, ""));
     const rows = lines.slice(1).map((line) => {
-      const vals = line.split(";");
+      const vals = line.split(delim);
       const obj: Record<string, string> = {};
-      headerLine.forEach((h, i) => { obj[h] = (vals[i] ?? "").trim(); });
+      headerLine.forEach((h, i) => { obj[h] = (vals[i] ?? "").trim().replace(/^"|"$/g, ""); });
       return obj;
     });
     const res = await fetch("/api/import-colaboradores", {
