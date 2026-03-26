@@ -909,6 +909,16 @@ export default function Home() {
     XLSX.writeFile(wb, "template_colaboradores.xlsx");
   }
 
+  async function handleDownloadTemplateBP() {
+    const XLSX = await import("xlsx");
+    const headers = ["matricula","codigo_indicador","valor_realizado","observacao"];
+    const example = { matricula:"001234", codigo_indicador:"REC-LIQ-2026", valor_realizado:2500000, observacao:"" };
+    const ws = XLSX.utils.json_to_sheet([example], { header: headers });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Realizacoes");
+    XLSX.writeFile(wb, "template_bp_realizacoes.xlsx");
+  }
+
   // ── Derived data ───────────────────────────────────────────────────────────
 
   const realizacoesFiltradas = realizacoes.filter((r) => {
@@ -2357,7 +2367,7 @@ export default function Home() {
                     {colaboradores.length === 0 && (
                       <tr><td colSpan={8}>
                         <EmptyState icon="👥" title="Nenhum colaborador cadastrado"
-                          description="Importe colaboradores via CSV ou cadastre manualmente para começar."
+                          description="Importe colaboradores via XLSX ou cadastre manualmente para começar."
                           action={{ label: "Importar XLSX", onClick: () => setActiveTab("colaboradores") }} />
                       </td></tr>
                     )}
@@ -2632,6 +2642,13 @@ export default function Home() {
                     onChange={(e) => setImportForm({ ...importForm, anoReferencia: e.target.value })}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
                 </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button type="button" onClick={handleDownloadTemplateBP} className="btn-ghost text-xs">
+                  Baixar Template XLSX
+                </button>
+                <span className="text-xs" style={{ color: "var(--ink-muted)" }}>Preencha o template e faça upload abaixo</span>
               </div>
 
               <div className="space-y-2">
@@ -3650,7 +3667,7 @@ export default function Home() {
               },
               {
                 icon: "📥", tab: "Importação BP",
-                desc: "Importação em lote de realizações via CSV. O BP cola as linhas no formato: matrícula; código da meta; valor realizado; observação — e submete tudo de uma vez.",
+                desc: "Importação em lote de realizações via XLSX. O BP baixa o template, preenche as colunas (matricula · codigo_indicador · valor_realizado · observacao) e faz upload do arquivo.",
               },
             ].map((item) => (
               <div key={item.tab} className="bg-white icp-card p-5 flex gap-4">
