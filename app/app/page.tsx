@@ -114,37 +114,57 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-// ─── Tab groups ───────────────────────────────────────────────────────────────
+// ─── Sidebar navigation groups ────────────────────────────────────────────────
 
-const TAB_GROUPS: { id: TabId; label: string }[][] = [
-  [
-    { id: "dashboard",   label: "Dashboard" },
-    { id: "cockpit",     label: "Cockpit" },
-    { id: "gestor",      label: "Painel Gestor" },
-    { id: "scorecard",   label: "Scorecard" },
-  ],
-  [
-    { id: "indicadores", label: "Indicadores" },
-    { id: "metas",       label: "Metas" },
-    { id: "realizacoes", label: "Realizações" },
-    { id: "atingimento", label: "Atingimento" },
-  ],
-  [
-    { id: "colaboradores",  label: "Colaboradores" },
-    { id: "elegiveis",      label: "Elegíveis" },
-    { id: "movimentacoes",  label: "Movimentações" },
-  ],
-  [
-    { id: "conferencia", label: "Conferência" },
-    { id: "workflow",    label: "Workflow" },
-    { id: "janelas",     label: "Janelas" },
-    { id: "relatorio",   label: "Relatório" },
-  ],
-  [
-    { id: "importacao",  label: "Importação BP" },
-    { id: "cadastros",   label: "Cadastros" },
-    { id: "ajuda",       label: "Ajuda" },
-  ],
+interface NavGroup {
+  name: string;
+  tabs: { id: TabId; label: string }[];
+}
+
+const TAB_GROUPS: NavGroup[] = [
+  {
+    name: "Análise",
+    tabs: [
+      { id: "dashboard",   label: "Dashboard" },
+      { id: "cockpit",     label: "Cockpit" },
+      { id: "gestor",      label: "Painel Gestor" },
+      { id: "scorecard",   label: "Scorecard" },
+    ],
+  },
+  {
+    name: "Operações",
+    tabs: [
+      { id: "indicadores", label: "Indicadores" },
+      { id: "metas",       label: "Metas" },
+      { id: "realizacoes", label: "Realizações" },
+      { id: "atingimento", label: "Atingimento" },
+    ],
+  },
+  {
+    name: "Pessoas",
+    tabs: [
+      { id: "colaboradores",  label: "Colaboradores" },
+      { id: "elegiveis",      label: "Elegíveis" },
+      { id: "movimentacoes",  label: "Movimentações RH" },
+    ],
+  },
+  {
+    name: "Controle",
+    tabs: [
+      { id: "conferencia", label: "Conferência" },
+      { id: "workflow",    label: "Workflow" },
+      { id: "janelas",     label: "Janelas" },
+      { id: "relatorio",   label: "Relatório" },
+    ],
+  },
+  {
+    name: "Configuração",
+    tabs: [
+      { id: "importacao",  label: "Importação BP" },
+      { id: "cadastros",   label: "Cadastros" },
+      { id: "ajuda",       label: "Ajuda" },
+    ],
+  },
 ];
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -870,7 +890,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: "var(--canvas)" }}>
+    <div className="h-screen flex flex-col overflow-hidden" style={{ background: "var(--canvas)" }}>
       {/* Header */}
       <header style={{ background: "var(--nav-bg)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
         <div className="max-w-7xl mx-auto px-6 h-14 flex items-center gap-4">
@@ -955,47 +975,56 @@ export default function Home() {
         </div>
       )}
 
-      {/* Tabs */}
-      <div className="bg-white" style={{ borderBottom: "1px solid var(--border-strong)" }}>
-        <div className="max-w-7xl mx-auto px-6">
-          <nav className="flex overflow-x-auto items-end">
-            {TAB_GROUPS.map((group, gi) => (
-              <React.Fragment key={gi}>
-                {gi > 0 && (
-                  <div className="self-center w-px h-4 mx-1 flex-shrink-0" style={{ background: "var(--border-strong)" }} />
-                )}
-                {group.map(({ id: tab, label }) => (
-                  <button
-                    key={tab}
-                    onClick={() => setActiveTab(tab)}
-                    className={`px-3 py-3.5 text-xs font-medium border-b-2 whitespace-nowrap transition-colors flex items-center gap-1.5 ${
-                      activeTab === tab
-                        ? "border-[var(--accent)] text-[var(--accent)]"
-                        : "border-transparent hover:text-slate-700"
-                    }`}
-                    style={activeTab !== tab ? { color: "var(--ink-muted)" } : {}}
-                  >
-                    {label}
-                    {tab === "workflow" && pendingCount > 0 && (
-                      <span className="bg-red-500 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center font-bold leading-none flex-shrink-0">
-                        {pendingCount}
-                      </span>
-                    )}
-                    {tab === "workflow" && waivers.length > 0 && (
-                      <span className="bg-orange-500 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center font-bold leading-none flex-shrink-0">
-                        {waivers.length}
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </React.Fragment>
+      {/* Body: Sidebar + Content */}
+      <div className="flex flex-1 overflow-hidden">
+
+        {/* Sidebar */}
+        <aside className="flex-shrink-0 flex flex-col overflow-y-auto" style={{ width: 200, background: "var(--nav-bg)", borderRight: "1px solid rgba(255,255,255,0.06)" }}>
+          <nav className="flex-1 py-4">
+            {TAB_GROUPS.map((group) => (
+              <div key={group.name} className="mb-5">
+                <div className="px-4 pb-1.5 text-[10px] font-semibold uppercase tracking-widest"
+                  style={{ color: "rgba(255,255,255,0.28)" }}>
+                  {group.name}
+                </div>
+                {group.tabs.map(({ id: tab, label }) => {
+                  const isActive = activeTab === tab;
+                  return (
+                    <button
+                      key={tab}
+                      onClick={() => setActiveTab(tab)}
+                      className="w-full text-left flex items-center gap-2 px-4 py-2 text-xs transition-colors"
+                      style={{
+                        color: isActive ? "white" : "rgba(255,255,255,0.55)",
+                        background: isActive ? "rgba(255,255,255,0.08)" : "transparent",
+                        borderLeft: isActive ? "2px solid var(--accent)" : "2px solid transparent",
+                        fontWeight: isActive ? 600 : 400,
+                      }}
+                    >
+                      <span className="flex-1 truncate">{label}</span>
+                      {tab === "workflow" && (pendingCount > 0 || waivers.length > 0) && (
+                        <span className="text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center flex-shrink-0"
+                          style={{ background: pendingCount > 0 ? "#ef4444" : "#f97316", color: "white" }}>
+                          {pendingCount + waivers.length}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             ))}
           </nav>
-        </div>
-      </div>
 
-      {/* Content */}
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-6">
+          {/* Sidebar footer — ciclo info */}
+          <div className="px-4 py-4" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+            <p className="text-[10px] font-medium truncate" style={{ color: "rgba(255,255,255,0.3)" }}>
+              {cicloAtivo ? `Ciclo ${cicloAtivo.anoFiscal} · ${cicloAtivo.status}` : "Sem ciclo ativo"}
+            </p>
+          </div>
+        </aside>
+
+        {/* Content */}
+        <main className="flex-1 overflow-y-auto px-6 py-6">
 
         {/* ── DASHBOARD (Master) ──────────────────────────────────────────── */}
         {activeTab === "dashboard" && (
@@ -3318,11 +3347,7 @@ export default function Home() {
         )}
 
       </main>
-
-      {/* Footer */}
-      <footer className="bg-white border-t border-gray-200 py-3 px-4 text-center text-xs text-gray-400">
-        Sistema ICP — Incentivo de Curto Prazo {cicloAtivo ? `| Ciclo ${cicloAtivo.anoFiscal}` : ""}
-      </footer>
+      </div>
     </div>
   );
 }
