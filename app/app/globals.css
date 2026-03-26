@@ -171,6 +171,17 @@ tbody td:first-child {
   letter-spacing: -0.015em;
 }
 
+/* ── Print ──────────────────────────────────────────────────────────────────── */
+
+@media print {
+  aside, header, .btn-ghost, .btn-primary, .btn-danger,
+  [data-no-print], nav { display: none !important; }
+  main { overflow: visible !important; }
+  body, main { background: white !important; color: black !important; }
+  .icp-card { border: 1px solid #ccc !important; box-shadow: none !important; }
+  @page { margin: 1.5cm; }
+}
+
 /* ── Scrollbar ─────────────────────────────────────────────────────────────── */
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }

@@ -83,23 +83,23 @@ export default function CockpitColaborador({ colaboradorId, cicloId }: { colabor
   return (
     <div className="space-y-6">
       {/* Cabeçalho do colaborador */}
-      <div className="bg-gradient-to-r from-blue-700 to-blue-600 rounded-2xl p-6 text-white">
+      <div className="rounded-xl p-5 text-white" style={{ background: "var(--nav-bg)" }}>
         <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center text-xl font-black">
+          <div className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-black flex-shrink-0" style={{ background: "rgba(255,255,255,0.15)" }}>
             {data.colaborador.nomeCompleto.split(" ").slice(0, 2).map((n) => n[0]).join("")}
           </div>
-          <div>
-            <h2 className="text-xl font-bold">{data.colaborador.nomeCompleto}</h2>
-            <p className="text-blue-200 text-sm">{data.cargo.nome} · {data.cargo.nivelHierarquico} · Matrícula {data.colaborador.matricula}</p>
-            <p className="text-blue-100 text-xs mt-1">Target bônus: {data.cargo.targetBonusPerc}% do salário anual · Alvo: {formatBRL(data.targetAnual)}</p>
+          <div className="min-w-0">
+            <h2 className="text-base font-bold truncate">{data.colaborador.nomeCompleto}</h2>
+            <p className="text-xs mt-0.5 truncate" style={{ color: "rgba(255,255,255,0.65)" }}>{data.cargo.nome} · {data.cargo.nivelHierarquico} · Mat. {data.colaborador.matricula}</p>
+            <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.5)" }}>Target: {data.cargo.targetBonusPerc}% sal. anual · Alvo: {formatBRL(data.targetAnual)}</p>
           </div>
         </div>
       </div>
 
       {/* KPIs principais */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {/* Gauge de nota */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 flex flex-col items-center">
+        <div className="bg-white icp-card p-5 flex flex-col items-center">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Nota YTD</p>
           <div className="w-full h-36">
             <ResponsiveContainer width="100%" height="100%">
@@ -115,9 +115,9 @@ export default function CockpitColaborador({ colaboradorId, cicloId }: { colabor
         </div>
 
         {/* Prêmio projetado */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 flex flex-col items-center justify-center">
+        <div className="bg-white icp-card p-5 flex flex-col items-center justify-center">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Prêmio Projetado YTD</p>
-          <div className="text-4xl font-black text-blue-700 mb-1">{formatBRL(data.premioYTD)}</div>
+          <div className="text-3xl font-black text-blue-700 mb-1">{formatBRL(data.premioYTD)}</div>
           <div className="w-full bg-gray-100 rounded-full h-2 mt-3">
             <div className="bg-blue-500 h-2 rounded-full transition-all" style={{ width: `${pctConcluido}%` }} />
           </div>
@@ -125,7 +125,7 @@ export default function CockpitColaborador({ colaboradorId, cicloId }: { colabor
         </div>
 
         {/* Semáforo de ofensores */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+        <div className="bg-white icp-card p-5">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Semáforo de Ofensores</p>
           <div className="space-y-3">
             {ofensores.map((m) => (
@@ -145,36 +145,36 @@ export default function CockpitColaborador({ colaboradorId, cicloId }: { colabor
       </div>
 
       {/* Tabela de metas */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
-        <div className="px-5 py-3 border-b border-gray-100">
+      <div className="bg-white icp-card overflow-x-auto">
+        <div className="px-5 py-3 icp-card-header">
           <h3 className="text-sm font-semibold text-gray-700">A Cesta de Metas</h3>
         </div>
-        <table className="min-w-full text-sm divide-y divide-gray-100">
-          <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+        <table className="min-w-full text-sm">
+          <thead>
             <tr>
               <th className="px-4 py-2 text-left">Indicador</th>
-              <th className="px-3 py-2 text-center">Tipo</th>
+              <th className="px-3 py-2 text-center hidden sm:table-cell">Tipo</th>
               <th className="px-3 py-2 text-right">Peso</th>
-              <th className="px-3 py-2 text-right">Alvo</th>
-              <th className="px-3 py-2 text-right">Último Lançado</th>
+              <th className="px-3 py-2 text-right hidden sm:table-cell">Alvo</th>
+              <th className="px-3 py-2 text-right hidden md:table-cell">Último</th>
               <th className="px-3 py-2 text-right">Nota</th>
-              <th className="px-3 py-2 text-right">Prêmio Proj.</th>
+              <th className="px-3 py-2 text-right hidden sm:table-cell">Prêmio Proj.</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-50">
+          <tbody>
             {data.metas.map((m) => {
               const last = m.realizacoes.slice(-1)[0];
               return (
-                <tr key={m.meta.id} className="hover:bg-gray-50">
+                <tr key={m.meta.id}>
                   <td className="px-4 py-2 font-medium text-gray-900 text-xs">{m.meta.indicador.nome}</td>
-                  <td className="px-3 py-2 text-center">
+                  <td className="px-3 py-2 text-center hidden sm:table-cell">
                     <span className="text-[10px] bg-blue-100 text-blue-700 rounded-full px-2 py-0.5">
                       {m.meta.indicador.tipo === "VOLUME_FINANCEIRO" ? "Volume" : m.meta.indicador.tipo === "CUSTO_PRAZO" ? "Custo/Prazo" : "Projeto"}
                     </span>
                   </td>
                   <td className="px-3 py-2 text-right text-xs text-gray-600">{m.meta.pesoNaCesta}%</td>
-                  <td className="px-3 py-2 text-right text-xs text-gray-600">{m.meta.metaAlvo} {m.meta.indicador.unidade}</td>
-                  <td className="px-3 py-2 text-right text-xs text-gray-500">
+                  <td className="px-3 py-2 text-right text-xs text-gray-600 hidden sm:table-cell">{m.meta.metaAlvo} {m.meta.indicador.unidade}</td>
+                  <td className="px-3 py-2 text-right text-xs text-gray-500 hidden md:table-cell">
                     {last ? `${last.valorRealizado} ${m.meta.indicador.unidade} (${MESES[last.mesReferencia - 1]})` : "—"}
                   </td>
                   <td className="px-3 py-2 text-right">
@@ -182,7 +182,7 @@ export default function CockpitColaborador({ colaboradorId, cicloId }: { colabor
                       {m.notaMedia.toFixed(0)} pts
                     </span>
                   </td>
-                  <td className="px-3 py-2 text-right text-xs font-semibold text-gray-700">
+                  <td className="px-3 py-2 text-right text-xs font-semibold text-gray-700 hidden sm:table-cell">
                     {formatBRL(m.premioProjetado)}
                   </td>
                 </tr>
@@ -191,18 +191,20 @@ export default function CockpitColaborador({ colaboradorId, cicloId }: { colabor
           </tbody>
           <tfoot className="bg-blue-50">
             <tr>
-              <td colSpan={5} className="px-4 py-2 text-xs font-bold text-blue-900">TOTAL YTD</td>
+              <td colSpan={3} className="px-4 py-2 text-xs font-bold text-blue-900">TOTAL YTD</td>
+              <td className="px-3 py-2 hidden sm:table-cell"></td>
+              <td className="px-3 py-2 hidden md:table-cell"></td>
               <td className="px-3 py-2 text-right text-xs font-black" style={{ color: notaCor(data.notaYTD) }}>
                 {data.notaYTD.toFixed(1)} pts
               </td>
-              <td className="px-3 py-2 text-right text-xs font-black text-blue-800">{formatBRL(data.premioYTD)}</td>
+              <td className="px-3 py-2 text-right text-xs font-black text-blue-800 hidden sm:table-cell">{formatBRL(data.premioYTD)}</td>
             </tr>
           </tfoot>
         </table>
       </div>
 
       {/* Evolução mensal */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+      <div className="bg-white icp-card p-5">
         <h3 className="text-sm font-semibold text-gray-700 mb-4">Evolução Mensal do Prêmio Projetado</h3>
         <div className="h-40 w-full">
           <ResponsiveContainer width="100%" height="100%">

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { signOut } from "next-auth/react";
+import { LineChart, Line, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from "recharts";
 import CockpitColaborador from "@/components/CockpitColaborador";
 import PainelGestor from "@/components/PainelGestor";
 import MasterDashboard from "@/components/MasterDashboard";
@@ -114,6 +115,26 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+// ─── Empty state ──────────────────────────────────────────────────────────────
+
+function EmptyState({ icon, title, description, action }: {
+  icon: string; title: string; description: string;
+  action?: { label: string; onClick: () => void };
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 text-center">
+      <div className="text-4xl mb-3">{icon}</div>
+      <p className="font-medium text-sm" style={{ color: "var(--ink)" }}>{title}</p>
+      <p className="text-xs mt-1 max-w-xs" style={{ color: "var(--ink-muted)" }}>{description}</p>
+      {action && (
+        <button onClick={action.onClick} className="btn-primary mt-4 text-xs">
+          {action.label}
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ─── Sidebar navigation groups ────────────────────────────────────────────────
 
 interface NavGroup {
@@ -222,6 +243,20 @@ export default function Home() {
   });
   const [cascateandoMetaId, setCascateandoMetaId] = useState<number | null>(null);
   const [cloningMetaId, setCloningMetaId] = useState<number | null>(null);
+
+  // Toast notifications
+  const [toasts, setToasts] = useState<{ id: number; msg: string; type: "ok" | "err" | "info" }[]>([]);
+  function addToast(msg: string, type: "ok" | "err" | "info" = "ok") {
+    const id = Date.now();
+    setToasts((prev) => [...prev, { id, msg, type }]);
+    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 3500);
+  }
+
+  // Inline editing
+  const [inlineEdit, setInlineEdit] = useState<{ metaId: number; field: "pesoNaCesta" | "metaAlvo" | "metaMinima" | "metaMaxima"; value: string } | null>(null);
+
+  // Meta tree view toggle
+  const [showMetaTree, setShowMetaTree] = useState(false);
 
   // Planos de Ação
   const [planosAcao, setPlanosAcao] = useState<PlanoAcao[]>([]);
@@ -437,6 +472,18 @@ export default function Home() {
       body: JSON.stringify({ id, status: "APROVADO" }),
     });
     loadMetas(cicloAtivo?.id);
+    addToast(`Meta #${id} aprovada`);
+  }
+
+  async function handleInlineEdit(metaId: number, field: string, value: string) {
+    if (!value.trim()) { setInlineEdit(null); return; }
+    await fetch("/api/metas", {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: metaId, [field]: Number(value) }),
+    });
+    setInlineEdit(null);
+    loadMetas(cicloAtivo?.id);
+    addToast("Meta atualizada");
   }
 
   async function handleAtribuirMeta(e: React.FormEvent) {
@@ -476,6 +523,7 @@ export default function Home() {
     setCascateandoMetaId(null);
     setCloningMetaId(null);
     loadMetas(cicloAtivo.id);
+    addToast(cloningMetaId ? "Meta clonada" : cascateandoMetaId ? "Meta cascateada" : "Meta criada");
   }
 
   async function handleCriarIndicador(e: React.FormEvent) {
@@ -512,6 +560,7 @@ export default function Home() {
     });
     loadWorkflow();
     loadMetas(cicloAtivo?.id);
+    addToast(status === "APROVADO" ? "Aprovado com sucesso" : "Rejeitado");
   }
 
   async function handleLancarRealizacao(e: React.FormEvent) {
@@ -529,6 +578,7 @@ export default function Home() {
     setShowRealizacaoForm(false);
     setRealizacaoForm({ metaId: "", colaboradorId: "", mesReferencia: "", anoReferencia: "2026", valorRealizado: "" });
     loadRealizacoes();
+    addToast("Realização registrada");
   }
 
   async function handleCreateJanela(e: React.FormEvent) {
@@ -547,6 +597,7 @@ export default function Home() {
     setShowJanelaForm(false);
     setJanelaForm({ mesReferencia: "", anoReferencia: "2026", dataAbertura: "", dataFechamento: "" });
     loadJanelas(cicloAtivo.id);
+    addToast("Janela criada");
   }
 
   async function handleFecharJanela(id: number) {
@@ -555,6 +606,7 @@ export default function Home() {
       body: JSON.stringify({ id, status: "FECHADA" }),
     });
     loadJanelas(cicloAtivo?.id);
+    addToast("Janela fechada", "info");
   }
 
   async function handleWaiverAction(id: number, status: "APROVADO" | "REJEITADO") {
@@ -591,6 +643,7 @@ export default function Home() {
       body: JSON.stringify({ id: metaId, status: "CANCELADO", usuario: "sistema" }),
     });
     loadMetas(cicloAtivo?.id);
+    addToast(`Meta #${metaId} cancelada`, "info");
   }
 
   async function handleCriarPlanoAcao(e: React.FormEvent, metaId: number) {
@@ -602,6 +655,7 @@ export default function Home() {
     setPlanoForm({ descricao: "", responsavel: "", prazo: "" });
     setShowPlanoForm(null);
     loadPlanosAcao(metaId);
+    addToast("Plano de ação criado");
   }
 
   async function handleTogglePlanoStatus(plano: PlanoAcao) {
@@ -669,6 +723,7 @@ export default function Home() {
     setEmpresaForm({ codigo: "", nome: "" });
     setShowEmpresaForm(false);
     loadEmpresas();
+    addToast("Empresa criada");
   }
 
   async function handleCriarCargo(e: React.FormEvent) {
@@ -680,6 +735,7 @@ export default function Home() {
     setCargoForm({ codigo: "", nome: "", nivelHierarquico: "N4", targetBonusPerc: "0", salarioTeto: "" });
     setShowCargoForm(false);
     loadCargos();
+    addToast("Cargo criado");
   }
 
   async function handleCriarCC(e: React.FormEvent) {
@@ -691,6 +747,7 @@ export default function Home() {
     setCcForm({ codigo: "", nome: "", nivel: "1", empresaId: "" });
     setShowCcForm(false);
     loadCentrosCusto();
+    addToast("Centro de custo criado");
   }
 
   async function handleBulkImport(e: React.FormEvent) {
@@ -740,6 +797,32 @@ export default function Home() {
     if (res?.data) setColabImportResult(res.data);
     setColabImportLoading(false);
     loadColaboradores();
+  }
+
+  // ── Export relatório executivo CSV ────────────────────────────────────────
+  function handleExportRelatorioCSV() {
+    const header = ["Colaborador","Matrícula","Cargo","Nível","Nota Média","Prêmio YTD","Target Anual","% Target"];
+    const rows = rankingElegiveis.map((row) => {
+      const percTarget = row.targetAnual > 0 ? ((row.premioYTD / row.targetAnual) * 100).toFixed(1) : "0";
+      return [
+        row.colaborador.nomeCompleto,
+        row.colaborador.matricula,
+        row.colaborador.cargo.nome,
+        row.colaborador.cargo.nivelHierarquico,
+        row.notaMedia.toFixed(1),
+        row.premioYTD.toFixed(2),
+        row.targetAnual.toFixed(2),
+        percTarget,
+      ];
+    });
+    const csv = [header, ...rows].map((r) => r.map((v) => `"${v}"`).join(";")).join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `relatorio-icp-${cicloAtivo?.anoFiscal ?? "ciclo"}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   // ── Derived data ───────────────────────────────────────────────────────────
@@ -889,8 +972,31 @@ export default function Home() {
     );
   }
 
+  // Computed: latest nota per meta (for progress bar)
+  function getMetaUltimaNota(metaId: number): number | null {
+    const r = realizacoes
+      .filter((r) => r.meta?.id === metaId)
+      .sort((a, b) => b.anoReferencia * 100 + b.mesReferencia - (a.anoReferencia * 100 + a.mesReferencia));
+    return r[0]?.notaCalculada ?? null;
+  }
+
   return (
     <div className="h-screen flex flex-col overflow-hidden" style={{ background: "var(--canvas)" }}>
+      {/* Toast overlay */}
+      <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none" style={{ maxWidth: 320 }}>
+        {toasts.map((t) => (
+          <div key={t.id} className="rounded-lg px-4 py-3 text-sm font-medium shadow-lg pointer-events-auto flex items-center gap-2"
+            style={{
+              background: t.type === "ok" ? "var(--ok-bg)" : t.type === "err" ? "var(--err-bg)" : "var(--info-bg)",
+              color: t.type === "ok" ? "var(--ok-text)" : t.type === "err" ? "var(--err-text)" : "var(--info-text)",
+              border: `1px solid ${t.type === "ok" ? "var(--ok-border)" : t.type === "err" ? "var(--err-border)" : "var(--info-border)"}`,
+            }}>
+            <span>{t.type === "ok" ? "✓" : t.type === "err" ? "✗" : "ℹ"}</span>
+            {t.msg}
+          </div>
+        ))}
+      </div>
+
       {/* Header */}
       <header style={{ background: "var(--nav-bg)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
         <div className="max-w-7xl mx-auto px-6 h-14 flex items-center gap-4">
@@ -1155,38 +1261,49 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Metas table */}
+                {/* Metas table with sparklines */}
                 <div className="bg-white icp-card overflow-hidden">
-                  <div className="px-5 py-4 icp-card-header">
+                  <div className="px-5 py-3.5 icp-card-header flex items-center justify-between">
                     <h3 className="icp-section-title">Metas e Resultados</h3>
+                    <button onClick={() => window.print()} className="btn-ghost text-xs px-3 py-1">Imprimir / PDF</button>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
                         <tr>
-                          {["Indicador","Peso","Alvo","Realizado (últ.)","Nota Média","Prêmio"].map((h) => (
+                          {["Indicador","Peso","Alvo","Evolução","Nota Média","Prêmio"].map((h) => (
                             <th key={h} className="text-left px-4 py-2.5">{h}</th>
                           ))}
                         </tr>
                       </thead>
-                      <tbody className="">
+                      <tbody>
                         {scorecardData.metas.map((item, i) => {
-                          const lastR = item.realizacoes[item.realizacoes.length - 1];
+                          const chartData = MESES.map((mes, idx) => {
+                            const r = item.realizacoes.find((r) => r.mesReferencia === idx + 1);
+                            return { mes, nota: r?.notaCalculada ?? null };
+                          }).filter((d) => d.nota !== null);
+                          const cor = item.notaMedia >= 100 ? "#059669" : item.notaMedia >= 70 ? "#d97706" : "#dc2626";
                           return (
-                            <tr key={i} className="">
+                            <tr key={i}>
                               <td className="px-4 py-3">{item.indicador.nome}</td>
-                              <td className="px-4 py-3">{item.meta.pesoNaCesta}%</td>
-                              <td className="px-4 py-3">{item.meta.metaAlvo.toLocaleString("pt-BR")}</td>
-                              <td className="px-4 py-3">
-                                {lastR ? lastR.valorRealizado.toLocaleString("pt-BR") : "—"}
+                              <td className="px-4 py-3 tabular-nums">{item.meta.pesoNaCesta}%</td>
+                              <td className="px-4 py-3 tabular-nums">{item.meta.metaAlvo.toLocaleString("pt-BR")}</td>
+                              <td className="px-4 py-2" style={{ width: 100, minWidth: 80 }}>
+                                {chartData.length > 1 ? (
+                                  <ResponsiveContainer width="100%" height={32}>
+                                    <LineChart data={chartData} margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
+                                      <Line type="monotone" dataKey="nota" dot={false} stroke={cor} strokeWidth={1.5} />
+                                    </LineChart>
+                                  </ResponsiveContainer>
+                                ) : <span className="text-xs" style={{ color: "var(--ink-subtle)" }}>—</span>}
                               </td>
-                              <td className={`px-4 py-3 ${notaColor(item.notaMedia)}`}>{fmtN(item.notaMedia)}</td>
-                              <td className="px-4 py-3 font-medium tabular-nums">{fmt(item.premioProjetado)}</td>
+                              <td className={`px-4 py-3 font-semibold tabular-nums`} style={{ color: cor }}>{fmtN(item.notaMedia)}</td>
+                              <td className="px-4 py-3 font-medium tabular-nums" style={{ color: "var(--ink)" }}>{fmt(item.premioProjetado)}</td>
                             </tr>
                           );
                         })}
                         {scorecardData.metas.length === 0 && (
-                          <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">Sem metas vinculadas</td></tr>
+                          <tr><td colSpan={6} className="px-4 py-8 text-center" style={{ color: "var(--ink-muted)" }}>Sem metas vinculadas</td></tr>
                         )}
                       </tbody>
                     </table>
@@ -1366,7 +1483,11 @@ export default function Home() {
                       </tr>
                     ))}
                     {indicadores.length === 0 && (
-                      <tr><td colSpan={10} className="px-4 py-8 text-center text-gray-400">Nenhum indicador cadastrado</td></tr>
+                      <tr><td colSpan={10}>
+                        <EmptyState icon="📊" title="Nenhum indicador cadastrado"
+                          description="Indicadores definem o que será medido em cada meta do ciclo."
+                          action={{ label: "+ Novo Indicador", onClick: () => setShowIndicadorForm(true) }} />
+                      </td></tr>
                     )}
                   </tbody>
                 </table>
@@ -1381,14 +1502,18 @@ export default function Home() {
             <div className="flex items-center justify-between">
               <h2 className="icp-page-title">Metas</h2>
               <div className="flex items-center gap-2 flex-wrap">
-                <p className="text-sm text-gray-500">{metas.length} metas</p>
+                <p className="text-sm" style={{ color: "var(--ink-muted)" }}>{metas.length} metas</p>
+                <button onClick={() => setShowMetaTree((v) => !v)}
+                  className="btn-ghost text-xs px-3 py-1.5">
+                  Árvore
+                </button>
                 <button onClick={() => setShowBibliotecaTab((v) => !v)}
-                  className="bg-purple-100 hover:bg-purple-200 text-purple-700 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors">
-                  📚 Biblioteca
+                  className="btn-ghost text-xs px-3 py-1.5">
+                  Biblioteca
                 </button>
                 <button onClick={() => setShowMetasImport((v) => !v)}
-                  className="bg-amber-100 hover:bg-amber-200 text-amber-700 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors">
-                  ⬆ Importar CSV
+                  className="btn-ghost text-xs px-3 py-1.5">
+                  Importar CSV
                 </button>
                 <button onClick={() => { setShowMetaForm(!showMetaForm); setCloningMetaId(null); setCascateandoMetaId(null); }}
                   className="btn-primary">
@@ -1575,12 +1700,45 @@ export default function Home() {
               </div>
             )}
 
+            {/* Árvore de cascata */}
+            {showMetaTree && (
+              <div className="bg-white icp-card p-5">
+                <h3 className="icp-section-title mb-4">Árvore de Cascata</h3>
+                {(() => {
+                  const roots = metas.filter((m) => !m.parentMetaId);
+                  function renderNode(m: typeof metas[0], depth: number): React.ReactNode {
+                    const children = metas.filter((c) => c.parentMetaId === m.id);
+                    const nota = getMetaUltimaNota(m.id);
+                    const cor = nota === null ? "var(--ink-subtle)" : nota >= 100 ? "#059669" : nota >= 70 ? "#d97706" : "#dc2626";
+                    return (
+                      <div key={m.id} style={{ marginLeft: depth * 24 }}>
+                        <div className="flex items-center gap-3 py-2 group" style={{ borderBottom: "1px solid var(--border)" }}>
+                          {depth > 0 && <span style={{ color: "var(--ink-subtle)", fontSize: 12 }}>↳</span>}
+                          <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: cor }} />
+                          <span className="text-sm font-medium flex-1" style={{ color: "var(--ink)" }}>{m.indicador.nome}</span>
+                          <span className="text-xs" style={{ color: "var(--ink-muted)" }}>{m.centroCusto?.nome ?? "Corporativo"}</span>
+                          <span className="text-xs font-semibold tabular-nums" style={{ color: cor }}>
+                            {nota !== null ? `${nota.toFixed(0)} pts` : "—"}
+                          </span>
+                          <StatusBadge status={m.status} />
+                        </div>
+                        {children.map((c) => renderNode(c, depth + 1))}
+                      </div>
+                    );
+                  }
+                  return roots.length === 0
+                    ? <p className="text-sm text-center py-4" style={{ color: "var(--ink-muted)" }}>Nenhuma meta com cascata definida</p>
+                    : roots.map((r) => renderNode(r, 0));
+                })()}
+              </div>
+            )}
+
             <div className="bg-white icp-card overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr>
-                      {["#","Indicador","CC","Peso","Alvo","Colaboradores","Status",""].map((h) => (
+                      {["#","Indicador","CC","Peso","Alvo","Progresso","Status",""].map((h) => (
                         <th key={h} className="text-left px-4 py-2.5">{h}</th>
                       ))}
                     </tr>
@@ -1588,24 +1746,72 @@ export default function Home() {
                   <tbody className="">
                     {metas.map((m) => (
                       <React.Fragment key={m.id}>
-                        <tr className={`hover:bg-gray-50 ${m.parentMetaId ? "bg-gray-50/50" : ""}`}>
-                          <td className="px-4 py-3 text-gray-400">
-                            {m.parentMetaId && <span className="mr-1 text-purple-400">↳</span>}
+                        <tr className={m.parentMetaId ? "" : ""} style={m.parentMetaId ? { background: "rgba(139,92,246,0.03)" } : {}}>
+                          <td className="px-4 py-3" style={{ color: "var(--ink-muted)" }}>
+                            {m.parentMetaId && <span className="mr-1" style={{ color: "#8b5cf6" }}>↳</span>}
                             {m.id}
                           </td>
                           <td className="px-4 py-3">
-                            <p className="font-medium text-gray-800">{m.indicador.nome}</p>
+                            <p className="font-medium" style={{ color: "var(--ink)" }}>{m.indicador.nome}</p>
                             {m.parentMeta && (
-                              <p className="text-xs text-purple-600 mt-0.5">Cascata de: {m.parentMeta.indicador.nome}{m.parentMeta.centroCusto ? ` (${m.parentMeta.centroCusto.nome})` : ""}</p>
+                              <p className="text-xs mt-0.5" style={{ color: "#8b5cf6" }}>↑ {m.parentMeta.indicador.nome}{m.parentMeta.centroCusto ? ` (${m.parentMeta.centroCusto.nome})` : ""}</p>
                             )}
                             {m._count.filhas > 0 && (
-                              <p className="text-xs text-indigo-500 mt-0.5">{m._count.filhas} meta(s) cascateada(s)</p>
+                              <p className="text-xs mt-0.5" style={{ color: "#6366f1" }}>{m._count.filhas} cascata(s)</p>
                             )}
                           </td>
-                          <td className="px-4 py-3">{m.centroCusto?.nome ?? "—"}</td>
-                          <td className="px-4 py-3">{m.pesoNaCesta}%</td>
-                          <td className="px-4 py-3">{m.metaAlvo.toLocaleString("pt-BR")}</td>
-                          <td className="px-4 py-3">{m._count.colaboradores}</td>
+                          <td className="px-4 py-3" style={{ color: "var(--ink-secondary)" }}>{m.centroCusto?.nome ?? "—"}</td>
+                          {/* Peso — inline editable */}
+                          <td className="px-4 py-3">
+                            {inlineEdit?.metaId === m.id && inlineEdit.field === "pesoNaCesta" ? (
+                              <input autoFocus type="number" className="w-14 border rounded px-1 py-0.5 text-xs tabular-nums"
+                                value={inlineEdit.value}
+                                onChange={(e) => setInlineEdit((p) => p ? { ...p, value: e.target.value } : null)}
+                                onBlur={() => handleInlineEdit(m.id, "pesoNaCesta", inlineEdit.value)}
+                                onKeyDown={(e) => { if (e.key === "Enter") handleInlineEdit(m.id, "pesoNaCesta", inlineEdit.value); if (e.key === "Escape") setInlineEdit(null); }} />
+                            ) : (
+                              <span className="cursor-pointer rounded px-1 py-0.5 text-xs tabular-nums"
+                                style={{ color: "var(--ink-secondary)" }}
+                                title="Clique para editar"
+                                onClick={() => setInlineEdit({ metaId: m.id, field: "pesoNaCesta", value: String(m.pesoNaCesta) })}>
+                                {m.pesoNaCesta}%
+                              </span>
+                            )}
+                          </td>
+                          {/* Alvo — inline editable */}
+                          <td className="px-4 py-3">
+                            {inlineEdit?.metaId === m.id && inlineEdit.field === "metaAlvo" ? (
+                              <input autoFocus type="number" className="w-20 border rounded px-1 py-0.5 text-xs tabular-nums"
+                                value={inlineEdit.value}
+                                onChange={(e) => setInlineEdit((p) => p ? { ...p, value: e.target.value } : null)}
+                                onBlur={() => handleInlineEdit(m.id, "metaAlvo", inlineEdit.value)}
+                                onKeyDown={(e) => { if (e.key === "Enter") handleInlineEdit(m.id, "metaAlvo", inlineEdit.value); if (e.key === "Escape") setInlineEdit(null); }} />
+                            ) : (
+                              <span className="cursor-pointer rounded px-1 py-0.5 text-xs tabular-nums"
+                                style={{ color: "var(--ink-secondary)" }}
+                                title="Clique para editar"
+                                onClick={() => setInlineEdit({ metaId: m.id, field: "metaAlvo", value: String(m.metaAlvo) })}>
+                                {m.metaAlvo.toLocaleString("pt-BR")}
+                              </span>
+                            )}
+                          </td>
+                          {/* Progresso — nota + mini progress bar */}
+                          <td className="px-4 py-3">
+                            {(() => {
+                              const nota = getMetaUltimaNota(m.id);
+                              if (nota === null) return <span className="text-xs" style={{ color: "var(--ink-subtle)" }}>—</span>;
+                              const cor = nota >= 100 ? "#059669" : nota >= 70 ? "#d97706" : "#dc2626";
+                              const pct = Math.min((nota / 120) * 100, 100);
+                              return (
+                                <div className="flex items-center gap-2 min-w-[72px]">
+                                  <div className="flex-1 h-1.5 rounded-full" style={{ background: "var(--border-strong)", minWidth: 40 }}>
+                                    <div className="h-1.5 rounded-full transition-all" style={{ width: `${pct}%`, background: cor }} />
+                                  </div>
+                                  <span className="text-xs font-semibold tabular-nums w-8 text-right" style={{ color: cor }}>{nota.toFixed(0)}</span>
+                                </div>
+                              );
+                            })()}
+                          </td>
                           <td className="px-4 py-3"><StatusBadge status={m.status} /></td>
                           <td className="px-4 py-3">
                             <div className="flex gap-1 flex-wrap">
@@ -1701,7 +1907,11 @@ export default function Home() {
                       </React.Fragment>
                     ))}
                     {metas.length === 0 && (
-                      <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">Nenhuma meta cadastrada</td></tr>
+                      <tr><td colSpan={8}>
+                        <EmptyState icon="🎯" title="Nenhuma meta cadastrada"
+                          description="Crie metas para o ciclo ativo atribuindo indicadores e pesos a colaboradores."
+                          action={{ label: "+ Nova Meta", onClick: () => setShowMetaForm(true) }} />
+                      </td></tr>
                     )}
                   </tbody>
                 </table>
@@ -1727,6 +1937,13 @@ export default function Home() {
                   const mediaNota = metaRealizacoes.length > 0
                     ? metaRealizacoes.reduce((s, r) => s + (r.notaCalculada ?? 0), 0) / metaRealizacoes.length : 0;
                   const polarLabel = (m.indicador as Indicador).polaridade === "MENOR_MELHOR" ? "↓ Menor é Melhor" : "↑ Maior é Melhor";
+                  const sparkData = MESES.map((mes, i) => {
+                    const mesReals = metaRealizacoes.filter((r) => r.mesReferencia === i + 1);
+                    const avgNota = mesReals.length > 0
+                      ? mesReals.reduce((s, r) => s + (r.notaCalculada ?? 0), 0) / mesReals.length
+                      : null;
+                    return { mes, nota: avgNota };
+                  }).filter((d) => d.nota !== null);
                   return (
                     <div key={m.id} className="bg-white icp-card p-5">
                       <div className="flex items-start justify-between mb-3">
@@ -1770,6 +1987,20 @@ export default function Home() {
                         </div>
                       ) : (
                         <p className="text-xs text-gray-400 text-center py-3">Nenhuma realização lançada</p>
+                      )}
+                      {sparkData.length > 1 && (
+                        <div className="mt-4 pt-3 border-t" style={{ borderColor: "var(--border)" }}>
+                          <p className="text-xs font-medium mb-2" style={{ color: "var(--ink-muted)" }}>Evolução da nota (média mensal)</p>
+                          <div className="h-20 w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <LineChart data={sparkData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+                                <XAxis dataKey="mes" tick={{ fontSize: 9 }} />
+                                <Tooltip formatter={(v) => [`${Number(v).toFixed(1)} pts`, "Nota"]} />
+                                <Line type="monotone" dataKey="nota" stroke="var(--accent)" strokeWidth={2} dot={{ r: 3 }} />
+                              </LineChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </div>
                       )}
                       {porColab.length === 0 && m._count.colaboradores === 0 && (
                         <p className="text-xs text-amber-600 mt-2">⚠ Nenhum colaborador atribuído a esta meta</p>
@@ -1899,7 +2130,11 @@ export default function Home() {
                       </tr>
                     ))}
                     {realizacoesFiltradas.length === 0 && (
-                      <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">Nenhuma realização encontrada</td></tr>
+                      <tr><td colSpan={7}>
+                        <EmptyState icon="📋" title="Nenhuma realização encontrada"
+                          description={realizacoes.length > 0 ? "Ajuste os filtros para ver as realizações." : "Registre o valor realizado de cada indicador para calcular as notas."}
+                          action={realizacoes.length === 0 ? { label: "Lançar Realização", onClick: () => setShowRealizacaoForm(true) } : undefined} />
+                      </td></tr>
                     )}
                   </tbody>
                 </table>
@@ -2013,7 +2248,11 @@ export default function Home() {
                       </tr>
                     ))}
                     {colaboradores.length === 0 && (
-                      <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">Nenhum colaborador cadastrado</td></tr>
+                      <tr><td colSpan={8}>
+                        <EmptyState icon="👥" title="Nenhum colaborador cadastrado"
+                          description="Importe colaboradores via CSV ou cadastre manualmente para começar."
+                          action={{ label: "Importar CSV", onClick: () => setActiveTab("importacao") }} />
+                      </td></tr>
                     )}
                   </tbody>
                 </table>
@@ -2252,7 +2491,10 @@ export default function Home() {
                       </tr>
                     ))}
                     {janelas.length === 0 && (
-                      <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">Nenhuma janela cadastrada para este ciclo</td></tr>
+                      <tr><td colSpan={7}>
+                        <EmptyState icon="🗓" title="Nenhuma janela de apuração"
+                          description="Janelas controlam o período em que realizações podem ser lançadas." />
+                      </td></tr>
                     )}
                   </tbody>
                 </table>
@@ -2414,14 +2656,16 @@ export default function Home() {
         {/* ── RELATÓRIO DE FECHAMENTO ──────────────────────────────────────── */}
         {activeTab === "relatorio" && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-3">
               <h2 className="icp-page-title">Relatório de Fechamento — Ciclo {cicloAtivo?.anoFiscal}</h2>
-              <button
-                onClick={() => window.print()}
-                className="bg-gray-800 hover:bg-gray-900 text-white text-sm font-medium px-4 py-1.5 rounded-lg transition-colors"
-              >
-                Imprimir / Exportar PDF
-              </button>
+              <div className="flex items-center gap-2">
+                <button onClick={handleExportRelatorioCSV} className="btn-ghost text-xs">
+                  Exportar CSV
+                </button>
+                <button onClick={() => window.print()} className="btn-ghost text-xs">
+                  Imprimir PDF
+                </button>
+              </div>
             </div>
 
             {/* Summary cards */}
