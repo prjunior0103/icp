@@ -244,6 +244,23 @@ export default function Home() {
   const [cascateandoMetaId, setCascateandoMetaId] = useState<number | null>(null);
   const [cloningMetaId, setCloningMetaId] = useState<number | null>(null);
 
+  // Reset
+  const [resetLoading, setResetLoading] = useState(false);
+  async function handleReset() {
+    if (!confirm("Isso apaga TODOS os dados do banco. Confirma?")) return;
+    setResetLoading(true);
+    const res = await fetch("/api/reset", { method: "POST" }).then((r) => r.json()).catch(() => null);
+    if (res?.data) {
+      addToast("Banco limpo com sucesso.", "ok");
+      const ativo = await loadCiclos();
+      await Promise.all([loadColaboradores(), loadMetas(ativo?.id), loadRealizacoes(), loadWorkflow(), loadIndicadores(ativo?.id), loadCentrosCusto()]);
+      setSeeded(false);
+    } else {
+      addToast("Erro ao limpar banco.", "err");
+    }
+    setResetLoading(false);
+  }
+
   // Toast notifications
   const [toasts, setToasts] = useState<{ id: number; msg: string; type: "ok" | "err" | "info" }[]>([]);
   function addToast(msg: string, type: "ok" | "err" | "info" = "ok") {
@@ -3401,18 +3418,19 @@ export default function Home() {
                 <h2 className="icp-page-title">Manual do Sistema ICP</h2>
                 <p className="text-sm mt-1" style={{ color: "var(--ink-muted)" }}>Incentivo de Curto Prazo — guia completo de uso.</p>
               </div>
-              <div className="bg-white icp-card p-4 flex items-center gap-4">
-                <div>
+              <div className="bg-white icp-card p-4 flex flex-wrap items-center gap-4">
+                <div className="flex-1 min-w-0">
                   <p className="text-xs font-semibold" style={{ color: "var(--ink)" }}>Dados de demonstração</p>
                   <p className="text-xs mt-0.5" style={{ color: "var(--ink-muted)" }}>Popula o banco com colaboradores, metas e realizações de exemplo.</p>
                 </div>
-                <button
-                  onClick={handleSeed}
-                  disabled={seedLoading}
-                  className="btn-primary flex-shrink-0"
-                >
-                  {seedLoading ? "Carregando..." : "Carregar Demo"}
-                </button>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button onClick={handleSeed} disabled={seedLoading} className="btn-primary text-xs">
+                    {seedLoading ? "Carregando..." : "Carregar Demo"}
+                  </button>
+                  <button onClick={handleReset} disabled={resetLoading} className="btn-danger text-xs">
+                    {resetLoading ? "Limpando..." : "Limpar Tudo"}
+                  </button>
+                </div>
               </div>
             </div>
 
