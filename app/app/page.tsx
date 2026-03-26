@@ -774,16 +774,25 @@ export default function Home() {
     if (!cicloAtivo) return;
     setImportLoading(true);
     setImportResult(null);
-    let csvContent = importForm.csvText;
-    if (importCsvFile) csvContent = await importCsvFile.text();
-    const rows = csvContent
-      .split("\n")
-      .map((l) => l.trim())
-      .filter(Boolean)
-      .map((line) => {
+    let rows: { matricula: string; metaCodigo: string; valorRealizado: number; observacao?: string }[] = [];
+    if (importCsvFile) {
+      const XLSX = await import("xlsx");
+      const buffer = await importCsvFile.arrayBuffer();
+      const wb = XLSX.read(buffer, { type: "array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const data = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: "" });
+      rows = data.map((r) => ({
+        matricula: String(r.matricula ?? "").trim(),
+        metaCodigo: String(r.codigo_indicador ?? r.metaCodigo ?? "").trim(),
+        valorRealizado: Number(r.valor_realizado ?? r.valorRealizado ?? 0),
+        observacao: r.observacao ? String(r.observacao) : undefined,
+      }));
+    } else {
+      rows = importForm.csvText.split("\n").map((l) => l.trim()).filter(Boolean).map((line) => {
         const [matricula, metaCodigo, valorRealizado, observacao] = line.split(";");
         return { matricula, metaCodigo, valorRealizado: Number(valorRealizado), observacao };
       });
+    }
     const res = await fetch("/api/bulk-import", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -851,30 +860,37 @@ export default function Home() {
     loadColaboradores();
   }
 
-  // ── Export relatório executivo CSV ────────────────────────────────────────
-  function handleExportRelatorioCSV() {
-    const header = ["Colaborador","Matrícula","Cargo","Nível","Nota Média","Prêmio YTD","Target Anual","% Target"];
-    const rows = rankingElegiveis.map((row) => {
-      const percTarget = row.targetAnual > 0 ? ((row.premioYTD / row.targetAnual) * 100).toFixed(1) : "0";
-      return [
-        row.colaborador.nomeCompleto,
-        row.colaborador.matricula,
-        row.colaborador.cargo.nome,
-        row.colaborador.cargo.nivelHierarquico,
-        row.notaMedia.toFixed(1),
-        row.premioYTD.toFixed(2),
-        row.targetAnual.toFixed(2),
-        percTarget,
-      ];
-    });
-    const csv = [header, ...rows].map((r) => r.map((v) => `"${v}"`).join(";")).join("\n");
-    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `relatorio-icp-${cicloAtivo?.anoFiscal ?? "ciclo"}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  // ── XLSX helpers ─────────────────────────────────────────────────────────
+  async function downloadXlsx(data: Record<string, unknown>[], filename: string) {
+    const XLSX = await import("xlsx");
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Dados");
+    XLSX.writeFile(wb, filename);
+  }
+
+  async function handleExportRelatorioCSV() {
+    const data = rankingElegiveis.map((row) => ({
+      "Colaborador": row.colaborador.nomeCompleto,
+      "Matrícula": row.colaborador.matricula,
+      "Cargo": row.colaborador.cargo.nome,
+      "Nível": row.colaborador.cargo.nivelHierarquico,
+      "Nota Média": Number(row.notaMedia.toFixed(1)),
+      "Prêmio YTD (R$)": Number(row.premioYTD.toFixed(2)),
+      "Target Anual (R$)": Number(row.targetAnual.toFixed(2)),
+      "% Target": Number(row.targetAnual > 0 ? ((row.premioYTD / row.targetAnual) * 100).toFixed(1) : 0),
+    }));
+    await downloadXlsx(data, `relatorio-icp-${cicloAtivo?.anoFiscal ?? "ciclo"}.xlsx`);
+  }
+
+  async function handleDownloadTemplateColaboradores() {
+    const XLSX = await import("xlsx");
+    const headers = ["matricula","nomeCompleto","cpf","email","salarioBase","dataAdmissao","empresaCodigo","cargoCodigo","centroCustoCodigo","gestorMatricula","cargoNome","nivelHierarquico","targetBonusPerc"];
+    const example = { matricula:"001234", nomeCompleto:"João Silva", cpf:"123.456.789-00", email:"joao@empresa.com", salarioBase:8000, dataAdmissao:"2024-01-15", empresaCodigo:"EMP001", cargoCodigo:"GER-COM", centroCustoCodigo:"CC-VENDAS", gestorMatricula:"", cargoNome:"Gerente Comercial", nivelHierarquico:"N2", targetBonusPerc:15 };
+    const ws = XLSX.utils.json_to_sheet([example], { header: headers });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Colaboradores");
+    XLSX.writeFile(wb, "template_colaboradores.xlsx");
   }
 
   // ── Derived data ───────────────────────────────────────────────────────────
@@ -2236,31 +2252,30 @@ export default function Home() {
                   Cole o conteúdo do CSV abaixo (com cabeçalho). Colunas obrigatórias separadas por <code>;</code>:<br />
                   <code className="bg-white px-1 rounded text-xs">matricula; nomeCompleto; cpf; email; salarioBase; dataAdmissao; empresaCodigo; cargoCodigo; centroCustoCodigo; gestorMatricula</code>
                 </p>
-                <form onSubmit={handleColabImport} className="space-y-3">
+                <form onSubmit={handleColabImport} className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <button type="button" onClick={handleDownloadTemplateColaboradores} className="btn-ghost text-xs">
+                      Baixar Template XLSX
+                    </button>
+                    <span className="text-xs" style={{ color: "var(--ink-muted)" }}>Preencha o template e faça upload abaixo</span>
+                  </div>
                   <div>
+                    <label className="block text-xs font-medium mb-1" style={{ color: "var(--ink-secondary)" }}>Arquivo XLSX</label>
                     <input
                       type="file"
-                      accept=".csv,.xlsx,.xls,.txt"
+                      accept=".xlsx,.xls"
                       onChange={(e) => { setColabCsvFile(e.target.files?.[0] ?? null); setColabCsvText(""); }}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"
                     />
-                    {colabCsvFile ? (
+                    {colabCsvFile && (
                       <p className="text-xs text-green-700 mt-1 font-medium">✓ {colabCsvFile.name} ({(colabCsvFile.size / 1024).toFixed(0)} KB)</p>
-                    ) : (
-                      <textarea
-                        rows={5}
-                        value={colabCsvText}
-                        onChange={(e) => setColabCsvText(e.target.value)}
-                        placeholder={"matricula;nomeCompleto;cpf;email;salarioBase;dataAdmissao;empresaCodigo;cargoCodigo;centroCustoCodigo;gestorMatricula\n001;João Silva;123.456.789-00;joao@emp.com;8000;2024-01-15;EMP001;GER-COM;CC-VENDAS;"}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs font-mono bg-white resize-y mt-2"
-                      />
                     )}
                   </div>
                   <div className="flex gap-3">
                     <button
                       type="submit"
-                      disabled={colabImportLoading || (!colabCsvText.trim() && !colabCsvFile)}
-                      className="bg-blue-700 hover:bg-blue-800 disabled:opacity-50 text-white text-sm font-medium px-5 py-2 rounded-lg transition-colors"
+                      disabled={colabImportLoading || !colabCsvFile}
+                      className="btn-primary"
                     >
                       {colabImportLoading ? "Importando..." : "Importar"}
                     </button>
@@ -2602,27 +2617,18 @@ export default function Home() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Arquivo CSV <span className="text-gray-400 font-normal">(formato: matricula;codigo_indicador;valor_realizado[;observacao])</span>
+              <div className="space-y-2">
+                <label className="block text-xs font-medium text-gray-700">
+                  Arquivo XLSX <span className="text-gray-400 font-normal">(colunas: matricula · codigo_indicador · valor_realizado · observacao)</span>
                 </label>
                 <input
                   type="file"
-                  accept=".csv,.xlsx,.xls,.txt"
+                  accept=".xlsx,.xls"
                   onChange={(e) => setImportCsvFile(e.target.files?.[0] ?? null)}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"
                 />
-                {!importCsvFile && (
-                  <textarea
-                    rows={4}
-                    placeholder={"EMP001;REC-001;1500000;Resultado forte\nEMP002;EBITDA-001;25.5"}
-                    value={importForm.csvText}
-                    onChange={(e) => setImportForm({ ...importForm, csvText: e.target.value })}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono mt-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                )}
                 {importCsvFile && (
-                  <p className="text-xs text-green-700 mt-1 font-medium">✓ {importCsvFile.name} ({(importCsvFile.size / 1024).toFixed(0)} KB)</p>
+                  <p className="text-xs text-green-700 font-medium">✓ {importCsvFile.name} ({(importCsvFile.size / 1024).toFixed(0)} KB)</p>
                 )}
               </div>
 
@@ -2745,7 +2751,7 @@ export default function Home() {
               <h2 className="icp-page-title">Relatório de Fechamento — Ciclo {cicloAtivo?.anoFiscal}</h2>
               <div className="flex items-center gap-2">
                 <button onClick={handleExportRelatorioCSV} className="btn-ghost text-xs">
-                  Exportar CSV
+                  Exportar XLSX
                 </button>
                 <button onClick={() => window.print()} className="btn-ghost text-xs">
                   Imprimir PDF
