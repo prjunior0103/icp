@@ -334,9 +334,40 @@ export default function Home() {
   });
   const [cargos, setCargos] = useState<Cargo[]>([]);
 
-  // Cadastros state (Empresa / Cargo / CC)
+  // Cadastros state (Empresa / Cargo / CC / Ciclos)
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
-  const [cadastroSub, setCadastroSub] = useState<"empresa" | "cargo" | "cc">("empresa");
+  const [cadastroSub, setCadastroSub] = useState<"empresa" | "cargo" | "cc" | "ciclos">("empresa");
+
+  // Ciclo form
+  const [showCicloForm, setShowCicloForm] = useState(false);
+  const [cicloForm, setCicloForm] = useState({ anoFiscal: "", mesInicio: "1", mesFim: "12", bonusPool: "", status: "SETUP" });
+  const [cicloEditId, setCicloEditId] = useState<number | null>(null);
+
+  async function handleSalvarCiclo(e: React.FormEvent) {
+    e.preventDefault();
+    const payload = {
+      anoFiscal: Number(cicloForm.anoFiscal),
+      mesInicio: Number(cicloForm.mesInicio),
+      mesFim: Number(cicloForm.mesFim),
+      bonusPool: cicloForm.bonusPool ? Number(cicloForm.bonusPool) : undefined,
+      status: cicloForm.status,
+    };
+    if (cicloEditId) {
+      await fetch("/api/ciclos", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: cicloEditId, ...payload }) }).then((r) => r.json());
+    } else {
+      await fetch("/api/ciclos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }).then((r) => r.json());
+    }
+    setShowCicloForm(false);
+    setCicloEditId(null);
+    setCicloForm({ anoFiscal: "", mesInicio: "1", mesFim: "12", bonusPool: "", status: "SETUP" });
+    await loadCiclos();
+  }
+
+  async function handleExcluirCiclo(id: number) {
+    if (!confirm("Excluir este ciclo? Todos os indicadores e metas vinculados também serão removidos.")) return;
+    await fetch(`/api/ciclos?id=${id}`, { method: "DELETE" });
+    await loadCiclos();
+  }
   const [empresaForm, setEmpresaForm] = useState({ codigo: "", nome: "" });
   const [showEmpresaForm, setShowEmpresaForm] = useState(false);
   const [cargoForm, setCargoForm] = useState({ codigo: "", nome: "", nivelHierarquico: "N4", targetBonusPerc: "0", salarioTeto: "" });
@@ -3328,13 +3359,110 @@ export default function Home() {
 
             {/* Sub-tabs */}
             <div className="flex gap-2 border-b border-gray-200">
-              {(["empresa","cargo","cc"] as const).map((sub) => (
+              {(["ciclos","empresa","cargo","cc"] as const).map((sub) => (
                 <button key={sub} onClick={() => setCadastroSub(sub)}
                   className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${cadastroSub === sub ? "border-blue-600 text-blue-700" : "border-transparent text-gray-500 hover:text-gray-700"}`}>
-                  {sub === "empresa" ? "Empresas" : sub === "cargo" ? "Cargos" : "Centros de Custo"}
+                  {sub === "ciclos" ? "Ciclos ICP" : sub === "empresa" ? "Empresas" : sub === "cargo" ? "Cargos" : "Centros de Custo"}
                 </button>
               ))}
             </div>
+
+            {/* CICLOS ICP */}
+            {cadastroSub === "ciclos" && (
+              <div className="space-y-4">
+                <div className="flex justify-end">
+                  <button onClick={() => { setShowCicloForm((v) => !v); setCicloEditId(null); setCicloForm({ anoFiscal: "", mesInicio: "1", mesFim: "12", bonusPool: "", status: "SETUP" }); }}
+                    className="btn-primary">+ Novo Ciclo</button>
+                </div>
+                {showCicloForm && (
+                  <form onSubmit={handleSalvarCiclo} className="bg-blue-50 border border-blue-200 rounded-xl p-5 grid grid-cols-2 gap-4">
+                    <h3 className="col-span-2 font-semibold text-blue-800">{cicloEditId ? "Editar Ciclo" : "Novo Ciclo ICP"}</h3>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Ano Fiscal *</label>
+                      <input required type="number" min="2020" max="2099" value={cicloForm.anoFiscal}
+                        onChange={(e) => setCicloForm((f) => ({ ...f, anoFiscal: e.target.value }))}
+                        placeholder="2026" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Status</label>
+                      <select value={cicloForm.status} onChange={(e) => setCicloForm((f) => ({ ...f, status: e.target.value }))}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+                        <option value="SETUP">SETUP</option>
+                        <option value="ATIVO">ATIVO</option>
+                        <option value="ENCERRADO">ENCERRADO</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Mês Início</label>
+                      <select value={cicloForm.mesInicio} onChange={(e) => setCicloForm((f) => ({ ...f, mesInicio: e.target.value }))}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+                        {MESES.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Mês Fim</label>
+                      <select value={cicloForm.mesFim} onChange={(e) => setCicloForm((f) => ({ ...f, mesFim: e.target.value }))}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+                        {MESES.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+                      </select>
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Pool de Bônus (R$)</label>
+                      <input type="number" step="0.01" min="0" value={cicloForm.bonusPool}
+                        onChange={(e) => setCicloForm((f) => ({ ...f, bonusPool: e.target.value }))}
+                        placeholder="500000.00" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div className="col-span-2 flex gap-3">
+                      <button type="submit" className="btn-primary">Salvar</button>
+                      <button type="button" onClick={() => setShowCicloForm(false)} className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2">Cancelar</button>
+                    </div>
+                  </form>
+                )}
+                <div className="bg-white icp-card overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead><tr>
+                      {["Ano Fiscal","Status","Período","Pool de Bônus","Indicadores","Metas","Ações"].map((h) => (
+                        <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
+                      ))}
+                    </tr></thead>
+                    <tbody>
+                      {ciclos.map((c) => (
+                        <tr key={c.id} className={c.id === cicloAtivo?.id ? "bg-blue-50" : ""}>
+                          <td className="px-4 py-3 font-semibold">
+                            {c.anoFiscal}
+                            {c.id === cicloAtivo?.id && <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">ativo</span>}
+                          </td>
+                          <td className="px-4 py-3"><StatusBadge status={c.status} /></td>
+                          <td className="px-4 py-3 text-gray-500">{MESES[(c.mesInicio ?? 1) - 1]} – {MESES[(c.mesFim ?? 12) - 1]}</td>
+                          <td className="px-4 py-3">{c.bonusPool ? fmt(c.bonusPool) : "—"}</td>
+                          <td className="px-4 py-3">{(c as CicloICP & { indicadores?: { id: number }[] }).indicadores?.length ?? 0}</td>
+                          <td className="px-4 py-3">{(c as CicloICP & { metas?: { id: number }[] }).metas?.length ?? 0}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex gap-2">
+                              <button className="btn-ghost text-xs" onClick={() => {
+                                setCicloEditId(c.id);
+                                setCicloForm({
+                                  anoFiscal: String(c.anoFiscal),
+                                  mesInicio: String(c.mesInicio ?? 1),
+                                  mesFim: String(c.mesFim ?? 12),
+                                  bonusPool: c.bonusPool != null ? String(c.bonusPool) : "",
+                                  status: c.status,
+                                });
+                                setShowCicloForm(true);
+                              }}>Editar</button>
+                              <button className="text-xs text-red-600 hover:text-red-800 px-2 py-1" onClick={() => handleExcluirCiclo(c.id)}>Excluir</button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {ciclos.length === 0 && (
+                        <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">Nenhum ciclo cadastrado</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
             {/* EMPRESA */}
             {cadastroSub === "empresa" && (
