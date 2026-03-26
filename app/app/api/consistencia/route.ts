@@ -170,7 +170,7 @@ export async function GET(req: NextRequest) {
         descricao: `${cestasForaDoLimite.length} colaborador(es) com soma de pesos diferente de 100%.`,
         count: cestasForaDoLimite.length,
         detalhes: cestasForaDoLimite.map(
-          (e) => `${e.nomeCompleto ?? e.nome} (${e.matricula}) — total ${e.totalPeso.toFixed(1)}%`
+          (e) => `${e.nome} (${e.matricula}) — total ${e.totalPeso.toFixed(1)}%`
         ),
       });
     } else if (pesosPorColab.size > 0) {
