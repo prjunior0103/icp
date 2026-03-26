@@ -3,12 +3,6 @@ import { prisma } from "@/app/lib/prisma";
 
 export async function POST() {
   try {
-    // Check if already seeded
-    const params = await prisma.parametroSistema.findUnique({ where: { id: 1 } });
-    if (params?.seeded) {
-      return NextResponse.json({ data: { message: "Já foi executado o seed anteriormente." } });
-    }
-
     // Empresa
     const empresa = await prisma.empresa.upsert({
       where: { codigo: "EMP001" },
