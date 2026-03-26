@@ -68,6 +68,13 @@ export function normalizarLinhaColaborador(
   return out;
 }
 
-export function parseSalario(raw: string): number {
-  return Number(raw.replace(",", ".")) || 0;
+export function parseSalario(raw: string | null | undefined): number {
+  if (raw == null) return 0;
+  // Handle Brazilian format: "8.000,50" → 8000.50
+  // Remove thousand separators (dots before groups of 3 digits) then swap comma→dot
+  const normalised = raw
+    .trim()
+    .replace(/\.(?=\d{3}(?:[,.]|$))/g, "") // remove thousand-sep dots
+    .replace(",", ".");                       // swap decimal comma
+  return Number(normalised) || 0;
 }

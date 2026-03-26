@@ -182,8 +182,21 @@ describe("parseSalario", () => {
     expect(parseSalario("10000")).toBe(10000);
   });
 
+  it("formato BR com separador de milhar (8.000,50) → 8000.50", () => {
+    expect(parseSalario("8.000,50")).toBeCloseTo(8000.5);
+  });
+
+  it("formato BR inteiro com milhar (12.500) → 12500", () => {
+    expect(parseSalario("12.500")).toBe(12500);
+  });
+
   it("string vazia → 0", () => {
     expect(parseSalario("")).toBe(0);
+  });
+
+  it("null/undefined → 0", () => {
+    expect(parseSalario(null)).toBe(0);
+    expect(parseSalario(undefined)).toBe(0);
   });
 
   it("valor inválido → 0", () => {
