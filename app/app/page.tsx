@@ -295,9 +295,10 @@ export default function Home() {
   });
   const [showBibForm, setShowBibForm] = useState(false);
 
-  // Import metas CSV
+  // Import metas XLSX
   const [showMetasImport, setShowMetasImport] = useState(false);
   const [metasCsvText, setMetasCsvText] = useState("");
+  const [metasXlsxFile, setMetasXlsxFile] = useState<File | null>(null);
   const [metasImportResult, setMetasImportResult] = useState<{ processed: number; erros: { linha: number; motivo: string }[] } | null>(null);
 
   // Movimentações state
@@ -700,15 +701,20 @@ export default function Home() {
   async function handleMetasImport(e: React.FormEvent) {
     e.preventDefault();
     if (!cicloAtivo) return;
-    const lines = metasCsvText.split("\n").map((l) => l.trim()).filter(Boolean);
-    if (lines.length < 2) return;
-    const headerLine = lines[0].split(";").map((h) => h.trim());
-    const rows = lines.slice(1).map((line) => {
-      const vals = line.split(";");
-      const obj: Record<string, string> = {};
-      headerLine.forEach((h, i) => { obj[h] = (vals[i] ?? "").trim(); });
-      return obj;
-    });
+    let rows: Record<string, string>[] = [];
+    if (metasXlsxFile) {
+      const XLSX = await import("xlsx");
+      const buffer = await metasXlsxFile.arrayBuffer();
+      const wb = XLSX.read(buffer, { type: "array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const data = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: "" });
+      rows = data.map((r) => { const o: Record<string, string> = {}; for (const [k,v] of Object.entries(r)) o[k.trim()] = String(v ?? "").trim(); return o; });
+    } else {
+      const lines = metasCsvText.split("\n").map((l) => l.trim()).filter(Boolean);
+      if (lines.length < 2) return;
+      const headerLine = lines[0].split(";").map((h) => h.trim());
+      rows = lines.slice(1).map((line) => { const vals = line.split(";"); const obj: Record<string, string> = {}; headerLine.forEach((h, i) => { obj[h] = (vals[i] ?? "").trim(); }); return obj; });
+    }
     const res = await fetch("/api/import-metas", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ cicloId: cicloAtivo.id, rows }),
@@ -881,6 +887,16 @@ export default function Home() {
       "% Target": Number(row.targetAnual > 0 ? ((row.premioYTD / row.targetAnual) * 100).toFixed(1) : 0),
     }));
     await downloadXlsx(data, `relatorio-icp-${cicloAtivo?.anoFiscal ?? "ciclo"}.xlsx`);
+  }
+
+  async function handleDownloadTemplateMetaas() {
+    const XLSX = await import("xlsx");
+    const headers = ["indicadorCodigo","centroCustoCodigo","pesoNaCesta","metaMinima","metaAlvo","metaMaxima"];
+    const example = { indicadorCodigo:"REC-LIQ-2026", centroCustoCodigo:"CC-COM", pesoNaCesta:50, metaMinima:80, metaAlvo:100, metaMaxima:120 };
+    const ws = XLSX.utils.json_to_sheet([example], { header: headers });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Metas");
+    XLSX.writeFile(wb, "template_metas.xlsx");
   }
 
   async function handleDownloadTemplateColaboradores() {
@@ -1592,7 +1608,7 @@ export default function Home() {
                 </button>
                 <button onClick={() => setShowMetasImport((v) => !v)}
                   className="btn-ghost text-xs px-3 py-1.5">
-                  Importar CSV
+                  Importar XLSX
                 </button>
                 <button onClick={() => { setShowMetaForm(!showMetaForm); setCloningMetaId(null); setCascateandoMetaId(null); }}
                   className="btn-primary">
@@ -1752,20 +1768,23 @@ export default function Home() {
               </form>
             )}
 
-            {/* Import Metas CSV */}
+            {/* Import Metas XLSX */}
             {showMetasImport && (
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 space-y-3">
                 <div className="flex items-center justify-between">
                   <h3 className="font-semibold text-amber-800">Importar Metas em Massa</h3>
-                  <a href="/api/import-metas" download="template_metas.csv" className="text-xs bg-white border border-amber-300 text-amber-700 px-3 py-1 rounded hover:bg-amber-50">⬇ Template CSV</a>
+                  <button type="button" onClick={handleDownloadTemplateMetaas} className="text-xs bg-white border border-amber-300 text-amber-700 px-3 py-1 rounded hover:bg-amber-50">Baixar Template XLSX</button>
                 </div>
-                <p className="text-xs text-amber-700">Colunas: <code>indicadorCodigo; centroCustoCodigo; pesoNaCesta; metaMinima; metaAlvo; metaMaxima</code></p>
+                <p className="text-xs text-amber-700">Colunas: indicadorCodigo · centroCustoCodigo · pesoNaCesta · metaMinima · metaAlvo · metaMaxima</p>
                 <form onSubmit={handleMetasImport} className="space-y-3">
-                  <textarea rows={5} value={metasCsvText} onChange={(e) => setMetasCsvText(e.target.value)}
-                    placeholder={"indicadorCodigo;centroCustoCodigo;pesoNaCesta;metaMinima;metaAlvo;metaMaxima\nREC-LIQ-2026;CC-COM;50;80;100;120"}
-                    className="w-full border border-gray-300 rounded px-3 py-2 text-xs font-mono bg-white resize-y" />
+                  <div>
+                    <input type="file" accept=".xlsx,.xls"
+                      onChange={(e) => setMetasXlsxFile(e.target.files?.[0] ?? null)}
+                      className="w-full border border-gray-300 rounded px-3 py-2 text-sm bg-white" />
+                    {metasXlsxFile && <p className="text-xs text-green-700 mt-1 font-medium">✓ {metasXlsxFile.name}</p>}
+                  </div>
                   <div className="flex gap-3">
-                    <button type="submit" disabled={!cicloAtivo || !metasCsvText.trim()}
+                    <button type="submit" disabled={!cicloAtivo || !metasXlsxFile}
                       className="bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white text-sm font-medium px-5 py-2 rounded-lg">Importar</button>
                     <button type="button" onClick={() => setShowMetasImport(false)} className="text-sm text-gray-500 px-3">Cancelar</button>
                   </div>
@@ -2339,7 +2358,7 @@ export default function Home() {
                       <tr><td colSpan={8}>
                         <EmptyState icon="👥" title="Nenhum colaborador cadastrado"
                           description="Importe colaboradores via CSV ou cadastre manualmente para começar."
-                          action={{ label: "Importar CSV", onClick: () => setActiveTab("importacao") }} />
+                          action={{ label: "Importar XLSX", onClick: () => setActiveTab("colaboradores") }} />
                       </td></tr>
                     )}
                   </tbody>
