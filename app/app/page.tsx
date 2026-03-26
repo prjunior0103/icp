@@ -22,13 +22,16 @@ interface CicloICP { id: number; anoFiscal: number; status: string; bonusPool: n
 interface Indicador { id: number; codigo: string; nome: string; tipo: string; polaridade: string; abrangencia: string; unidade: string; status: string; diretivo?: string; analistaResp?: string; origemDado?: string; divisorId?: number | null; divisor?: { id: number; nome: string } | null; }
 interface Meta {
   id: number; pesoNaCesta: number; metaAlvo: number; metaMinima: number | null;
-  metaMaxima: number | null; status: string;
+  metaMaxima: number | null; status: string; smart?: string | null;
   indicador: Indicador; centroCusto: CentroCusto | null;
   _count: { colaboradores: number; realizacoes: number; filhas: number };
   colaboradorIds: number[];
   parentMetaId: number | null;
   parentMeta: { id: number; indicador: { nome: string }; centroCusto: { nome: string } | null } | null;
 }
+interface MetaHistorico { id: number; metaId: number; campo: string; valorAntes: string | null; valorDepois: string | null; usuario: string | null; criadoEm: string; }
+interface PlanoAcao { id: number; metaId: number; descricao: string; responsavel: string | null; prazo: string | null; status: string; criadoEm: string; }
+interface BibliotecaMeta { id: number; nome: string; descricao: string | null; indicadorNome: string; unidade: string; tipo: string; polaridade: string; abrangencia: string; metaMinima: number | null; metaAlvo: number | null; metaMaxima: number | null; pesoSugerido: number; }
 interface Realizacao {
   id: number; mesReferencia: number; anoReferencia: number;
   valorRealizado: number; notaCalculada: number | null;
@@ -156,8 +159,35 @@ export default function Home() {
   const [metaForm, setMetaForm] = useState({
     indicadorId: "", centroCustoId: "", pesoNaCesta: "100", metaAlvo: "",
     metaMinima: "", metaMaxima: "", parentMetaId: "",
+    smart_e: "", smart_m: "", smart_a: "", smart_r: "", smart_t: "",
   });
   const [cascateandoMetaId, setCascateandoMetaId] = useState<number | null>(null);
+  const [cloningMetaId, setCloningMetaId] = useState<number | null>(null);
+
+  // Planos de Ação
+  const [planosAcao, setPlanosAcao] = useState<PlanoAcao[]>([]);
+  const [expandedPlanoMetaId, setExpandedPlanoMetaId] = useState<number | null>(null);
+  const [planoForm, setPlanoForm] = useState({ descricao: "", responsavel: "", prazo: "" });
+  const [showPlanoForm, setShowPlanoForm] = useState<number | null>(null);
+
+  // Histórico de metas
+  const [historico, setHistorico] = useState<MetaHistorico[]>([]);
+  const [expandedHistoricoMetaId, setExpandedHistoricoMetaId] = useState<number | null>(null);
+
+  // Biblioteca de metas
+  const [biblioteca, setBiblioteca] = useState<BibliotecaMeta[]>([]);
+  const [showBibliotecaTab, setShowBibliotecaTab] = useState(false);
+  const [bibForm, setBibForm] = useState({
+    nome: "", descricao: "", indicadorNome: "", unidade: "%", tipo: "VOLUME_FINANCEIRO",
+    polaridade: "MAIOR_MELHOR", abrangencia: "CORPORATIVO",
+    metaMinima: "", metaAlvo: "", metaMaxima: "", pesoSugerido: "100",
+  });
+  const [showBibForm, setShowBibForm] = useState(false);
+
+  // Import metas CSV
+  const [showMetasImport, setShowMetasImport] = useState(false);
+  const [metasCsvText, setMetasCsvText] = useState("");
+  const [metasImportResult, setMetasImportResult] = useState<{ processed: number; erros: { linha: number; motivo: string }[] } | null>(null);
 
   // Movimentações state
   const [movimentacoes, setMovimentacoes] = useState<MovimentacaoRH[]>([]);
@@ -275,6 +305,21 @@ export default function Home() {
     setEmpresas(res.data ?? []);
   }, []);
 
+  const loadBiblioteca = useCallback(async () => {
+    const res = await fetch("/api/biblioteca-metas").then((r) => r.json()).catch(() => ({ data: [] }));
+    setBiblioteca(res.data ?? []);
+  }, []);
+
+  const loadPlanosAcao = useCallback(async (metaId: number) => {
+    const res = await fetch(`/api/planos-acao?metaId=${metaId}`).then((r) => r.json()).catch(() => ({ data: [] }));
+    setPlanosAcao(res.data ?? []);
+  }, []);
+
+  const loadHistorico = useCallback(async (metaId: number) => {
+    const res = await fetch(`/api/metas/historico?metaId=${metaId}`).then((r) => r.json()).catch(() => ({ data: [] }));
+    setHistorico(res.data ?? []);
+  }, []);
+
   const loadDashboard = useCallback(async (cicloId?: number) => {
     if (!cicloId) return;
     const res = await fetch(`/api/dashboard?cicloId=${cicloId}`).then((r) => r.json()).catch(() => ({ data: null }));
@@ -295,11 +340,11 @@ export default function Home() {
         loadWorkflow(), checkSeeded(), loadJanelas(ativo?.id),
         loadIndicadores(ativo?.id), loadCentrosCusto(),
         loadWaivers(), loadDashboard(ativo?.id),
-        loadMovimentacoes(ativo?.id), loadCargos(), loadEmpresas(),
+        loadMovimentacoes(ativo?.id), loadCargos(), loadEmpresas(), loadBiblioteca(),
       ]);
       setLoading(false);
     })();
-  }, [loadCiclos, loadColaboradores, loadMetas, loadRealizacoes, loadWorkflow, checkSeeded, loadJanelas, loadWaivers, loadDashboard, loadIndicadores, loadCentrosCusto, loadMovimentacoes, loadCargos, loadEmpresas]);
+  }, [loadCiclos, loadColaboradores, loadMetas, loadRealizacoes, loadWorkflow, checkSeeded, loadJanelas, loadWaivers, loadDashboard, loadIndicadores, loadCentrosCusto, loadMovimentacoes, loadCargos, loadEmpresas, loadBiblioteca]);
 
   async function handleSeed() {
     setSeedLoading(true);
@@ -350,6 +395,9 @@ export default function Home() {
   async function handleCriarMeta(e: React.FormEvent) {
     e.preventDefault();
     if (!cicloAtivo) return;
+    const smartObj = (metaForm.smart_e || metaForm.smart_m || metaForm.smart_a || metaForm.smart_r || metaForm.smart_t)
+      ? JSON.stringify({ e: metaForm.smart_e, m: metaForm.smart_m, a: metaForm.smart_a, r: metaForm.smart_r, t: metaForm.smart_t })
+      : null;
     await fetch("/api/metas", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -361,11 +409,13 @@ export default function Home() {
         metaMinima: metaForm.metaMinima ? Number(metaForm.metaMinima) : null,
         metaMaxima: metaForm.metaMaxima ? Number(metaForm.metaMaxima) : null,
         parentMetaId: metaForm.parentMetaId ? Number(metaForm.parentMetaId) : null,
+        smart: smartObj,
       }),
     });
-    setMetaForm({ indicadorId: "", centroCustoId: "", pesoNaCesta: "100", metaAlvo: "", metaMinima: "", metaMaxima: "", parentMetaId: "" });
+    setMetaForm({ indicadorId: "", centroCustoId: "", pesoNaCesta: "100", metaAlvo: "", metaMinima: "", metaMaxima: "", parentMetaId: "", smart_e: "", smart_m: "", smart_a: "", smart_r: "", smart_t: "" });
     setShowMetaForm(false);
     setCascateandoMetaId(null);
+    setCloningMetaId(null);
     loadMetas(cicloAtivo.id);
   }
 
@@ -474,6 +524,81 @@ export default function Home() {
     setMovForm({ colaboradorId: "", tipo: "ADMISSAO", dataEfetiva: "", cargoAnteriorId: "", cargoNovoId: "", ccAnteriorId: "", ccNovoId: "" });
     setShowMovForm(false);
     loadMovimentacoes(cicloAtivo?.id);
+  }
+
+  async function handleCancelarMeta(metaId: number) {
+    await fetch("/api/metas", {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: metaId, status: "CANCELADO", usuario: "sistema" }),
+    });
+    loadMetas(cicloAtivo?.id);
+  }
+
+  async function handleCriarPlanoAcao(e: React.FormEvent, metaId: number) {
+    e.preventDefault();
+    await fetch("/api/planos-acao", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ metaId, ...planoForm, prazo: planoForm.prazo || null }),
+    });
+    setPlanoForm({ descricao: "", responsavel: "", prazo: "" });
+    setShowPlanoForm(null);
+    loadPlanosAcao(metaId);
+  }
+
+  async function handleTogglePlanoStatus(plano: PlanoAcao) {
+    const next = plano.status === "ABERTO" ? "EM_ANDAMENTO" : plano.status === "EM_ANDAMENTO" ? "CONCLUIDO" : "ABERTO";
+    await fetch("/api/planos-acao", {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: plano.id, status: next }),
+    });
+    loadPlanosAcao(plano.metaId);
+  }
+
+  async function handleCriarBiblioteca(e: React.FormEvent) {
+    e.preventDefault();
+    await fetch("/api/biblioteca-metas", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bibForm),
+    });
+    setBibForm({ nome: "", descricao: "", indicadorNome: "", unidade: "%", tipo: "VOLUME_FINANCEIRO", polaridade: "MAIOR_MELHOR", abrangencia: "CORPORATIVO", metaMinima: "", metaAlvo: "", metaMaxima: "", pesoSugerido: "100" });
+    setShowBibForm(false);
+    loadBiblioteca();
+  }
+
+  async function handleMetasImport(e: React.FormEvent) {
+    e.preventDefault();
+    if (!cicloAtivo) return;
+    const lines = metasCsvText.split("\n").map((l) => l.trim()).filter(Boolean);
+    if (lines.length < 2) return;
+    const headerLine = lines[0].split(";").map((h) => h.trim());
+    const rows = lines.slice(1).map((line) => {
+      const vals = line.split(";");
+      const obj: Record<string, string> = {};
+      headerLine.forEach((h, i) => { obj[h] = (vals[i] ?? "").trim(); });
+      return obj;
+    });
+    const res = await fetch("/api/import-metas", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cicloId: cicloAtivo.id, rows }),
+    }).then((r) => r.json()).catch(() => null);
+    if (res?.data) setMetasImportResult(res.data);
+    loadMetas(cicloAtivo.id);
+  }
+
+  function handleClonarMeta(meta: Meta) {
+    setCloningMetaId(meta.id);
+    setMetaForm({
+      indicadorId: String(meta.indicador.id),
+      centroCustoId: meta.centroCusto ? String(meta.centroCusto.id) : "",
+      pesoNaCesta: String(meta.pesoNaCesta),
+      metaAlvo: String(meta.metaAlvo),
+      metaMinima: meta.metaMinima !== null ? String(meta.metaMinima) : "",
+      metaMaxima: meta.metaMaxima !== null ? String(meta.metaMaxima) : "",
+      parentMetaId: "",
+      smart_e: "", smart_m: "", smart_a: "", smart_r: "", smart_t: "",
+    });
+    setShowMetaForm(true);
+    setCascateandoMetaId(null);
   }
 
   async function handleCriarEmpresa(e: React.FormEvent) {
@@ -1173,28 +1298,86 @@ export default function Home() {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-bold text-gray-800">Metas</h2>
-              <div className="flex items-center gap-3">
-                <p className="text-sm text-gray-500">{metas.length} metas encontradas</p>
-                <button
-                  onClick={() => setShowMetaForm(!showMetaForm)}
-                  className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-1.5 rounded-lg transition-colors"
-                >
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-sm text-gray-500">{metas.length} metas</p>
+                <button onClick={() => setShowBibliotecaTab((v) => !v)}
+                  className="bg-purple-100 hover:bg-purple-200 text-purple-700 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors">
+                  📚 Biblioteca
+                </button>
+                <button onClick={() => setShowMetasImport((v) => !v)}
+                  className="bg-amber-100 hover:bg-amber-200 text-amber-700 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors">
+                  ⬆ Importar CSV
+                </button>
+                <button onClick={() => { setShowMetaForm(!showMetaForm); setCloningMetaId(null); setCascateandoMetaId(null); }}
+                  className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-1.5 rounded-lg transition-colors">
                   + Nova Meta
                 </button>
               </div>
             </div>
 
+            {/* Biblioteca de Metas */}
+            {showBibliotecaTab && (
+              <div className="bg-purple-50 border border-purple-200 rounded-xl p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-purple-800">📚 Biblioteca de Metas</h3>
+                  <button onClick={() => setShowBibForm((v) => !v)} className="text-xs bg-purple-700 text-white px-3 py-1 rounded">+ Novo Template</button>
+                </div>
+                {showBibForm && (
+                  <form onSubmit={handleCriarBiblioteca} className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-white rounded-lg p-4 border border-purple-200">
+                    <div className="col-span-2"><label className="block text-xs text-gray-600 mb-1">Nome *</label>
+                      <input required value={bibForm.nome} onChange={(e) => setBibForm((f) => ({ ...f, nome: e.target.value }))} className="w-full border rounded px-2 py-1 text-sm" /></div>
+                    <div className="col-span-2"><label className="block text-xs text-gray-600 mb-1">Indicador</label>
+                      <input value={bibForm.indicadorNome} onChange={(e) => setBibForm((f) => ({ ...f, indicadorNome: e.target.value }))} className="w-full border rounded px-2 py-1 text-sm" /></div>
+                    <div><label className="block text-xs text-gray-600 mb-1">Tipo</label>
+                      <select value={bibForm.tipo} onChange={(e) => setBibForm((f) => ({ ...f, tipo: e.target.value }))} className="w-full border rounded px-2 py-1 text-sm bg-white">
+                        <option value="VOLUME_FINANCEIRO">Volume/Financeiro</option>
+                        <option value="CUSTO_PRAZO">Custo/Prazo</option>
+                        <option value="PROJETO_MARCO">Projeto/Marco</option>
+                        <option value="QUALITATIVO">Qualitativo</option>
+                      </select></div>
+                    <div><label className="block text-xs text-gray-600 mb-1">Abrangência</label>
+                      <select value={bibForm.abrangencia} onChange={(e) => setBibForm((f) => ({ ...f, abrangencia: e.target.value }))} className="w-full border rounded px-2 py-1 text-sm bg-white">
+                        <option value="CORPORATIVO">Corporativo</option><option value="AREA">Área</option><option value="INDIVIDUAL">Individual</option>
+                      </select></div>
+                    <div><label className="block text-xs text-gray-600 mb-1">Meta Alvo</label>
+                      <input type="number" value={bibForm.metaAlvo} onChange={(e) => setBibForm((f) => ({ ...f, metaAlvo: e.target.value }))} className="w-full border rounded px-2 py-1 text-sm" /></div>
+                    <div><label className="block text-xs text-gray-600 mb-1">Peso Sugerido (%)</label>
+                      <input type="number" value={bibForm.pesoSugerido} onChange={(e) => setBibForm((f) => ({ ...f, pesoSugerido: e.target.value }))} className="w-full border rounded px-2 py-1 text-sm" /></div>
+                    <div className="col-span-2 md:col-span-4 flex gap-2">
+                      <button type="submit" className="bg-purple-700 text-white text-sm px-4 py-1.5 rounded">Salvar</button>
+                      <button type="button" onClick={() => setShowBibForm(false)} className="text-sm text-gray-500 px-3">Cancelar</button>
+                    </div>
+                  </form>
+                )}
+                <div className="space-y-2">
+                  {biblioteca.map((b) => (
+                    <div key={b.id} className="bg-white rounded-lg border border-purple-100 px-4 py-3 flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-gray-800 text-sm">{b.nome}</p>
+                        <p className="text-xs text-gray-500">{b.indicadorNome} · {b.abrangencia} · Alvo: {b.metaAlvo ?? "—"} · Peso: {b.pesoSugerido}%</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={() => {
+                          setMetaForm((f) => ({ ...f, pesoNaCesta: String(b.pesoSugerido), metaAlvo: b.metaAlvo ? String(b.metaAlvo) : "", metaMinima: b.metaMinima ? String(b.metaMinima) : "", metaMaxima: b.metaMaxima ? String(b.metaMaxima) : "" }));
+                          setShowMetaForm(true); setShowBibliotecaTab(false);
+                        }} className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200">Usar</button>
+                        <button onClick={async () => { await fetch(`/api/biblioteca-metas?id=${b.id}`, { method: "DELETE" }); loadBiblioteca(); }} className="text-xs text-red-500 hover:text-red-700 px-2 py-1">✕</button>
+                      </div>
+                    </div>
+                  ))}
+                  {biblioteca.length === 0 && <p className="text-sm text-gray-400 text-center py-4">Nenhum template na biblioteca</p>}
+                </div>
+              </div>
+            )}
+
             {showMetaForm && (
               <form onSubmit={handleCriarMeta} className="bg-blue-50 border border-blue-200 rounded-xl p-5 grid grid-cols-2 md:grid-cols-3 gap-4">
                 <div className="col-span-2 md:col-span-3">
                   <h3 className="text-sm font-semibold text-blue-900">
-                    {cascateandoMetaId ? `Cascatear Meta #${cascateandoMetaId}` : "Nova Meta"}
+                    {cloningMetaId ? `Clonar Meta #${cloningMetaId}` : cascateandoMetaId ? `Cascatear Meta #${cascateandoMetaId}` : "Nova Meta"}
                   </h3>
-                  {cascateandoMetaId && (
-                    <p className="text-xs text-purple-600 mt-0.5">
-                      Esta meta será filha de #{cascateandoMetaId} — {metas.find((m) => m.id === cascateandoMetaId)?.indicador.nome}
-                    </p>
-                  )}
+                  {cascateandoMetaId && <p className="text-xs text-purple-600 mt-0.5">Filha de #{cascateandoMetaId} — {metas.find((m) => m.id === cascateandoMetaId)?.indicador.nome}</p>}
+                  {cloningMetaId && <p className="text-xs text-blue-600 mt-0.5">Cópia de #{cloningMetaId} — valores pré-preenchidos, pode alterar</p>}
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Indicador *</label>
@@ -1252,16 +1435,62 @@ export default function Home() {
                     </select>
                   </div>
                 )}
+                {/* SMART fields */}
+                <div className="col-span-2 md:col-span-3 border-t border-blue-200 pt-3">
+                  <p className="text-xs font-semibold text-blue-800 mb-2">Critérios SMART (opcional)</p>
+                  <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
+                    {[
+                      { key: "smart_e" as const, label: "Específica" },
+                      { key: "smart_m" as const, label: "Mensurável" },
+                      { key: "smart_a" as const, label: "Atingível" },
+                      { key: "smart_r" as const, label: "Relevante" },
+                      { key: "smart_t" as const, label: "Temporal" },
+                    ].map(({ key, label }) => (
+                      <div key={key}>
+                        <label className="block text-xs text-gray-500 mb-0.5">{label}</label>
+                        <input value={metaForm[key]} onChange={(e) => setMetaForm({ ...metaForm, [key]: e.target.value })}
+                          placeholder={label} className="w-full border border-gray-200 rounded px-2 py-1 text-xs" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
                 <div className="col-span-2 md:col-span-3 flex gap-2">
                   <button type="submit" className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-1.5 rounded-lg">
-                    {cascateandoMetaId ? "Criar Meta Cascateada" : "Criar Meta"}
+                    {cloningMetaId ? "Criar Cópia" : cascateandoMetaId ? "Criar Meta Cascateada" : "Criar Meta"}
                   </button>
-                  <button type="button" onClick={() => { setShowMetaForm(false); setCascateandoMetaId(null); setMetaForm({ indicadorId: "", centroCustoId: "", pesoNaCesta: "100", metaAlvo: "", metaMinima: "", metaMaxima: "", parentMetaId: "" }); }}
+                  <button type="button" onClick={() => { setShowMetaForm(false); setCascateandoMetaId(null); setCloningMetaId(null); setMetaForm({ indicadorId: "", centroCustoId: "", pesoNaCesta: "100", metaAlvo: "", metaMinima: "", metaMaxima: "", parentMetaId: "", smart_e: "", smart_m: "", smart_a: "", smart_r: "", smart_t: "" }); }}
                     className="text-sm text-gray-500 hover:text-gray-700 px-4 py-1.5">
                     Cancelar
                   </button>
                 </div>
               </form>
+            )}
+
+            {/* Import Metas CSV */}
+            {showMetasImport && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-amber-800">Importar Metas em Massa</h3>
+                  <a href="/api/import-metas" download="template_metas.csv" className="text-xs bg-white border border-amber-300 text-amber-700 px-3 py-1 rounded hover:bg-amber-50">⬇ Template CSV</a>
+                </div>
+                <p className="text-xs text-amber-700">Colunas: <code>indicadorCodigo; centroCustoCodigo; pesoNaCesta; metaMinima; metaAlvo; metaMaxima</code></p>
+                <form onSubmit={handleMetasImport} className="space-y-3">
+                  <textarea rows={5} value={metasCsvText} onChange={(e) => setMetasCsvText(e.target.value)}
+                    placeholder={"indicadorCodigo;centroCustoCodigo;pesoNaCesta;metaMinima;metaAlvo;metaMaxima\nREC-LIQ-2026;CC-COM;50;80;100;120"}
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-xs font-mono bg-white resize-y" />
+                  <div className="flex gap-3">
+                    <button type="submit" disabled={!cicloAtivo || !metasCsvText.trim()}
+                      className="bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white text-sm font-medium px-5 py-2 rounded-lg">Importar</button>
+                    <button type="button" onClick={() => setShowMetasImport(false)} className="text-sm text-gray-500 px-3">Cancelar</button>
+                  </div>
+                </form>
+                {metasImportResult && (
+                  <div className="space-y-1">
+                    <p className="text-sm text-green-700 font-semibold">✓ {metasImportResult.processed} importadas</p>
+                    {metasImportResult.erros.map((e, i) => <p key={i} className="text-xs text-red-600">Linha {e.linha}: {e.motivo}</p>)}
+                  </div>
+                )}
+              </div>
             )}
 
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -1296,43 +1525,96 @@ export default function Home() {
                           <td className="px-4 py-3 text-gray-600">{m.metaAlvo.toLocaleString("pt-BR")}</td>
                           <td className="px-4 py-3 text-gray-600">{m._count.colaboradores}</td>
                           <td className="px-4 py-3"><StatusBadge status={m.status} /></td>
-                          <td className="px-4 py-3 flex gap-1 flex-wrap">
-                            {role === "GUARDIAO" && m.status === "DRAFT" && (
-                              <button onClick={() => handleApproveMeta(m.id)}
-                                className="text-xs bg-green-600 hover:bg-green-700 text-white px-2.5 py-1 rounded transition-colors">
-                                Aprovar
-                              </button>
-                            )}
-                            <button onClick={() => setAssigningMetaId(assigningMetaId === m.id ? null : m.id)}
-                              className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-2.5 py-1 rounded transition-colors">
-                              Atribuir
-                            </button>
-                            <button onClick={() => {
-                                setCascateandoMetaId(m.id);
-                                setMetaForm({ indicadorId: String(m.indicador.id ?? ""), centroCustoId: "", pesoNaCesta: "100", metaAlvo: String(m.metaAlvo), metaMinima: m.metaMinima ? String(m.metaMinima) : "", metaMaxima: m.metaMaxima ? String(m.metaMaxima) : "", parentMetaId: String(m.id) });
-                                setShowMetaForm(true);
-                              }}
-                              className="text-xs bg-purple-100 hover:bg-purple-200 text-purple-700 px-2.5 py-1 rounded transition-colors">
-                              Cascatear
-                            </button>
+                          <td className="px-4 py-3">
+                            <div className="flex gap-1 flex-wrap">
+                              {role === "GUARDIAO" && m.status === "DRAFT" && (
+                                <button onClick={() => handleApproveMeta(m.id)} className="text-xs bg-green-600 hover:bg-green-700 text-white px-2 py-0.5 rounded">Aprovar</button>
+                              )}
+                              {m.status !== "CANCELADO" && (
+                                <button onClick={() => setAssigningMetaId(assigningMetaId === m.id ? null : m.id)} className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-0.5 rounded">Atribuir</button>
+                              )}
+                              <button onClick={() => {
+                                  setCascateandoMetaId(m.id);
+                                  setMetaForm({ indicadorId: String(m.indicador.id ?? ""), centroCustoId: "", pesoNaCesta: "100", metaAlvo: String(m.metaAlvo), metaMinima: m.metaMinima ? String(m.metaMinima) : "", metaMaxima: m.metaMaxima ? String(m.metaMaxima) : "", parentMetaId: String(m.id), smart_e: "", smart_m: "", smart_a: "", smart_r: "", smart_t: "" });
+                                  setShowMetaForm(true);
+                                }} className="text-xs bg-purple-100 hover:bg-purple-200 text-purple-700 px-2 py-0.5 rounded">Cascatear</button>
+                              <button onClick={() => handleClonarMeta(m)} className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-0.5 rounded">Clonar</button>
+                              <button onClick={() => {
+                                  const next = expandedPlanoMetaId === m.id ? null : m.id;
+                                  setExpandedPlanoMetaId(next);
+                                  if (next) loadPlanosAcao(next);
+                                }} className="text-xs bg-orange-100 hover:bg-orange-200 text-orange-700 px-2 py-0.5 rounded">Planos</button>
+                              <button onClick={() => {
+                                  const next = expandedHistoricoMetaId === m.id ? null : m.id;
+                                  setExpandedHistoricoMetaId(next);
+                                  if (next) loadHistorico(next);
+                                }} className="text-xs bg-teal-100 hover:bg-teal-200 text-teal-700 px-2 py-0.5 rounded">Histórico</button>
+                              {m.status !== "CANCELADO" && role === "GUARDIAO" && (
+                                <button onClick={() => { if (confirm(`Cancelar Meta #${m.id}?`)) handleCancelarMeta(m.id); }} className="text-xs bg-red-100 hover:bg-red-200 text-red-700 px-2 py-0.5 rounded">Cancelar</button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                         {assigningMetaId === m.id && (
-                          <tr className="bg-blue-50">
-                            <td colSpan={8} className="px-4 py-2">
-                              <form onSubmit={handleAtribuirMeta} className="flex items-center gap-2">
-                                <select required value={assignColabId} onChange={(e) => setAssignColabId(e.target.value)}
-                                  className="border border-gray-300 rounded px-2 py-1 text-sm flex-1">
-                                  <option value="">Selecionar colaborador...</option>
-                                  {colaboradores.map((c) => (
-                                    <option key={c.id} value={c.id}>{c.nomeCompleto} — {c.cargo.nome}</option>
-                                  ))}
-                                </select>
-                                <button type="submit" className="text-xs bg-blue-700 text-white px-3 py-1 rounded">Atribuir</button>
-                                <button type="button" onClick={() => setAssigningMetaId(null)} className="text-xs text-gray-500 px-2 py-1">Cancelar</button>
-                              </form>
-                            </td>
-                          </tr>
+                          <tr className="bg-blue-50"><td colSpan={8} className="px-4 py-2">
+                            <form onSubmit={handleAtribuirMeta} className="flex items-center gap-2">
+                              <select required value={assignColabId} onChange={(e) => setAssignColabId(e.target.value)} className="border border-gray-300 rounded px-2 py-1 text-sm flex-1">
+                                <option value="">Selecionar colaborador...</option>
+                                {colaboradores.map((c) => <option key={c.id} value={c.id}>{c.nomeCompleto} — {c.cargo.nome}</option>)}
+                              </select>
+                              <button type="submit" className="text-xs bg-blue-700 text-white px-3 py-1 rounded">Atribuir</button>
+                              <button type="button" onClick={() => setAssigningMetaId(null)} className="text-xs text-gray-500 px-2 py-1">✕</button>
+                            </form>
+                          </td></tr>
+                        )}
+                        {expandedPlanoMetaId === m.id && (
+                          <tr className="bg-orange-50"><td colSpan={8} className="px-4 py-3">
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <p className="text-xs font-semibold text-orange-800">Planos de Ação — Meta #{m.id}</p>
+                                <button onClick={() => setShowPlanoForm(showPlanoForm === m.id ? null : m.id)} className="text-xs bg-orange-600 text-white px-2 py-0.5 rounded">+ Novo Plano</button>
+                              </div>
+                              {showPlanoForm === m.id && (
+                                <form onSubmit={(e) => handleCriarPlanoAcao(e, m.id)} className="flex gap-2 flex-wrap bg-white rounded p-2 border border-orange-200">
+                                  <input required placeholder="Descrição *" value={planoForm.descricao} onChange={(e) => setPlanoForm((f) => ({ ...f, descricao: e.target.value }))} className="flex-1 border rounded px-2 py-1 text-xs min-w-48" />
+                                  <input placeholder="Responsável" value={planoForm.responsavel} onChange={(e) => setPlanoForm((f) => ({ ...f, responsavel: e.target.value }))} className="border rounded px-2 py-1 text-xs w-36" />
+                                  <input type="date" value={planoForm.prazo} onChange={(e) => setPlanoForm((f) => ({ ...f, prazo: e.target.value }))} className="border rounded px-2 py-1 text-xs w-36" />
+                                  <button type="submit" className="bg-orange-600 text-white text-xs px-3 py-1 rounded">Salvar</button>
+                                </form>
+                              )}
+                              {planosAcao.filter((p) => p.metaId === m.id).map((p) => (
+                                <div key={p.id} className="flex items-center gap-3 bg-white rounded border border-orange-100 px-3 py-2 text-xs">
+                                  <button onClick={() => handleTogglePlanoStatus(p)} className={`w-4 h-4 rounded-full border-2 flex-shrink-0 ${p.status === "CONCLUIDO" ? "bg-green-500 border-green-500" : p.status === "EM_ANDAMENTO" ? "bg-yellow-400 border-yellow-400" : "bg-white border-gray-400"}`} title="Clique para avançar status" />
+                                  <span className={`flex-1 ${p.status === "CONCLUIDO" ? "line-through text-gray-400" : "text-gray-700"}`}>{p.descricao}</span>
+                                  {p.responsavel && <span className="text-gray-400">{p.responsavel}</span>}
+                                  {p.prazo && <span className="text-gray-400">{new Date(p.prazo).toLocaleDateString("pt-BR")}</span>}
+                                  <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${p.status === "CONCLUIDO" ? "bg-green-100 text-green-700" : p.status === "EM_ANDAMENTO" ? "bg-yellow-100 text-yellow-700" : "bg-gray-100 text-gray-600"}`}>{p.status.replace("_"," ")}</span>
+                                  <button onClick={async () => { await fetch(`/api/planos-acao?id=${p.id}`, { method: "DELETE" }); loadPlanosAcao(m.id); }} className="text-red-400 hover:text-red-600">✕</button>
+                                </div>
+                              ))}
+                              {planosAcao.filter((p) => p.metaId === m.id).length === 0 && <p className="text-xs text-gray-400 text-center py-2">Nenhum plano cadastrado</p>}
+                            </div>
+                          </td></tr>
+                        )}
+                        {expandedHistoricoMetaId === m.id && (
+                          <tr className="bg-teal-50"><td colSpan={8} className="px-4 py-3">
+                            <p className="text-xs font-semibold text-teal-800 mb-2">Histórico de Alterações — Meta #{m.id}</p>
+                            {historico.filter((h) => h.metaId === m.id).length === 0
+                              ? <p className="text-xs text-gray-400 text-center py-2">Nenhuma alteração registrada</p>
+                              : <div className="space-y-1">
+                                {historico.filter((h) => h.metaId === m.id).map((h) => (
+                                  <div key={h.id} className="flex items-center gap-3 text-xs text-gray-600 bg-white rounded border border-teal-100 px-3 py-1.5">
+                                    <span className="text-gray-400">{new Date(h.criadoEm).toLocaleString("pt-BR")}</span>
+                                    <span className="font-medium text-teal-700">{h.campo}</span>
+                                    <span className="text-red-400 line-through">{h.valorAntes ?? "—"}</span>
+                                    <span className="text-gray-400">→</span>
+                                    <span className="text-green-600">{h.valorDepois ?? "—"}</span>
+                                    {h.usuario && <span className="text-gray-400">por {h.usuario}</span>}
+                                  </div>
+                                ))}
+                              </div>
+                            }
+                          </td></tr>
                         )}
                       </React.Fragment>
                     ))}
@@ -2329,6 +2611,36 @@ export default function Home() {
             {evolucaoMensal.length === 0 && ccRows.length === 0 && (
               <div className="text-center text-gray-400 py-12">Nenhuma realização lançada ainda — os painéis consolidados aparecerão aqui.</div>
             )}
+
+            {/* Colaboradores sem metas (req 742) */}
+            {(() => {
+              const comMeta = new Set(metas.flatMap((m) => m.colaboradorIds));
+              const semMeta = colaboradores.filter((c) => c.ativo && !comMeta.has(c.id));
+              if (semMeta.length === 0) return null;
+              return (
+                <div className="bg-red-50 border border-red-200 rounded-xl overflow-hidden">
+                  <div className="px-5 py-3 border-b border-red-100 flex items-center justify-between">
+                    <h3 className="font-semibold text-red-800">⚠ Colaboradores Ativos Sem Metas ({semMeta.length})</h3>
+                    <span className="text-xs text-red-500">Estes colaboradores não estão atribuídos a nenhuma meta do ciclo ativo</span>
+                  </div>
+                  <table className="w-full text-sm">
+                    <thead className="bg-red-100"><tr>
+                      {["Matrícula","Nome","Cargo","CC"].map((h) => <th key={h} className="text-left px-4 py-2 text-red-700 font-medium text-xs uppercase">{h}</th>)}
+                    </tr></thead>
+                    <tbody className="divide-y divide-red-100">
+                      {semMeta.map((c) => (
+                        <tr key={c.id} className="hover:bg-red-50/50">
+                          <td className="px-4 py-2 font-mono text-xs text-gray-500">{c.matricula}</td>
+                          <td className="px-4 py-2 text-gray-800">{c.nomeCompleto}</td>
+                          <td className="px-4 py-2 text-gray-600">{c.cargo.nome}</td>
+                          <td className="px-4 py-2 text-gray-600">{c.centroCusto.nome}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
           </div>
         )}
 
@@ -2496,6 +2808,38 @@ export default function Home() {
                 </div>
               )}
             </div>
+
+            {/* Metas a Contratar — admitidos/transferidos sem metas (req 736) */}
+            {(() => {
+              const comMeta = new Set(metas.flatMap((m) => m.colaboradorIds));
+              const movRecentes = movimentacoes.filter((mv) => ["ADMISSAO","TRANSFERENCIA"].includes(mv.tipo));
+              const semMeta = movRecentes.filter((mv) => mv.colaborador && !comMeta.has(mv.colaborador.id));
+              if (semMeta.length === 0) return null;
+              return (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl overflow-hidden">
+                  <div className="px-5 py-3 border-b border-amber-100">
+                    <h3 className="font-semibold text-amber-800">⚠ Metas a Contratar ({semMeta.length} colaboradores)</h3>
+                    <p className="text-xs text-amber-600 mt-0.5">Admitidos ou transferidos que ainda não possuem metas atribuídas no ciclo ativo</p>
+                  </div>
+                  <table className="w-full text-sm">
+                    <thead className="bg-amber-100"><tr>
+                      {["Colaborador","Tipo Mov.","Data","Cargo","CC"].map((h) => <th key={h} className="text-left px-4 py-2 text-amber-700 font-medium text-xs uppercase">{h}</th>)}
+                    </tr></thead>
+                    <tbody className="divide-y divide-amber-100">
+                      {semMeta.map((mv) => (
+                        <tr key={mv.id} className="hover:bg-amber-50/50">
+                          <td className="px-4 py-2 font-medium text-gray-800">{mv.colaborador?.nomeCompleto ?? "—"}</td>
+                          <td className="px-4 py-2"><span className={`text-xs px-2 py-0.5 rounded font-medium ${mv.tipo === "ADMISSAO" ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"}`}>{mv.tipo}</span></td>
+                          <td className="px-4 py-2 text-gray-500 text-xs">{new Date(mv.dataEfetiva).toLocaleDateString("pt-BR")}</td>
+                          <td className="px-4 py-2 text-gray-600">{mv.colaborador?.cargo?.nome ?? "—"}</td>
+                          <td className="px-4 py-2 text-gray-600">{mv.colaborador?.centroCusto?.nome ?? "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
           </div>
         )}
 

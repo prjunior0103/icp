@@ -136,13 +136,54 @@ model Meta {
   metaMinima      Float?
   metaAlvo        Float             @default(100)
   metaMaxima      Float?
-  status          String            @default("DRAFT") // DRAFT, ATIVO, APROVADO
+  status          String            @default("DRAFT") // DRAFT, ATIVO, APROVADO, CANCELADO
+  smart           String?           // JSON: {especifica, mensuravel, atingivel, relevante, temporal}
   parentMetaId    Int?              // Cascateamento: meta pai (corporativa/área)
   parentMeta      Meta?             @relation("MetaCascata", fields: [parentMetaId], references: [id])
   filhas          Meta[]            @relation("MetaCascata")
   colaboradores   MetaColaborador[]
   realizacoes     Realizacao[]
   workflowItems   WorkflowItem[]
+  historico       MetaHistorico[]
+  planosAcao      PlanoAcao[]
+}
+
+model MetaHistorico {
+  id         Int      @id @default(autoincrement())
+  meta       Meta     @relation(fields: [metaId], references: [id])
+  metaId     Int
+  campo      String
+  valorAntes String?
+  valorDepois String?
+  usuario    String?
+  criadoEm  DateTime @default(now())
+}
+
+model PlanoAcao {
+  id           Int       @id @default(autoincrement())
+  meta         Meta      @relation(fields: [metaId], references: [id])
+  metaId       Int
+  descricao    String
+  responsavel  String?
+  prazo        DateTime?
+  status       String    @default("ABERTO") // ABERTO, EM_ANDAMENTO, CONCLUIDO, CANCELADO
+  criadoEm    DateTime  @default(now())
+}
+
+model BibliotecaMeta {
+  id            Int     @id @default(autoincrement())
+  nome          String
+  descricao     String?
+  indicadorNome String
+  unidade       String  @default("%")
+  tipo          String  // VOLUME_FINANCEIRO, CUSTO_PRAZO, PROJETO_MARCO, QUALITATIVO
+  polaridade    String  @default("MAIOR_MELHOR")
+  abrangencia   String  // CORPORATIVO, AREA, INDIVIDUAL
+  metaMinima    Float?
+  metaAlvo      Float?
+  metaMaxima    Float?
+  pesoSugerido  Float   @default(100)
+  criadoEm     DateTime @default(now())
 }
 
 model MetaColaborador {

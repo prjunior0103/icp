@@ -90,6 +90,13 @@ export async function POST(req: NextRequest) {
     });
     if (!meta) return NextResponse.json({ error: "Meta nao encontrada" }, { status: 404 });
 
+    // Validate cycle phase — SETUP/ENCERRADO block new realizações
+    const ciclo = await prisma.cicloICP.findUnique({ where: { id: meta.cicloId } });
+    if (ciclo?.status === "SETUP")
+      return NextResponse.json({ error: "Ciclo em SETUP — metas ainda não ativas para apuração." }, { status: 403 });
+    if (ciclo?.status === "ENCERRADO")
+      return NextResponse.json({ error: "Ciclo encerrado — não é possível registrar novas realizações." }, { status: 403 });
+
     // Check if janela is open
     const { aberta, janela } = await isJanelaAberta(
       meta.cicloId,
