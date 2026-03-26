@@ -2228,18 +2228,17 @@ export default function Home() {
             <div className="flex items-center justify-between flex-wrap gap-2">
               <h2 className="icp-page-title">Colaboradores <span className="text-sm font-normal text-gray-400">({colaboradores.length})</span></h2>
               <div className="flex gap-2 flex-wrap">
-                <a
-                  href="/api/import-colaboradores"
-                  download="template_colaboradores.csv"
-                  className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium px-4 py-1.5 rounded-lg transition-colors border border-gray-300"
+                <button
+                  onClick={handleDownloadTemplateColaboradores}
+                  className="btn-ghost text-xs"
                 >
-                  ⬇ Baixar Template CSV
-                </a>
+                  Baixar Template XLSX
+                </button>
                 <button
                   onClick={() => { setShowColabImport((v) => !v); setColabImportResult(null); }}
-                  className="bg-green-700 hover:bg-green-800 text-white text-sm font-medium px-4 py-1.5 rounded-lg transition-colors"
+                  className="btn-primary"
                 >
-                  ⬆ Importar CSV
+                  Importar XLSX
                 </button>
               </div>
             </div>
@@ -2249,8 +2248,7 @@ export default function Home() {
               <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 space-y-4">
                 <h3 className="font-semibold text-blue-800">Importação em Massa de Colaboradores</h3>
                 <p className="text-sm text-blue-700">
-                  Cole o conteúdo do CSV abaixo (com cabeçalho). Colunas obrigatórias separadas por <code>;</code>:<br />
-                  <code className="bg-white px-1 rounded text-xs">matricula; nomeCompleto; cpf; email; salarioBase; dataAdmissao; empresaCodigo; cargoCodigo; centroCustoCodigo; gestorMatricula</code>
+                  Faça o download do template, preencha e faça upload. Campos obrigatórios: <strong>matricula</strong> e <strong>nomeCompleto</strong>. Empresa, Cargo e CC são criados automaticamente se não existirem.
                 </p>
                 <form onSubmit={handleColabImport} className="space-y-4">
                   <div className="flex items-center gap-3">
