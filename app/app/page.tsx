@@ -3385,9 +3385,24 @@ export default function Home() {
         {/* ── AJUDA ─────────────────────────────────────────────────────── */}
         {activeTab === "ajuda" && (
           <div className="space-y-8 max-w-3xl">
-            <div>
-              <h2 className="icp-page-title">Manual do Sistema ICP</h2>
-              <p className="text-sm text-gray-500 mt-1">Incentivo de Curto Prazo — guia completo de uso.</p>
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div>
+                <h2 className="icp-page-title">Manual do Sistema ICP</h2>
+                <p className="text-sm mt-1" style={{ color: "var(--ink-muted)" }}>Incentivo de Curto Prazo — guia completo de uso.</p>
+              </div>
+              <div className="bg-white icp-card p-4 flex items-center gap-4">
+                <div>
+                  <p className="text-xs font-semibold" style={{ color: "var(--ink)" }}>Dados de demonstração</p>
+                  <p className="text-xs mt-0.5" style={{ color: "var(--ink-muted)" }}>Popula o banco com colaboradores, metas e realizações de exemplo.</p>
+                </div>
+                <button
+                  onClick={handleSeed}
+                  disabled={seedLoading}
+                  className="btn-primary flex-shrink-0"
+                >
+                  {seedLoading ? "Carregando..." : "Carregar Demo"}
+                </button>
+              </div>
             </div>
 
             {/* Como usar — fluxo principal */}
