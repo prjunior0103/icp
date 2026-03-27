@@ -27,26 +27,26 @@ export function validarLinhaColaborador(raw: Record<string, unknown>): {
   const r = normalizarLinhaColaborador(raw);
 
   if (!r.matricula)
-    return { erro: "Campo 'matricula' obrigatório", dados: r as ColaboradorRow };
+    return { erro: "Campo 'matricula' obrigatório", dados: r as unknown as ColaboradorRow };
   if (!r.nomeCompleto)
-    return { erro: "Campo 'nomeCompleto' obrigatório", dados: r as ColaboradorRow };
+    return { erro: "Campo 'nomeCompleto' obrigatório", dados: r as unknown as ColaboradorRow };
 
   const salario = parseSalario(r.salarioBase);
   if (r.salarioBase && isNaN(salario))
-    return { erro: `salarioBase inválido: '${r.salarioBase}'`, dados: r as ColaboradorRow };
+    return { erro: `salarioBase inválido: '${r.salarioBase}'`, dados: r as unknown as ColaboradorRow };
   if (salario < 0)
-    return { erro: "salarioBase não pode ser negativo", dados: r as ColaboradorRow };
+    return { erro: "salarioBase não pode ser negativo", dados: r as unknown as ColaboradorRow };
 
   if (r.dataAdmissao) {
     const d = new Date(r.dataAdmissao);
     if (isNaN(d.getTime()))
-      return { erro: `dataAdmissao inválida: '${r.dataAdmissao}'`, dados: r as ColaboradorRow };
+      return { erro: `dataAdmissao inválida: '${r.dataAdmissao}'`, dados: r as unknown as ColaboradorRow };
   }
 
   if (r.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(r.email))
-    return { erro: `email inválido: '${r.email}'`, dados: r as ColaboradorRow };
+    return { erro: `email inválido: '${r.email}'`, dados: r as unknown as ColaboradorRow };
 
-  return { erro: null, dados: r as ColaboradorRow };
+  return { erro: null, dados: r as unknown as ColaboradorRow };
 }
 
 // ── Meta ──────────────────────────────────────────────────────────────────────
