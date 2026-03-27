@@ -18,16 +18,15 @@ export async function GET(req: NextRequest) {
       orderBy: { criadoEm: "desc" },
     });
 
-    // Enrich with colaborador name
-    const enriched = await Promise.all(
-      waivers.map(async (w) => {
-        const colaborador = await prisma.colaborador.findUnique({
-          where: { id: w.colaboradorId },
-          select: { id: true, nomeCompleto: true, matricula: true },
-        });
-        return { ...w, colaborador };
-      })
-    );
+    // Fetch all colaboradores in one query instead of N queries
+    const colaboradorIds = [...new Set(waivers.map((w) => w.colaboradorId))];
+    const colaboradores = await prisma.colaborador.findMany({
+      where: { id: { in: colaboradorIds } },
+      select: { id: true, nomeCompleto: true, matricula: true },
+    });
+    const colaboradorMap = Object.fromEntries(colaboradores.map((c) => [c.id, c]));
+
+    const enriched = waivers.map((w) => ({ ...w, colaborador: colaboradorMap[w.colaboradorId] ?? null }));
 
     return NextResponse.json({ data: enriched });
   } catch (err) {

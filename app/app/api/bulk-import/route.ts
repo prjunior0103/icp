@@ -1,32 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
-
-function calcularNota(
-  tipo: string,
-  valorRealizado: number,
-  metaAlvo: number,
-  metaMinima: number | null,
-  metaMaxima: number | null
-): number {
-  let nota = 0;
-  if (tipo === "VOLUME_FINANCEIRO") {
-    nota = (valorRealizado / metaAlvo) * 100;
-  } else if (tipo === "CUSTO_PRAZO") {
-    nota = (metaAlvo / valorRealizado) * 100;
-  } else if (tipo === "PROJETO_MARCO") {
-    nota = valorRealizado >= 1 ? 100 : 0;
-  }
-  if (metaMaxima && metaAlvo > 0) {
-    const maxNota = (metaMaxima / metaAlvo) * 100;
-    nota = Math.min(nota, maxNota);
-  } else {
-    nota = Math.min(nota, 120);
-  }
-  if (metaMinima && metaAlvo > 0) {
-    if (tipo === "VOLUME_FINANCEIRO" && valorRealizado < metaMinima) nota = 0;
-  }
-  return Math.max(0, nota);
-}
+import { calcularNota, calcularPremio } from "@/app/lib/calc";
 
 interface ImportRow {
   matricula: string;
@@ -94,15 +68,18 @@ export async function POST(req: NextRequest) {
         const valorRealizado = Number(row.valorRealizado);
         const nota = calcularNota(
           meta.indicador.tipo,
+          meta.indicador.polaridade,
           valorRealizado,
           meta.metaAlvo,
           meta.metaMinima,
           meta.metaMaxima
         );
-        const premioProjetado =
-          (colaborador.salarioBase * 12 * (colaborador.cargo.targetBonusPerc / 100)) *
-          (nota / 100) *
-          (meta.pesoNaCesta / 100);
+        const premioProjetado = calcularPremio(
+          colaborador.salarioBase,
+          colaborador.cargo.targetBonusPerc,
+          nota,
+          meta.pesoNaCesta
+        );
 
         // Upsert realizacao
         await prisma.realizacao.upsert({
