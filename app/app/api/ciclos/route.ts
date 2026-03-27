@@ -19,6 +19,10 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+    const bonusPool = body.bonusPool ? Number(body.bonusPool) : undefined;
+    if (bonusPool !== undefined && bonusPool < 0)
+      return NextResponse.json({ error: "bonusPool não pode ser negativo" }, { status: 400 });
+
     const ciclo = await prisma.cicloICP.create({
       data: {
         anoFiscal: Number(body.anoFiscal),
@@ -26,7 +30,7 @@ export async function POST(req: NextRequest) {
         mesInicio: body.mesInicio ? Number(body.mesInicio) : 1,
         mesFim: body.mesFim ? Number(body.mesFim) : 12,
         gatilhoEbitda: body.gatilhoEbitda ? Number(body.gatilhoEbitda) : undefined,
-        bonusPool: body.bonusPool ? Number(body.bonusPool) : undefined,
+        bonusPool,
       },
     });
     return NextResponse.json({ data: ciclo }, { status: 201 });
@@ -41,6 +45,10 @@ export async function PUT(req: NextRequest) {
     const { id, ...data } = body;
     if (!id) return NextResponse.json({ error: "id obrigatorio" }, { status: 400 });
 
+    const bonusPool = data.bonusPool !== undefined ? Number(data.bonusPool) : undefined;
+    if (bonusPool !== undefined && bonusPool < 0)
+      return NextResponse.json({ error: "bonusPool não pode ser negativo" }, { status: 400 });
+
     const ciclo = await prisma.cicloICP.update({
       where: { id: Number(id) },
       data: {
@@ -48,7 +56,7 @@ export async function PUT(req: NextRequest) {
         mesInicio: data.mesInicio ? Number(data.mesInicio) : undefined,
         mesFim: data.mesFim ? Number(data.mesFim) : undefined,
         gatilhoEbitda: data.gatilhoEbitda !== undefined ? Number(data.gatilhoEbitda) : undefined,
-        bonusPool: data.bonusPool !== undefined ? Number(data.bonusPool) : undefined,
+        bonusPool,
       },
     });
     return NextResponse.json({ data: ciclo });

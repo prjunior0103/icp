@@ -8,11 +8,13 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const metaId = searchParams.get("metaId");
     const colaboradorId = searchParams.get("colaboradorId");
+    const cicloId = searchParams.get("cicloId");
 
     const realizacoes = await prisma.realizacao.findMany({
       where: {
         ...(metaId ? { metaId: Number(metaId) } : {}),
         ...(colaboradorId ? { colaboradorId: Number(colaboradorId) } : {}),
+        ...(cicloId ? { meta: { cicloId: Number(cicloId) } } : {}),
       },
       include: {
         meta: { include: { indicador: true } },

@@ -278,7 +278,7 @@ export default function Home() {
     if (res?.data) {
       addToast("Banco limpo com sucesso.", "ok");
       const ativo = await loadCiclos();
-      await Promise.all([loadColaboradores(), loadMetas(ativo?.id), loadRealizacoes(), loadWorkflow(), loadIndicadores(ativo?.id), loadCentrosCusto()]);
+      await Promise.all([loadColaboradores(), loadMetas(ativo?.id), loadRealizacoes(ativo?.id), loadWorkflow(), loadIndicadores(ativo?.id), loadCentrosCusto()]);
       setSeeded(false);
     } else {
       addToast("Erro ao limpar banco.", "err");
@@ -418,7 +418,10 @@ export default function Home() {
 
   const loadColaboradores = useCallback(async () => {
     const res = await fetch("/api/colaboradores").then((r) => r.json()).catch(() => ({ data: [] }));
-    setColaboradores(res.data ?? []);
+    const data = res.data ?? [];
+    setColaboradores(data);
+    setSeeded(data.length > 0);
+    return data;
   }, []);
 
   const loadMetas = useCallback(async (cicloId?: number) => {
@@ -438,8 +441,9 @@ export default function Home() {
     setCentrosCusto(res.data ?? []);
   }, []);
 
-  const loadRealizacoes = useCallback(async () => {
-    const res = await fetch("/api/realizacoes").then((r) => r.json()).catch(() => ({ data: [] }));
+  const loadRealizacoes = useCallback(async (cicloId?: number) => {
+    const url = cicloId ? `/api/realizacoes?cicloId=${cicloId}` : "/api/realizacoes";
+    const res = await fetch(url).then((r) => r.json()).catch(() => ({ data: [] }));
     setRealizacoes(res.data ?? []);
   }, []);
 
@@ -496,32 +500,27 @@ export default function Home() {
     if (res.data) setDashboardData(res.data);
   }, []);
 
-  const checkSeeded = useCallback(async () => {
-    const res = await fetch("/api/colaboradores").then((r) => r.json()).catch(() => ({ data: [] }));
-    setSeeded((res.data ?? []).length > 0);
-  }, []);
-
   useEffect(() => {
     (async () => {
       setLoading(true);
       const ativo = await loadCiclos();
       await Promise.all([
-        loadColaboradores(), loadMetas(ativo?.id), loadRealizacoes(),
-        loadWorkflow(), checkSeeded(), loadJanelas(ativo?.id),
+        loadColaboradores(), loadMetas(ativo?.id), loadRealizacoes(ativo?.id),
+        loadWorkflow(), loadJanelas(ativo?.id),
         loadIndicadores(ativo?.id), loadCentrosCusto(),
         loadWaivers(), loadDashboard(ativo?.id),
         loadMovimentacoes(ativo?.id), loadCargos(), loadEmpresas(), loadBiblioteca(),
       ]);
       setLoading(false);
     })();
-  }, [loadCiclos, loadColaboradores, loadMetas, loadRealizacoes, loadWorkflow, checkSeeded, loadJanelas, loadWaivers, loadDashboard, loadIndicadores, loadCentrosCusto, loadMovimentacoes, loadCargos, loadEmpresas, loadBiblioteca]);
+  }, [loadCiclos, loadColaboradores, loadMetas, loadRealizacoes, loadWorkflow, loadJanelas, loadWaivers, loadDashboard, loadIndicadores, loadCentrosCusto, loadMovimentacoes, loadCargos, loadEmpresas, loadBiblioteca]);
 
   async function handleSeed() {
     setSeedLoading(true);
     await fetch("/api/seed", { method: "POST" });
     const ativo = await loadCiclos();
     await Promise.all([
-      loadColaboradores(), loadMetas(ativo?.id), loadRealizacoes(),
+      loadColaboradores(), loadMetas(ativo?.id), loadRealizacoes(ativo?.id),
       loadWorkflow(), loadJanelas(ativo?.id), loadWaivers(), loadDashboard(ativo?.id),
     ]);
     setSeeded(true);
@@ -653,7 +652,7 @@ export default function Home() {
     });
     setShowRealizacaoForm(false);
     setRealizacaoForm({ metaId: "", colaboradorId: "", mesReferencia: "", anoReferencia: "2026", valorRealizado: "" });
-    loadRealizacoes();
+    loadRealizacoes(cicloAtivo?.id);
     addToast("Realização registrada");
   }
 
@@ -866,7 +865,7 @@ export default function Home() {
     }).then((r) => r.json()).catch(() => null);
     if (res?.data) setImportResult(res.data);
     setImportLoading(false);
-    loadRealizacoes();
+    loadRealizacoes(cicloAtivo?.id);
   }
 
   async function handleColabImport(e: React.FormEvent) {

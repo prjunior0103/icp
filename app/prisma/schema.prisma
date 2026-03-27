@@ -120,6 +120,9 @@ model Indicador {
   metas             Meta[]
   status            String    @default("DRAFT") // DRAFT, ATIVO
   criadoEm          DateTime  @default(now())
+
+  @@index([cicloId])
+  @@index([status])
 }
 
 // ─── Metas ───────────────────────────────────────────────────────────────────
@@ -146,6 +149,10 @@ model Meta {
   workflowItems   WorkflowItem[]
   historico       MetaHistorico[]
   planosAcao      PlanoAcao[]
+
+  @@index([cicloId])
+  @@index([indicadorId])
+  @@index([parentMetaId])
 }
 
 model MetaHistorico {
@@ -220,6 +227,9 @@ model Realizacao {
   workflowItems    WorkflowItem[]
 
   @@unique([metaId, colaboradorId, mesReferencia, anoReferencia])
+  @@index([metaId])
+  @@index([colaboradorId])
+  @@index([anoReferencia, mesReferencia])
 }
 
 // ─── Janela de Apuração ───────────────────────────────────────────────────────
@@ -236,6 +246,7 @@ model JanelaApuracao {
   prorrogacoes    ProrrogacaoWaiver[]
 
   @@unique([cicloId, mesReferencia, anoReferencia])
+  @@index([cicloId])
 }
 
 model ProrrogacaoWaiver {
@@ -266,6 +277,10 @@ model WorkflowItem {
   comentario    String?
   criadoEm      DateTime     @default(now())
   resolvidoEm   DateTime?
+
+  @@index([status])
+  @@index([metaId])
+  @@index([realizacaoId])
 }
 
 // ─── Movimentações RH ─────────────────────────────────────────────────────────

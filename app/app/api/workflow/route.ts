@@ -85,10 +85,14 @@ export async function PUT(req: NextRequest) {
       },
     });
 
-    // Cascade update linked meta
+    // Cascade update linked meta + its children
     if (item.metaId && status === "APROVADO") {
       await prisma.meta.update({
         where: { id: item.metaId },
+        data: { status: "APROVADO" },
+      });
+      await prisma.meta.updateMany({
+        where: { parentMetaId: item.metaId },
         data: { status: "APROVADO" },
       });
     }
