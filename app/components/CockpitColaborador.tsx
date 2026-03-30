@@ -152,7 +152,7 @@ export default function CockpitColaborador({ colaboradorId, cicloId }: { colabor
         <table className="min-w-full text-sm">
           <thead>
             <tr>
-              <th className="px-4 py-2 text-left">Indicador</th>
+              <th className="px-4 py-2 text-left">Meta</th>
               <th className="px-3 py-2 text-center hidden sm:table-cell">Tipo</th>
               <th className="px-3 py-2 text-right">Peso</th>
               <th className="px-3 py-2 text-right hidden sm:table-cell">Alvo</th>

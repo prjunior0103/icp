@@ -160,7 +160,7 @@ export default function PainelGestor({ gestorId, cicloId, colaboradores }: {
       {equipe.length > 0 && equipe[0].metas.length > 0 && (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
           <div className="px-5 py-3 border-b border-gray-100">
-            <h3 className="text-sm font-semibold text-gray-700">Nota por Indicador (Visão Cruzada)</h3>
+            <h3 className="text-sm font-semibold text-gray-700">Nota por Meta (Visão Cruzada)</h3>
           </div>
           <table className="min-w-full text-xs divide-y divide-gray-100">
             <thead className="bg-gray-50 text-gray-500 uppercase tracking-wide text-[10px]">
