@@ -1062,9 +1062,14 @@ export default function Home() {
                 <p className="text-xs font-semibold" style={{ color: "var(--ink)" }}>Dados de demonstração</p>
                 <p className="text-xs mt-0.5" style={{ color: "var(--ink-muted)" }}>Popula o banco com colaboradores, metas e realizações de exemplo.</p>
               </div>
-              <button onClick={handleSeed} disabled={seedLoading} className="btn-ghost text-xs flex-shrink-0">
-                {seedLoading ? "Carregando..." : "Carregar Demo"}
-              </button>
+              <div className="flex items-center gap-2">
+                <button onClick={handleReset} disabled={resetLoading} className="btn-ghost text-xs flex-shrink-0" style={{ color: "var(--danger, #dc2626)" }}>
+                  {resetLoading ? "Limpando..." : "Limpar Banco"}
+                </button>
+                <button onClick={handleSeed} disabled={seedLoading} className="btn-ghost text-xs flex-shrink-0">
+                  {seedLoading ? "Carregando..." : "Carregar Demo"}
+                </button>
+              </div>
             </div>
           </div>
         )}
