@@ -20,7 +20,7 @@ interface ScorecardMeta {
 
 interface ScorecardData {
   colaborador: { id: number; nomeCompleto: string; matricula: string; salarioBase: number };
-  cargo: { nome: string; nivelHierarquico: string; targetBonusPerc: number };
+  cargo: { nome: string; nivelHierarquico: string; targetMultiploSalarial: number };
   metas: ScorecardMeta[];
   notaYTD: number;
   premioYTD: number;
@@ -91,7 +91,7 @@ export default function CockpitColaborador({ colaboradorId, cicloId }: { colabor
           <div className="min-w-0">
             <h2 className="text-base font-bold truncate">{data.colaborador.nomeCompleto}</h2>
             <p className="text-xs mt-0.5 truncate" style={{ color: "rgba(255,255,255,0.65)" }}>{data.cargo.nome} · {data.cargo.nivelHierarquico} · Mat. {data.colaborador.matricula}</p>
-            <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.5)" }}>Target: {data.cargo.targetBonusPerc}% sal. anual · Alvo: {formatBRL(data.targetAnual)}</p>
+            <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.5)" }}>Target: {data.cargo.targetMultiploSalarial}x sal. · Alvo: {formatBRL(data.targetAnual)}</p>
           </div>
         </div>
       </div>

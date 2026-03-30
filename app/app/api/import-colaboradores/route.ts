@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
       const created = await prisma.cargo.upsert({
         where: { codigo },
         update: {},
-        create: { codigo, nome: nome || codigo, nivelHierarquico: nivel || "N4", targetBonusPerc: bonus || 0 },
+        create: { codigo, nome: nome || codigo, nivelHierarquico: nivel || "N4", targetMultiploSalarial: bonus || 0 },
         select: { id: true },
       });
       cargoMap.set(codigo, created.id);
@@ -132,7 +132,7 @@ export async function POST(req: NextRequest) {
         gestorMatricula,
         cargoNome,
         nivelHierarquico,
-        targetBonusPerc,
+        targetMultiploSalarial,
       } = normalized;
 
       if (!matricula || !nomeCompleto) {
@@ -145,7 +145,7 @@ export async function POST(req: NextRequest) {
         cargoCodigo || "CARGO-DEFAULT",
         cargoNome,
         nivelHierarquico,
-        targetBonusPerc ? Number(targetBonusPerc) : undefined
+        targetMultiploSalarial ? Number(targetMultiploSalarial) : undefined
       );
       const centroCustoId = await getOrCreateCC(centroCustoCodigo || "CC-DEFAULT", empresaId);
 

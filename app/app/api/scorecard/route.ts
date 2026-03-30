@@ -99,7 +99,7 @@ export async function GET(req: NextRequest) {
 
     // Target anual
     const targetAnual =
-      colaborador.salarioBase * 12 * (colaborador.cargo.targetBonusPerc / 100);
+      colaborador.salarioBase * colaborador.cargo.targetMultiploSalarial;
 
     return NextResponse.json({
       data: {

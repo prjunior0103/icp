@@ -47,12 +47,12 @@ export function calcularNota(
 
 export function calcularPremio(
   salarioBase: number,
-  targetBonusPerc: number,   // e.g. 15 for 15%
-  nota: number,              // 0–120
-  pesoNaCesta: number        // 0–100
+  targetMultiploSalarial: number,  // e.g. 1.5 = 1.5x salário mensal
+  nota: number,                     // 0–120
+  pesoNaCesta: number               // 0–100
 ): number {
   return (
-    salarioBase * 12 * (targetBonusPerc / 100) * (nota / 100) * (pesoNaCesta / 100)
+    salarioBase * targetMultiploSalarial * (nota / 100) * (pesoNaCesta / 100)
   );
 }
 

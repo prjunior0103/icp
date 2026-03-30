@@ -9,7 +9,7 @@ import MasterDashboard from "@/components/MasterDashboard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type TabId = "dashboard" | "cockpit" | "gestor" | "scorecard" | "indicadores" | "metas" | "atingimento" | "elegiveis" | "relatorio" | "conferencia" | "movimentacoes" | "realizacoes" | "colaboradores" | "workflow" | "janelas" | "importacao" | "cadastros" | "diagnostico" | "ajuda";
+type TabId = "dashboard" | "metas" | "agrupamentos" | "colaboradores" | "cadastros";
 
 type CheckResult = {
   id: string;
@@ -21,12 +21,12 @@ type CheckResult = {
   detalhes: string[];
 };
 
-interface Cargo { id: number; nome: string; codigo: string; nivelHierarquico: string; targetBonusPerc: number; salarioTeto?: number | null; _count?: { colaboradores: number }; }
+interface Cargo { id: number; nome: string; codigo: string; nivelHierarquico: string; targetMultiploSalarial: number; salarioTeto?: number | null; _count?: { colaboradores: number }; }
 interface CentroCusto { id: number; nome: string; codigo: string; nivel?: number; empresaId?: number; empresa?: { id: number; nome: string; codigo: string }; _count?: { colaboradores: number; metas: number }; }
 interface Empresa { id: number; nome: string; codigo: string; _count?: { colaboradores: number; centrosCusto: number }; }
 interface Colaborador {
   id: number; matricula: string; nomeCompleto: string; email: string;
-  salarioBase: number; ativo: boolean;
+  salarioBase: number; ativo: boolean; gestorId: number | null;
   cargo: Cargo; centroCusto: CentroCusto; empresa: Empresa;
 }
 interface CicloICP { id: number; anoFiscal: number; status: string; bonusPool: number | null; mesInicio: number; mesFim: number; }
@@ -60,6 +60,20 @@ interface JanelaApuracao {
   id: number; cicloId: number; mesReferencia: number; anoReferencia: number;
   dataAbertura: string; dataFechamento: string; status: string;
   isOpen: boolean; waiversPendentes: number;
+}
+interface AgrupamentoMetaItem {
+  id: number; metaId: number;
+  meta: Meta & { indicador: Indicador };
+}
+interface AgrupamentoAtribuicaoItem {
+  id: number; gestorId: number | null; cascatear: boolean; aplicadoEm: string | null;
+  gestor: { id: number; nomeCompleto: string; matricula: string } | null;
+}
+interface Agrupamento {
+  id: number; nome: string; descricao: string | null; tipo: string; cicloId: number;
+  criadoEm: string;
+  metas: AgrupamentoMetaItem[];
+  atribuicoes: AgrupamentoAtribuicaoItem[];
 }
 interface MovimentacaoRH {
   id: number; tipo: string; dataEfetiva: string; status: string; criadoEm: string;
@@ -154,47 +168,18 @@ interface NavGroup {
 
 const TAB_GROUPS: NavGroup[] = [
   {
-    name: "Análise",
+    name: "Principal",
     tabs: [
-      { id: "dashboard",   label: "Dashboard" },
-      { id: "cockpit",     label: "Cockpit" },
-      { id: "gestor",      label: "Painel Gestor" },
-      { id: "scorecard",   label: "Scorecard" },
-    ],
-  },
-  {
-    name: "Operações",
-    tabs: [
-      { id: "indicadores", label: "Indicadores" },
-      { id: "metas",       label: "Metas" },
-      { id: "realizacoes", label: "Realizações" },
-      { id: "atingimento", label: "Atingimento" },
-    ],
-  },
-  {
-    name: "Pessoas",
-    tabs: [
-      { id: "colaboradores",  label: "Colaboradores" },
-      { id: "elegiveis",      label: "Elegíveis" },
-      { id: "movimentacoes",  label: "Movimentações RH" },
-    ],
-  },
-  {
-    name: "Controle",
-    tabs: [
-      { id: "conferencia", label: "Conferência" },
-      { id: "workflow",    label: "Workflow" },
-      { id: "janelas",     label: "Janelas" },
-      { id: "relatorio",   label: "Relatório" },
+      { id: "dashboard",     label: "Dashboard" },
+      { id: "colaboradores", label: "Colaboradores" },
+      { id: "metas",         label: "Metas" },
+      { id: "agrupamentos",  label: "Agrupamentos" },
     ],
   },
   {
     name: "Configuração",
     tabs: [
-      { id: "importacao",   label: "Importação BP" },
-      { id: "cadastros",    label: "Cadastros" },
-      { id: "diagnostico",  label: "Diagnóstico" },
-      { id: "ajuda",        label: "Ajuda" },
+      { id: "cadastros", label: "Cadastros" },
     ],
   },
 ];
@@ -208,25 +193,9 @@ export default function Home() {
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
   const [metas, setMetas] = useState<Meta[]>([]);
   const [realizacoes, setRealizacoes] = useState<Realizacao[]>([]);
-  const [workflowItems, setWorkflowItems] = useState<WorkflowItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [seeded, setSeeded] = useState(false);
   const [seedLoading, setSeedLoading] = useState(false);
-  const [selectedColaborador, setSelectedColaborador] = useState<number | null>(null);
-  const [cockpitColId, setCockpitColId] = useState<number | null>(null);
-  const [gestorColId, setGestorColId] = useState<number | null>(null);
-  const [scorecardData, setScorecardData] = useState<{
-    notaYTD: number; premioYTD: number; targetAnual: number;
-    metas: { meta: Meta; indicador: Indicador; realizacoes: Realizacao[]; notaMedia: number; premioProjetado: number }[];
-  } | null>(null);
-
-  // Realizacoes form state
-  const [showRealizacaoForm, setShowRealizacaoForm] = useState(false);
-  const [realizacaoForm, setRealizacaoForm] = useState({
-    metaId: "", colaboradorId: "", mesReferencia: "", anoReferencia: "2026", valorRealizado: "",
-  });
-  const [filterColabId, setFilterColabId] = useState<string>("");
-  const [filterMes, setFilterMes] = useState<string>("");
 
   // Indicadores state
   const [indicadores, setIndicadores] = useState<Indicador[]>([]);
@@ -255,20 +224,6 @@ export default function Home() {
   const [cascateandoMetaId, setCascateandoMetaId] = useState<number | null>(null);
   const [cloningMetaId, setCloningMetaId] = useState<number | null>(null);
 
-  // Diagnóstico
-  const [diagnosticoResults, setDiagnosticoResults] = useState<CheckResult[]>([]);
-  const [diagnosticoLoading, setDiagnosticoLoading] = useState(false);
-  const [diagnosticoRodou, setDiagnosticoRodou] = useState(false);
-
-  async function handleDiagnostico() {
-    setDiagnosticoLoading(true);
-    const url = cicloAtivo ? `/api/consistencia?cicloId=${cicloAtivo.id}` : "/api/consistencia";
-    const res = await fetch(url).then((r) => r.json()).catch(() => ({ data: [] }));
-    setDiagnosticoResults(res.data ?? []);
-    setDiagnosticoRodou(true);
-    setDiagnosticoLoading(false);
-  }
-
   // Reset
   const [resetLoading, setResetLoading] = useState(false);
   async function handleReset() {
@@ -278,7 +233,7 @@ export default function Home() {
     if (res?.data) {
       addToast("Banco limpo com sucesso.", "ok");
       const ativo = await loadCiclos();
-      await Promise.all([loadColaboradores(), loadMetas(ativo?.id), loadRealizacoes(ativo?.id), loadWorkflow(), loadIndicadores(ativo?.id), loadCentrosCusto()]);
+      await Promise.all([loadColaboradores(), loadMetas(ativo?.id), loadIndicadores(ativo?.id), loadCentrosCusto()]);
       setSeeded(false);
     } else {
       addToast("Erro ao limpar banco.", "err");
@@ -297,46 +252,26 @@ export default function Home() {
   // Inline editing
   const [inlineEdit, setInlineEdit] = useState<{ metaId: number; field: "pesoNaCesta" | "metaAlvo" | "metaMinima" | "metaMaxima"; value: string } | null>(null);
 
-  // Meta tree view toggle
-  const [showMetaTree, setShowMetaTree] = useState(false);
-
-  // Planos de Ação
-  const [planosAcao, setPlanosAcao] = useState<PlanoAcao[]>([]);
-  const [expandedPlanoMetaId, setExpandedPlanoMetaId] = useState<number | null>(null);
-  const [planoForm, setPlanoForm] = useState({ descricao: "", responsavel: "", prazo: "" });
-  const [showPlanoForm, setShowPlanoForm] = useState<number | null>(null);
-
-  // Histórico de metas
-  const [historico, setHistorico] = useState<MetaHistorico[]>([]);
-  const [expandedHistoricoMetaId, setExpandedHistoricoMetaId] = useState<number | null>(null);
-
-  // Biblioteca de metas
-  const [biblioteca, setBiblioteca] = useState<BibliotecaMeta[]>([]);
-  const [showBibliotecaTab, setShowBibliotecaTab] = useState(false);
-  const [bibForm, setBibForm] = useState({
-    nome: "", descricao: "", indicadorNome: "", unidade: "%", tipo: "VOLUME_FINANCEIRO",
-    polaridade: "MAIOR_MELHOR", abrangencia: "CORPORATIVO",
-    metaMinima: "", metaAlvo: "", metaMaxima: "", pesoSugerido: "100",
-  });
-  const [showBibForm, setShowBibForm] = useState(false);
-
   // Import metas XLSX
   const [showMetasImport, setShowMetasImport] = useState(false);
   const [metasCsvText, setMetasCsvText] = useState("");
   const [metasXlsxFile, setMetasXlsxFile] = useState<File | null>(null);
   const [metasImportResult, setMetasImportResult] = useState<{ processed: number; erros: { linha: number; motivo: string }[] } | null>(null);
 
-  // Movimentações state
-  const [movimentacoes, setMovimentacoes] = useState<MovimentacaoRH[]>([]);
-  const [showMovForm, setShowMovForm] = useState(false);
-  const [movForm, setMovForm] = useState({
-    colaboradorId: "", tipo: "ADMISSAO", dataEfetiva: "", cargoAnteriorId: "", cargoNovoId: "", ccAnteriorId: "", ccNovoId: "",
-  });
   const [cargos, setCargos] = useState<Cargo[]>([]);
+
+  // Agrupamentos state
+  const [agrupamentos, setAgrupamentos] = useState<Agrupamento[]>([]);
+  const [selectedAgrupamentoId, setSelectedAgrupamentoId] = useState<number | null>(null);
+  const [showAgrupamentoForm, setShowAgrupamentoForm] = useState(false);
+  const [agrupamentoForm, setAgrupamentoForm] = useState({ nome: "", descricao: "", tipo: "CORPORATIVO" });
+  const [agrupamentoMetaSearch, setAgrupamentoMetaSearch] = useState("");
+  const [agrupamentoGestorId, setAgrupamentoGestorId] = useState("");
+  const [agrupamentoCascatear, setAgrupamentoCascatear] = useState(false);
 
   // Cadastros state (Empresa / Cargo / CC / Ciclos)
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
-  const [cadastroSub, setCadastroSub] = useState<"empresa" | "cargo" | "cc" | "ciclos">("empresa");
+  const [cadastroSub, setCadastroSub] = useState<"empresa" | "cargo" | "cc" | "ciclos" | "indicadores">("empresa");
 
   // Ciclo form
   const [showCicloForm, setShowCicloForm] = useState(false);
@@ -352,15 +287,25 @@ export default function Home() {
       bonusPool: cicloForm.bonusPool ? Number(cicloForm.bonusPool) : undefined,
       status: cicloForm.status,
     };
-    if (cicloEditId) {
-      await fetch("/api/ciclos", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: cicloEditId, ...payload }) }).then((r) => r.json());
-    } else {
-      await fetch("/api/ciclos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }).then((r) => r.json());
+    try {
+      const res = await fetch("/api/ciclos", {
+        method: cicloEditId ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(cicloEditId ? { id: cicloEditId, ...payload } : payload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        addToast(`Erro ao salvar ciclo: ${err.error ?? res.status}`, "err");
+        return;
+      }
+      setShowCicloForm(false);
+      setCicloEditId(null);
+      setCicloForm({ anoFiscal: "", mesInicio: "1", mesFim: "12", bonusPool: "", status: "SETUP" });
+      await loadCiclos();
+      addToast(cicloEditId ? "Ciclo atualizado" : "Ciclo criado", "ok");
+    } catch (err) {
+      addToast(`Erro inesperado: ${String(err)}`, "err");
     }
-    setShowCicloForm(false);
-    setCicloEditId(null);
-    setCicloForm({ anoFiscal: "", mesInicio: "1", mesFim: "12", bonusPool: "", status: "SETUP" });
-    await loadCiclos();
   }
 
   async function handleExcluirCiclo(id: number) {
@@ -370,20 +315,11 @@ export default function Home() {
   }
   const [empresaForm, setEmpresaForm] = useState({ codigo: "", nome: "" });
   const [showEmpresaForm, setShowEmpresaForm] = useState(false);
-  const [cargoForm, setCargoForm] = useState({ codigo: "", nome: "", nivelHierarquico: "N4", targetBonusPerc: "0", salarioTeto: "" });
+  const [cargoForm, setCargoForm] = useState({ codigo: "", nome: "", nivelHierarquico: "N4", targetMultiploSalarial: "0", salarioTeto: "" });
   const [showCargoForm, setShowCargoForm] = useState(false);
   const [ccForm, setCcForm] = useState({ codigo: "", nome: "", nivel: "1", empresaId: "" });
   const [showCcForm, setShowCcForm] = useState(false);
 
-  // Janelas state
-  const [janelas, setJanelas] = useState<JanelaApuracao[]>([]);
-  const [showJanelaForm, setShowJanelaForm] = useState(false);
-  const [janelaForm, setJanelaForm] = useState({
-    mesReferencia: "", anoReferencia: "2026", dataAbertura: "", dataFechamento: "",
-  });
-
-  // Waivers state
-  const [waivers, setWaivers] = useState<Waiver[]>([]);
 
   // Dashboard API state
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
@@ -394,14 +330,6 @@ export default function Home() {
   const [colabCsvFile, setColabCsvFile] = useState<File | null>(null);
   const [colabImportResult, setColabImportResult] = useState<{ processed: number; updated: number; erros: { linha: number; motivo: string }[] } | null>(null);
   const [colabImportLoading, setColabImportLoading] = useState(false);
-
-  // Bulk import state
-  const [importCsvFile, setImportCsvFile] = useState<File | null>(null);
-  const [importForm, setImportForm] = useState({
-    mesReferencia: "", anoReferencia: "2026", csvText: "",
-  });
-  const [importResult, setImportResult] = useState<{ processed: number; erros: { matricula: string; motivo: string }[] } | null>(null);
-  const [importLoading, setImportLoading] = useState(false);
 
   const role: string = "GUARDIAO";
 
@@ -441,33 +369,12 @@ export default function Home() {
     setCentrosCusto(res.data ?? []);
   }, []);
 
-  const loadRealizacoes = useCallback(async (cicloId?: number) => {
-    const url = cicloId ? `/api/realizacoes?cicloId=${cicloId}` : "/api/realizacoes";
+  const loadAgrupamentos = useCallback(async (cicloId?: number) => {
+    const url = cicloId ? `/api/agrupamentos?cicloId=${cicloId}` : "/api/agrupamentos";
     const res = await fetch(url).then((r) => r.json()).catch(() => ({ data: [] }));
-    setRealizacoes(res.data ?? []);
+    setAgrupamentos(res.data ?? []);
   }, []);
 
-  const loadWorkflow = useCallback(async () => {
-    const res = await fetch("/api/workflow?status=PENDENTE").then((r) => r.json()).catch(() => ({ data: [] }));
-    setWorkflowItems(res.data ?? []);
-  }, []);
-
-  const loadJanelas = useCallback(async (cicloId?: number) => {
-    if (!cicloId) return;
-    const res = await fetch(`/api/janelas?cicloId=${cicloId}`).then((r) => r.json()).catch(() => ({ data: [] }));
-    setJanelas(res.data ?? []);
-  }, []);
-
-  const loadWaivers = useCallback(async () => {
-    const res = await fetch("/api/waivers?status=PENDENTE").then((r) => r.json()).catch(() => ({ data: [] }));
-    setWaivers(res.data ?? []);
-  }, []);
-
-  const loadMovimentacoes = useCallback(async (cicloId?: number) => {
-    const url = cicloId ? `/api/movimentacoes?cicloId=${cicloId}` : "/api/movimentacoes";
-    const res = await fetch(url).then((r) => r.json()).catch(() => ({ data: [] }));
-    setMovimentacoes(res.data ?? []);
-  }, []);
 
   const loadCargos = useCallback(async () => {
     const res = await fetch("/api/cargos").then((r) => r.json()).catch(() => ({ data: [] }));
@@ -479,20 +386,6 @@ export default function Home() {
     setEmpresas(res.data ?? []);
   }, []);
 
-  const loadBiblioteca = useCallback(async () => {
-    const res = await fetch("/api/biblioteca-metas").then((r) => r.json()).catch(() => ({ data: [] }));
-    setBiblioteca(res.data ?? []);
-  }, []);
-
-  const loadPlanosAcao = useCallback(async (metaId: number) => {
-    const res = await fetch(`/api/planos-acao?metaId=${metaId}`).then((r) => r.json()).catch(() => ({ data: [] }));
-    setPlanosAcao(res.data ?? []);
-  }, []);
-
-  const loadHistorico = useCallback(async (metaId: number) => {
-    const res = await fetch(`/api/metas/historico?metaId=${metaId}`).then((r) => r.json()).catch(() => ({ data: [] }));
-    setHistorico(res.data ?? []);
-  }, []);
 
   const loadDashboard = useCallback(async (cicloId?: number) => {
     if (!cicloId) return;
@@ -505,49 +398,26 @@ export default function Home() {
       setLoading(true);
       const ativo = await loadCiclos();
       await Promise.all([
-        loadColaboradores(), loadMetas(ativo?.id), loadRealizacoes(ativo?.id),
-        loadWorkflow(), loadJanelas(ativo?.id),
+        loadColaboradores(), loadMetas(ativo?.id),
         loadIndicadores(ativo?.id), loadCentrosCusto(),
-        loadWaivers(), loadDashboard(ativo?.id),
-        loadMovimentacoes(ativo?.id), loadCargos(), loadEmpresas(), loadBiblioteca(),
+        loadDashboard(ativo?.id),
+        loadCargos(), loadEmpresas(),
+        loadAgrupamentos(ativo?.id),
       ]);
       setLoading(false);
     })();
-  }, [loadCiclos, loadColaboradores, loadMetas, loadRealizacoes, loadWorkflow, loadJanelas, loadWaivers, loadDashboard, loadIndicadores, loadCentrosCusto, loadMovimentacoes, loadCargos, loadEmpresas, loadBiblioteca]);
+  }, [loadCiclos, loadColaboradores, loadMetas, loadDashboard, loadIndicadores, loadCentrosCusto, loadCargos, loadEmpresas, loadAgrupamentos]);
 
   async function handleSeed() {
     setSeedLoading(true);
     await fetch("/api/seed", { method: "POST" });
     const ativo = await loadCiclos();
     await Promise.all([
-      loadColaboradores(), loadMetas(ativo?.id), loadRealizacoes(ativo?.id),
-      loadWorkflow(), loadJanelas(ativo?.id), loadWaivers(), loadDashboard(ativo?.id),
+      loadColaboradores(), loadMetas(ativo?.id), loadDashboard(ativo?.id),
+      loadIndicadores(ativo?.id), loadAgrupamentos(ativo?.id),
     ]);
     setSeeded(true);
     setSeedLoading(false);
-  }
-
-  async function loadScorecard(colaboradorId: number, cicloId: number) {
-    const res = await fetch(`/api/scorecard?colaboradorId=${colaboradorId}&cicloId=${cicloId}`)
-      .then((r) => r.json()).catch(() => null);
-    if (res?.data) setScorecardData(res.data);
-  }
-
-  useEffect(() => {
-    if (selectedColaborador && cicloAtivo) {
-      loadScorecard(selectedColaborador, cicloAtivo.id);
-    } else {
-      setScorecardData(null);
-    }
-  }, [selectedColaborador, cicloAtivo]);
-
-  async function handleApproveMeta(id: number) {
-    await fetch("/api/metas", {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, status: "APROVADO" }),
-    });
-    loadMetas(cicloAtivo?.id);
-    addToast(`Meta #${id} aprovada`);
   }
 
   async function handleInlineEdit(metaId: number, field: string, value: string) {
@@ -564,152 +434,97 @@ export default function Home() {
   async function handleAtribuirMeta(e: React.FormEvent) {
     e.preventDefault();
     if (!assigningMetaId || !assignColabId) return;
-    await fetch("/api/metas", {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: assigningMetaId, atribuirColaboradorId: Number(assignColabId) }),
-    });
-    setAssignColabId("");
-    setAssigningMetaId(null);
-    loadMetas(cicloAtivo?.id);
+    try {
+      const res = await fetch("/api/metas", {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: assigningMetaId, atribuirColaboradorId: Number(assignColabId) }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        addToast(`Erro ao atribuir meta: ${err.error ?? res.status}`, "err");
+        return;
+      }
+      setAssignColabId("");
+      setAssigningMetaId(null);
+      loadMetas(cicloAtivo?.id);
+      addToast("Meta atribuída ao colaborador", "ok");
+    } catch (err) {
+      addToast(`Erro inesperado: ${String(err)}`, "err");
+    }
   }
 
   async function handleCriarMeta(e: React.FormEvent) {
     e.preventDefault();
-    if (!cicloAtivo) return;
+    if (!cicloAtivo) { addToast("Nenhum ciclo ativo.", "err"); return; }
     const smartObj = (metaForm.smart_e || metaForm.smart_m || metaForm.smart_a || metaForm.smart_r || metaForm.smart_t)
       ? JSON.stringify({ e: metaForm.smart_e, m: metaForm.smart_m, a: metaForm.smart_a, r: metaForm.smart_r, t: metaForm.smart_t })
       : null;
-    await fetch("/api/metas", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        indicadorId: Number(metaForm.indicadorId),
-        cicloId: cicloAtivo.id,
-        centroCustoId: metaForm.centroCustoId ? Number(metaForm.centroCustoId) : null,
-        pesoNaCesta: Number(metaForm.pesoNaCesta),
-        metaAlvo: Number(metaForm.metaAlvo),
-        metaMinima: metaForm.metaMinima ? Number(metaForm.metaMinima) : null,
-        metaMaxima: metaForm.metaMaxima ? Number(metaForm.metaMaxima) : null,
-        parentMetaId: metaForm.parentMetaId ? Number(metaForm.parentMetaId) : null,
-        smart: smartObj,
-      }),
-    });
-    setMetaForm({ indicadorId: "", centroCustoId: "", pesoNaCesta: "100", metaAlvo: "", metaMinima: "", metaMaxima: "", parentMetaId: "", smart_e: "", smart_m: "", smart_a: "", smart_r: "", smart_t: "" });
-    setShowMetaForm(false);
-    setCascateandoMetaId(null);
-    setCloningMetaId(null);
-    loadMetas(cicloAtivo.id);
-    addToast(cloningMetaId ? "Meta clonada" : cascateandoMetaId ? "Meta cascateada" : "Meta criada");
+    try {
+      const res = await fetch("/api/metas", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          indicadorId: Number(metaForm.indicadorId),
+          cicloId: cicloAtivo.id,
+          centroCustoId: metaForm.centroCustoId ? Number(metaForm.centroCustoId) : null,
+          pesoNaCesta: Number(metaForm.pesoNaCesta),
+          metaAlvo: Number(metaForm.metaAlvo),
+          metaMinima: metaForm.metaMinima ? Number(metaForm.metaMinima) : null,
+          metaMaxima: metaForm.metaMaxima ? Number(metaForm.metaMaxima) : null,
+          parentMetaId: metaForm.parentMetaId ? Number(metaForm.parentMetaId) : null,
+          smart: smartObj,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        addToast(`Erro ao criar meta: ${err.error ?? res.status}`, "err");
+        return;
+      }
+      setMetaForm({ indicadorId: "", centroCustoId: "", pesoNaCesta: "100", metaAlvo: "", metaMinima: "", metaMaxima: "", parentMetaId: "", smart_e: "", smart_m: "", smart_a: "", smart_r: "", smart_t: "" });
+      setShowMetaForm(false);
+      setCascateandoMetaId(null);
+      setCloningMetaId(null);
+      loadMetas(cicloAtivo.id);
+      addToast(cloningMetaId ? "Meta clonada" : cascateandoMetaId ? "Meta cascateada" : "Meta criada", "ok");
+    } catch (err) {
+      addToast(`Erro inesperado: ${String(err)}`, "err");
+    }
   }
 
   async function handleCriarIndicador(e: React.FormEvent) {
     e.preventDefault();
-    if (!cicloAtivo) return;
-    const autoCode = `IND-${String(indicadores.length + 1).padStart(3, "0")}`;
-    await fetch("/api/indicadores", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        codigo: indicadorForm.codigo || autoCode,
-        nome: indicadorForm.nome,
-        tipo: indicadorForm.tipo,
-        polaridade: indicadorForm.polaridade,
-        abrangencia: indicadorForm.abrangencia,
-        unidade: indicadorForm.unidade || "%",
-        descricao: indicadorForm.descricao || undefined,
-        diretivo: indicadorForm.diretivo || undefined,
-        analistaResp: indicadorForm.analistaResp || undefined,
-        origemDado: indicadorForm.origemDado || undefined,
-        divisorId: indicadorForm.isDivisivel && indicadorForm.divisorId ? Number(indicadorForm.divisorId) : null,
-        cicloId: cicloAtivo.id,
-        status: "ATIVO",
-      }),
-    });
-    setIndicadorForm({ codigo: "", nome: "", tipo: "VOLUME_FINANCEIRO", polaridade: "MAIOR_MELHOR", abrangencia: "CORPORATIVO", unidade: "%", descricao: "", diretivo: "", analistaResp: "", origemDado: "", isDivisivel: false, divisorId: "" });
-    setShowIndicadorForm(false);
-    loadIndicadores(cicloAtivo.id);
-  }
-
-  async function handleWorkflowAction(id: number, status: "APROVADO" | "REJEITADO") {
-    await fetch("/api/workflow", {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, status }),
-    });
-    loadWorkflow();
-    loadMetas(cicloAtivo?.id);
-    addToast(status === "APROVADO" ? "Aprovado com sucesso" : "Rejeitado");
-  }
-
-  async function handleLancarRealizacao(e: React.FormEvent) {
-    e.preventDefault();
-    await fetch("/api/realizacoes", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...realizacaoForm,
-        mesReferencia: Number(realizacaoForm.mesReferencia),
-        anoReferencia: Number(realizacaoForm.anoReferencia),
-        valorRealizado: Number(realizacaoForm.valorRealizado),
-        colaboradorId: realizacaoForm.colaboradorId ? Number(realizacaoForm.colaboradorId) : undefined,
-      }),
-    });
-    setShowRealizacaoForm(false);
-    setRealizacaoForm({ metaId: "", colaboradorId: "", mesReferencia: "", anoReferencia: "2026", valorRealizado: "" });
-    loadRealizacoes(cicloAtivo?.id);
-    addToast("Realização registrada");
-  }
-
-  async function handleCreateJanela(e: React.FormEvent) {
-    e.preventDefault();
-    if (!cicloAtivo) return;
-    await fetch("/api/janelas", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        cicloId: cicloAtivo.id,
-        mesReferencia: Number(janelaForm.mesReferencia),
-        anoReferencia: Number(janelaForm.anoReferencia),
-        dataAbertura: janelaForm.dataAbertura,
-        dataFechamento: janelaForm.dataFechamento,
-      }),
-    });
-    setShowJanelaForm(false);
-    setJanelaForm({ mesReferencia: "", anoReferencia: "2026", dataAbertura: "", dataFechamento: "" });
-    loadJanelas(cicloAtivo.id);
-    addToast("Janela criada");
-  }
-
-  async function handleFecharJanela(id: number) {
-    await fetch("/api/janelas", {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, status: "FECHADA" }),
-    });
-    loadJanelas(cicloAtivo?.id);
-    addToast("Janela fechada", "info");
-  }
-
-  async function handleWaiverAction(id: number, status: "APROVADO" | "REJEITADO") {
-    await fetch("/api/waivers", {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, status }),
-    });
-    loadWaivers();
-    loadJanelas(cicloAtivo?.id);
-  }
-
-  async function handleCriarMovimentacao(e: React.FormEvent) {
-    e.preventDefault();
-    await fetch("/api/movimentacoes", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        colaboradorId: Number(movForm.colaboradorId),
-        tipo: movForm.tipo,
-        dataEfetiva: movForm.dataEfetiva,
-        cargoAnteriorId: movForm.cargoAnteriorId || null,
-        cargoNovoId: movForm.cargoNovoId || null,
-        ccAnteriorId: movForm.ccAnteriorId || null,
-        ccNovoId: movForm.ccNovoId || null,
-      }),
-    });
-    setMovForm({ colaboradorId: "", tipo: "ADMISSAO", dataEfetiva: "", cargoAnteriorId: "", cargoNovoId: "", ccAnteriorId: "", ccNovoId: "" });
-    setShowMovForm(false);
-    loadMovimentacoes(cicloAtivo?.id);
+    if (!cicloAtivo) { addToast("Nenhum ciclo ativo. Vá em Cadastros → Ciclos para criar um ciclo.", "err"); setActiveTab("cadastros"); setCadastroSub("ciclos"); return; }
+    const autoCode = `IND-${Date.now()}`;
+    try {
+      const res = await fetch("/api/indicadores", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          codigo: indicadorForm.codigo || autoCode,
+          nome: indicadorForm.nome,
+          tipo: indicadorForm.tipo,
+          polaridade: indicadorForm.polaridade,
+          abrangencia: indicadorForm.abrangencia,
+          unidade: indicadorForm.unidade || "%",
+          descricao: indicadorForm.descricao || undefined,
+          diretivo: indicadorForm.diretivo || undefined,
+          analistaResp: indicadorForm.analistaResp || undefined,
+          origemDado: indicadorForm.origemDado || undefined,
+          divisorId: indicadorForm.isDivisivel && indicadorForm.divisorId ? Number(indicadorForm.divisorId) : null,
+          cicloId: cicloAtivo.id,
+          status: "ATIVO",
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        addToast(`Erro ao criar indicador: ${err.error ?? res.status}`, "err");
+        return;
+      }
+      setIndicadorForm({ codigo: "", nome: "", tipo: "VOLUME_FINANCEIRO", polaridade: "MAIOR_MELHOR", abrangencia: "CORPORATIVO", unidade: "%", descricao: "", diretivo: "", analistaResp: "", origemDado: "", isDivisivel: false, divisorId: "" });
+      setShowIndicadorForm(false);
+      loadIndicadores(cicloAtivo.id);
+      addToast("Indicador criado com sucesso", "ok");
+    } catch (err) {
+      addToast(`Erro inesperado: ${String(err)}`, "err");
+    }
   }
 
   async function handleCancelarMeta(metaId: number) {
@@ -719,38 +534,6 @@ export default function Home() {
     });
     loadMetas(cicloAtivo?.id);
     addToast(`Meta #${metaId} cancelada`, "info");
-  }
-
-  async function handleCriarPlanoAcao(e: React.FormEvent, metaId: number) {
-    e.preventDefault();
-    await fetch("/api/planos-acao", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ metaId, ...planoForm, prazo: planoForm.prazo || null }),
-    });
-    setPlanoForm({ descricao: "", responsavel: "", prazo: "" });
-    setShowPlanoForm(null);
-    loadPlanosAcao(metaId);
-    addToast("Plano de ação criado");
-  }
-
-  async function handleTogglePlanoStatus(plano: PlanoAcao) {
-    const next = plano.status === "ABERTO" ? "EM_ANDAMENTO" : plano.status === "EM_ANDAMENTO" ? "CONCLUIDO" : "ABERTO";
-    await fetch("/api/planos-acao", {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: plano.id, status: next }),
-    });
-    loadPlanosAcao(plano.metaId);
-  }
-
-  async function handleCriarBiblioteca(e: React.FormEvent) {
-    e.preventDefault();
-    await fetch("/api/biblioteca-metas", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(bibForm),
-    });
-    setBibForm({ nome: "", descricao: "", indicadorNome: "", unidade: "%", tipo: "VOLUME_FINANCEIRO", polaridade: "MAIOR_MELHOR", abrangencia: "CORPORATIVO", metaMinima: "", metaAlvo: "", metaMaxima: "", pesoSugerido: "100" });
-    setShowBibForm(false);
-    loadBiblioteca();
   }
 
   async function handleMetasImport(e: React.FormEvent) {
@@ -796,76 +579,157 @@ export default function Home() {
 
   async function handleCriarEmpresa(e: React.FormEvent) {
     e.preventDefault();
-    await fetch("/api/empresas", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(empresaForm),
-    });
-    setEmpresaForm({ codigo: "", nome: "" });
-    setShowEmpresaForm(false);
-    loadEmpresas();
-    addToast("Empresa criada");
+    try {
+      const res = await fetch("/api/empresas", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(empresaForm),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        addToast(`Erro ao criar empresa: ${err.error ?? res.status}`, "err");
+        return;
+      }
+      setEmpresaForm({ codigo: "", nome: "" });
+      setShowEmpresaForm(false);
+      loadEmpresas();
+      addToast("Empresa criada", "ok");
+    } catch (err) {
+      addToast(`Erro inesperado: ${String(err)}`, "err");
+    }
   }
 
   async function handleCriarCargo(e: React.FormEvent) {
     e.preventDefault();
-    await fetch("/api/cargos", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(cargoForm),
-    });
-    setCargoForm({ codigo: "", nome: "", nivelHierarquico: "N4", targetBonusPerc: "0", salarioTeto: "" });
-    setShowCargoForm(false);
-    loadCargos();
-    addToast("Cargo criado");
+    try {
+      const res = await fetch("/api/cargos", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(cargoForm),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        addToast(`Erro ao criar cargo: ${err.error ?? res.status}`, "err");
+        return;
+      }
+      setCargoForm({ codigo: "", nome: "", nivelHierarquico: "N4", targetMultiploSalarial: "0", salarioTeto: "" });
+      setShowCargoForm(false);
+      loadCargos();
+      addToast("Cargo criado", "ok");
+    } catch (err) {
+      addToast(`Erro inesperado: ${String(err)}`, "err");
+    }
   }
 
   async function handleCriarCC(e: React.FormEvent) {
     e.preventDefault();
-    await fetch("/api/centros-custo", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(ccForm),
-    });
-    setCcForm({ codigo: "", nome: "", nivel: "1", empresaId: "" });
-    setShowCcForm(false);
-    loadCentrosCusto();
-    addToast("Centro de custo criado");
+    if (!ccForm.empresaId) { addToast("Selecione uma empresa antes de criar o centro de custo.", "err"); return; }
+    try {
+      const res = await fetch("/api/centros-custo", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(ccForm),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        addToast(`Erro ao criar centro de custo: ${err.error ?? res.status}`, "err");
+        return;
+      }
+      setCcForm({ codigo: "", nome: "", nivel: "1", empresaId: "" });
+      setShowCcForm(false);
+      loadCentrosCusto();
+      addToast("Centro de custo criado", "ok");
+    } catch (err) {
+      addToast(`Erro inesperado: ${String(err)}`, "err");
+    }
   }
 
-  async function handleBulkImport(e: React.FormEvent) {
+  async function handleCriarAgrupamento(e: React.FormEvent) {
     e.preventDefault();
-    if (!cicloAtivo) return;
-    setImportLoading(true);
-    setImportResult(null);
-    let rows: { matricula: string; metaCodigo: string; valorRealizado: number; observacao?: string }[] = [];
-    if (importCsvFile) {
-      const XLSX = await import("xlsx");
-      const buffer = await importCsvFile.arrayBuffer();
-      const wb = XLSX.read(buffer, { type: "array" });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const data = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: "" });
-      rows = data.map((r) => ({
-        matricula: String(r.matricula ?? "").trim(),
-        metaCodigo: String(r.codigo_indicador ?? r.metaCodigo ?? "").trim(),
-        valorRealizado: Number(r.valor_realizado ?? r.valorRealizado ?? 0),
-        observacao: r.observacao ? String(r.observacao) : undefined,
-      }));
-    } else {
-      rows = importForm.csvText.split("\n").map((l) => l.trim()).filter(Boolean).map((line) => {
-        const [matricula, metaCodigo, valorRealizado, observacao] = line.split(";");
-        return { matricula, metaCodigo, valorRealizado: Number(valorRealizado), observacao };
+    if (!cicloAtivo) { addToast("Nenhum ciclo ativo.", "err"); return; }
+    try {
+      const res = await fetch("/api/agrupamentos", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...agrupamentoForm, cicloId: cicloAtivo.id }),
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        addToast(`Erro ao criar agrupamento: ${err.error ?? res.status}`, "err");
+        return;
+      }
+      const data = await res.json();
+      setAgrupamentoForm({ nome: "", descricao: "", tipo: "CORPORATIVO" });
+      setShowAgrupamentoForm(false);
+      await loadAgrupamentos(cicloAtivo.id);
+      setSelectedAgrupamentoId(data.data?.id ?? null);
+      addToast("Agrupamento criado", "ok");
+    } catch (err) {
+      addToast(`Erro inesperado: ${String(err)}`, "err");
     }
-    const res = await fetch("/api/bulk-import", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        cicloId: cicloAtivo.id,
-        mesReferencia: Number(importForm.mesReferencia),
-        anoReferencia: Number(importForm.anoReferencia),
-        rows,
-      }),
-    }).then((r) => r.json()).catch(() => null);
-    if (res?.data) setImportResult(res.data);
-    setImportLoading(false);
-    loadRealizacoes(cicloAtivo?.id);
+  }
+
+  async function handleAddMetaToAgrupamento(agrupamentoId: number, metaId: number) {
+    try {
+      const res = await fetch("/api/agrupamentos", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "addMeta", agrupamentoId, metaId }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        addToast(`Erro ao adicionar meta: ${err.error ?? res.status}`, "err");
+        return;
+      }
+      await loadAgrupamentos(cicloAtivo?.id);
+      addToast("Meta adicionada ao agrupamento", "ok");
+    } catch (err) {
+      addToast(`Erro inesperado: ${String(err)}`, "err");
+    }
+  }
+
+  async function handleRemoveMetaFromAgrupamento(agrupamentoId: number, metaId: number) {
+    try {
+      await fetch(`/api/agrupamentos?agrupamentoId=${agrupamentoId}&metaId=${metaId}`, { method: "DELETE" });
+      await loadAgrupamentos(cicloAtivo?.id);
+      addToast("Meta removida do agrupamento", "info");
+    } catch (err) {
+      addToast(`Erro inesperado: ${String(err)}`, "err");
+    }
+  }
+
+  async function handleAplicarAgrupamento(agrupamentoId: number) {
+    const agrupamento = agrupamentos.find((a) => a.id === agrupamentoId);
+    if (!agrupamento) return;
+    if (agrupamento.metas.length === 0) { addToast("Adicione metas ao agrupamento antes de aplicar.", "err"); return; }
+    if (agrupamento.tipo === "AREA" && !agrupamentoGestorId) {
+      addToast("Selecione um gestor para aplicar o agrupamento de área.", "err"); return;
+    }
+    try {
+      const res = await fetch("/api/agrupamentos", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "aplicar",
+          agrupamentoId,
+          gestorId: agrupamento.tipo === "AREA" ? Number(agrupamentoGestorId) : undefined,
+          cascatear: agrupamento.tipo === "AREA" ? agrupamentoCascatear : undefined,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        addToast(`Erro ao aplicar agrupamento: ${err.error ?? res.status}`, "err");
+        return;
+      }
+      const data = await res.json();
+      await loadAgrupamentos(cicloAtivo?.id);
+      await loadMetas(cicloAtivo?.id);
+      addToast(`Aplicado: ${data.data?.criados ?? 0} atribuições criadas para ${data.data?.colaboradores ?? 0} colaborador(es)`, "ok");
+    } catch (err) {
+      addToast(`Erro inesperado: ${String(err)}`, "err");
+    }
+  }
+
+  async function handleExcluirAgrupamento(id: number) {
+    if (!confirm("Excluir este agrupamento? As atribuições já feitas não serão desfeitas.")) return;
+    await fetch(`/api/agrupamentos?id=${id}`, { method: "DELETE" });
+    if (selectedAgrupamentoId === id) setSelectedAgrupamentoId(null);
+    await loadAgrupamentos(cicloAtivo?.id);
+    addToast("Agrupamento excluído", "info");
   }
 
   async function handleColabImport(e: React.FormEvent) {
@@ -930,24 +794,10 @@ export default function Home() {
     XLSX.writeFile(wb, filename);
   }
 
-  async function handleExportRelatorioCSV() {
-    const data = rankingElegiveis.map((row) => ({
-      "Colaborador": row.colaborador.nomeCompleto,
-      "Matrícula": row.colaborador.matricula,
-      "Cargo": row.colaborador.cargo.nome,
-      "Nível": row.colaborador.cargo.nivelHierarquico,
-      "Nota Média": Number(row.notaMedia.toFixed(1)),
-      "Prêmio YTD (R$)": Number(row.premioYTD.toFixed(2)),
-      "Target Anual (R$)": Number(row.targetAnual.toFixed(2)),
-      "% Target": Number(row.targetAnual > 0 ? ((row.premioYTD / row.targetAnual) * 100).toFixed(1) : 0),
-    }));
-    await downloadXlsx(data, `relatorio-icp-${cicloAtivo?.anoFiscal ?? "ciclo"}.xlsx`);
-  }
-
   async function handleDownloadTemplateMetaas() {
     const XLSX = await import("xlsx");
-    const headers = ["indicadorCodigo","centroCustoCodigo","pesoNaCesta","metaMinima","metaAlvo","metaMaxima"];
-    const example = { indicadorCodigo:"REC-LIQ-2026", centroCustoCodigo:"CC-COM", pesoNaCesta:50, metaMinima:80, metaAlvo:100, metaMaxima:120 };
+    const headers = ["indicadorCodigo","pesoNaCesta","metaMinima","metaAlvo","metaMaxima","parentMetaIndicadorCodigo","smart_e","smart_m","smart_a","smart_r","smart_t"];
+    const example = { indicadorCodigo:"REC-LIQ-2026", pesoNaCesta:50, metaMinima:80, metaAlvo:100, metaMaxima:120, parentMetaIndicadorCodigo:"", smart_e:"", smart_m:"", smart_a:"", smart_r:"", smart_t:"" };
     const ws = XLSX.utils.json_to_sheet([example], { header: headers });
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Metas");
@@ -956,157 +806,13 @@ export default function Home() {
 
   async function handleDownloadTemplateColaboradores() {
     const XLSX = await import("xlsx");
-    const headers = ["matricula","nomeCompleto","cpf","email","salarioBase","dataAdmissao","empresaCodigo","cargoCodigo","centroCustoCodigo","gestorMatricula","cargoNome","nivelHierarquico","targetBonusPerc"];
-    const example = { matricula:"001234", nomeCompleto:"João Silva", cpf:"123.456.789-00", email:"joao@empresa.com", salarioBase:8000, dataAdmissao:"2024-01-15", empresaCodigo:"EMP001", cargoCodigo:"GER-COM", centroCustoCodigo:"CC-VENDAS", gestorMatricula:"", cargoNome:"Gerente Comercial", nivelHierarquico:"N2", targetBonusPerc:15 };
+    const headers = ["matricula","nomeCompleto","cpf","email","salarioBase","dataAdmissao","empresaCodigo","cargoCodigo","centroCustoCodigo","gestorMatricula","cargoNome","nivelHierarquico","targetMultiploSalarial"];
+    const example = { matricula:"001234", nomeCompleto:"João Silva", cpf:"123.456.789-00", email:"joao@empresa.com", salarioBase:8000, dataAdmissao:"2024-01-15", empresaCodigo:"EMP001", cargoCodigo:"GER-COM", centroCustoCodigo:"CC-VENDAS", gestorMatricula:"", cargoNome:"Gerente Comercial", nivelHierarquico:"N2", targetMultiploSalarial:3.0 };
     const ws = XLSX.utils.json_to_sheet([example], { header: headers });
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Colaboradores");
     XLSX.writeFile(wb, "template_colaboradores.xlsx");
   }
-
-  async function handleDownloadTemplateBP() {
-    const XLSX = await import("xlsx");
-    const headers = ["matricula","codigo_indicador","valor_realizado","observacao"];
-    const example = { matricula:"001234", codigo_indicador:"REC-LIQ-2026", valor_realizado:2500000, observacao:"" };
-    const ws = XLSX.utils.json_to_sheet([example], { header: headers });
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Realizacoes");
-    XLSX.writeFile(wb, "template_bp_realizacoes.xlsx");
-  }
-
-  // ── Derived data ───────────────────────────────────────────────────────────
-
-  const realizacoesFiltradas = realizacoes.filter((r) => {
-    if (filterColabId && String(r.colaborador?.id) !== filterColabId) return false;
-    if (filterMes && String(r.mesReferencia) !== filterMes) return false;
-    return true;
-  });
-
-  const pendingCount = workflowItems.length;
-
-  // Pro-rata factor per collaborator based on movimentações no ciclo
-  function calcFatorProRata(colaboradorId: number): { fator: number; tipo: string | null; descricao: string } {
-    if (!cicloAtivo) return { fator: 1, tipo: null, descricao: "Ciclo completo" };
-    const totalMeses = (cicloAtivo.mesFim ?? 12) - (cicloAtivo.mesInicio ?? 1) + 1;
-    const colMovs = movimentacoes.filter((m) => m.colaboradorId === colaboradorId);
-
-    const admissao = colMovs.find((m) => m.tipo === "ADMISSAO");
-    const desligamento = colMovs.find((m) => m.tipo === "DESLIGAMENTO");
-
-    if (admissao) {
-      const mes = new Date(admissao.dataEfetiva).getMonth() + 1;
-      const mesesNoCiclo = (cicloAtivo.mesFim ?? 12) - mes + 1;
-      const fator = Math.max(0, Math.min(1, mesesNoCiclo / totalMeses));
-      return { fator, tipo: "ADMISSAO", descricao: `Admitido em ${MESES[mes - 1]} — ${(fator * 100).toFixed(0)}% do ciclo` };
-    }
-    if (desligamento) {
-      const mes = new Date(desligamento.dataEfetiva).getMonth() + 1;
-      const mesesNoCiclo = mes - (cicloAtivo.mesInicio ?? 1) + 1;
-      const fator = Math.max(0, Math.min(1, mesesNoCiclo / totalMeses));
-      return { fator, tipo: "DESLIGAMENTO", descricao: `Desligado em ${MESES[mes - 1]} — ${(fator * 100).toFixed(0)}% do ciclo` };
-    }
-    const promocao = colMovs.find((m) => m.tipo === "PROMOCAO");
-    if (promocao) {
-      const mes = new Date(promocao.dataEfetiva).getMonth() + 1;
-      const mesesAntes = mes - (cicloAtivo.mesInicio ?? 1);
-      const mesesDepois = (cicloAtivo.mesFim ?? 12) - mes + 1;
-      return { fator: 1, tipo: "PROMOCAO", descricao: `Promovido em ${MESES[mes - 1]} — ${mesesAntes}m cargo anterior + ${mesesDepois}m novo cargo` };
-    }
-    const transferencia = colMovs.find((m) => m.tipo === "TRANSFERENCIA");
-    if (transferencia) {
-      const mes = new Date(transferencia.dataEfetiva).getMonth() + 1;
-      const mesesAntes = mes - (cicloAtivo.mesInicio ?? 1);
-      const mesesDepois = (cicloAtivo.mesFim ?? 12) - mes + 1;
-      return { fator: 1, tipo: "TRANSFERENCIA", descricao: `Transferido em ${MESES[mes - 1]} — ${mesesAntes}m CC anterior + ${mesesDepois}m novo CC` };
-    }
-    return { fator: 1, tipo: null, descricao: "Ciclo completo" };
-  }
-
-  // Elegíveis ranking — inclui TODOS os colaboradores atribuídos a pelo menos uma meta
-  type ElegívelRow = {
-    colaborador: Colaborador;
-    notaMedia: number;
-    premioYTD: number;
-    targetAnual: number;
-    totalRealizacoes: number;
-    metasAtribuidas: number;
-  };
-  const elegiveisIds = new Set(metas.flatMap((m) => m.colaboradorIds ?? []));
-  const rankingElegiveis: ElegívelRow[] = colaboradores
-    .filter((c) => elegiveisIds.has(c.id))
-    .map((c) => {
-      const colRealizacoes = realizacoes.filter((r) => r.colaborador?.id === c.id);
-      const metasAtribuidas = metas.filter((m) => m.colaboradorIds?.includes(c.id)).length;
-      const notaMedia = colRealizacoes.length > 0
-        ? colRealizacoes.reduce((sum, r) => sum + (r.notaCalculada ?? 0), 0) / colRealizacoes.length
-        : 0;
-      const premioYTD = colRealizacoes.reduce((sum, r) => sum + (r.premioProjetado ?? 0), 0);
-      const targetAnual = c.salarioBase * 12 * (c.cargo.targetBonusPerc / 100);
-      return { colaborador: c, notaMedia, premioYTD, targetAnual, totalRealizacoes: colRealizacoes.length, metasAtribuidas };
-    })
-    .sort((a, b) => b.notaMedia - a.notaMedia);
-
-  // Relatório metrics
-  const totalPremioProjetado = realizacoes.reduce((sum, r) => sum + (r.premioProjetado ?? 0), 0);
-  const totalRealizacoesAprovadas = realizacoes.filter((r) => r.status === "APROVADO").length;
-
-  // Conferência — validação e consolidados
-  const validacaoMetas = metas.map((m) => {
-    const metaRealizacoes = realizacoes.filter((r) => r.meta?.id === m.id);
-    const pendentes = metaRealizacoes.filter((r) => r.status === "SUBMETIDO").length;
-    const erros: string[] = [];
-    const avisos: string[] = [];
-    if (m._count.colaboradores === 0) erros.push("Nenhum colaborador atribuído");
-    if (m._count.realizacoes === 0) avisos.push("Sem realizações lançadas");
-    if (pendentes > 0) avisos.push(`${pendentes} realização(ões) aguardando aprovação`);
-    if (m.status === "DRAFT") avisos.push("Meta ainda em rascunho — não aprovada");
-    if (!m.metaMinima) avisos.push("Meta mínima não definida");
-    return { meta: m, erros, avisos, ok: erros.length === 0 && avisos.length === 0 };
-  });
-
-  const totalErros = validacaoMetas.reduce((s, v) => s + v.erros.length, 0);
-  const totalAvisos = validacaoMetas.reduce((s, v) => s + v.avisos.length, 0);
-
-  // Por Centro de Custo
-  type CCRow = { nome: string; metas: number; colaboradores: number; premioYTD: number; notaMedia: number; realizacoesCount: number };
-  const porCC = new Map<string, CCRow>();
-  metas.forEach((m) => {
-    const ccNome = m.centroCusto?.nome ?? "Corporativo";
-    const existing = porCC.get(ccNome) ?? { nome: ccNome, metas: 0, colaboradores: 0, premioYTD: 0, notaMedia: 0, realizacoesCount: 0 };
-    const metaRealizacoes = realizacoes.filter((r) => r.meta?.id === m.id);
-    const notaMedia = metaRealizacoes.length > 0 ? metaRealizacoes.reduce((s, r) => s + (r.notaCalculada ?? 0), 0) / metaRealizacoes.length : 0;
-    const premioYTD = metaRealizacoes.reduce((s, r) => s + (r.premioProjetado ?? 0), 0);
-    porCC.set(ccNome, {
-      nome: ccNome,
-      metas: existing.metas + 1,
-      colaboradores: existing.colaboradores + m._count.colaboradores,
-      premioYTD: existing.premioYTD + premioYTD,
-      notaMedia: existing.notaMedia + notaMedia,
-      realizacoesCount: existing.realizacoesCount + metaRealizacoes.length,
-    });
-  });
-  const ccRows = Array.from(porCC.values()).map((r) => ({ ...r, notaMedia: r.metas > 0 ? r.notaMedia / r.metas : 0 })).sort((a, b) => b.premioYTD - a.premioYTD);
-
-  // Por Cargo/Nível
-  type CargoRow = { cargo: string; nivel: string; count: number; notaMedia: number; premioYTD: number; targetTotal: number };
-  const porCargo = new Map<string, CargoRow>();
-  rankingElegiveis.forEach((row) => {
-    const key = `${row.colaborador.cargo.nome}|${row.colaborador.cargo.nivelHierarquico}`;
-    const ex = porCargo.get(key) ?? { cargo: row.colaborador.cargo.nome, nivel: row.colaborador.cargo.nivelHierarquico, count: 0, notaMedia: 0, premioYTD: 0, targetTotal: 0 };
-    porCargo.set(key, { ...ex, count: ex.count + 1, notaMedia: ex.notaMedia + row.notaMedia, premioYTD: ex.premioYTD + row.premioYTD, targetTotal: ex.targetTotal + row.targetAnual });
-  });
-  const cargoRows = Array.from(porCargo.values()).map((r) => ({ ...r, notaMedia: r.count > 0 ? r.notaMedia / r.count : 0 })).sort((a, b) => b.premioYTD - a.premioYTD);
-
-  // Evolução mês a mês
-  const evolucaoMensal = MESES.map((mes, idx) => {
-    const mesNum = idx + 1;
-    const mesRealizacoes = realizacoes.filter((r) => r.mesReferencia === mesNum);
-    const notaMedia = mesRealizacoes.length > 0 ? mesRealizacoes.reduce((s, r) => s + (r.notaCalculada ?? 0), 0) / mesRealizacoes.length : null;
-    const premioTotal = mesRealizacoes.reduce((s, r) => s + (r.premioProjetado ?? 0), 0);
-    return { mes, mesNum, count: mesRealizacoes.length, notaMedia, premioTotal };
-  }).filter((m) => m.count > 0);
-
-  const janelaAtualHeader = janelas.find((j) => j.isOpen) ?? null;
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -1169,7 +875,7 @@ export default function Home() {
               value={cicloAtivo?.id ?? ""}
               onChange={(e) => {
                 const c = ciclos.find((x) => x.id === Number(e.target.value));
-                if (c) { setCicloAtivo(c); loadMetas(c.id); loadJanelas(c.id); loadDashboard(c.id); }
+                if (c) { setCicloAtivo(c); loadMetas(c.id); loadDashboard(c.id); }
               }}
               className="text-xs rounded-md px-2 py-1 focus:outline-none"
               style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.82)" }}
@@ -1180,18 +886,6 @@ export default function Home() {
             </select>
           </div>
 
-          {/* Janela status */}
-          {janelaAtualHeader ? (
-            <span className="text-xs font-medium px-2 py-0.5 rounded"
-              style={{ background: "rgba(5,150,105,0.18)", color: "#6ee7b7", border: "1px solid rgba(5,150,105,0.22)" }}>
-              Janela {MESES[janelaAtualHeader.mesReferencia - 1]} aberta
-            </span>
-          ) : (
-            <span className="text-xs px-2 py-0.5 rounded"
-              style={{ color: "rgba(255,255,255,0.28)", border: "1px solid rgba(255,255,255,0.07)" }}>
-              Sem janela aberta
-            </span>
-          )}
 
           <div className="ml-auto flex items-center gap-3">
             <span className="text-xs font-semibold px-2 py-0.5 rounded"
@@ -1257,12 +951,6 @@ export default function Home() {
                       }}
                     >
                       <span className="flex-1 truncate">{label}</span>
-                      {tab === "workflow" && (pendingCount > 0 || waivers.length > 0) && (
-                        <span className="text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center flex-shrink-0"
-                          style={{ background: pendingCount > 0 ? "#ef4444" : "#f97316", color: "white" }}>
-                          {pendingCount + waivers.length}
-                        </span>
-                      )}
                     </button>
                   );
                 })}
@@ -1293,7 +981,7 @@ export default function Home() {
                 { label: "Colaboradores", value: dashboardData?.totalColaboradores ?? colaboradores.length, accent: "var(--accent)" },
                 { label: "Metas Ativas", value: dashboardData?.totalMetasAtivas ?? metas.filter((m) => m.status !== "DRAFT").length, accent: "#059669" },
                 { label: "Realizações no Mês", value: dashboardData?.realizacoesMes ?? realizacoes.filter((r) => r.mesReferencia === new Date().getMonth() + 1).length, accent: "#7c3aed" },
-                { label: "Pendências Workflow", value: dashboardData?.workflowPendente ?? pendingCount, accent: "#d97706" },
+                { label: "Pendências Workflow", value: dashboardData?.workflowPendente ?? 0, accent: "#d97706" },
               ].map((kpi) => (
                 <div key={kpi.label} className="bg-white rounded-lg p-5" style={{ border: "1px solid var(--border)" }}>
                   <p className="text-xs font-medium uppercase tracking-wide" style={{ color: "var(--ink-muted)" }}>{kpi.label}</p>
@@ -1381,281 +1069,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* ── SCORECARD ─────────────────────────────────────────────────── */}
-        {activeTab === "scorecard" && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="icp-page-title">Scorecard Individual</h2>
-              <select
-                value={selectedColaborador ?? ""}
-                onChange={(e) => setSelectedColaborador(e.target.value ? Number(e.target.value) : null)}
-                className="border rounded-md px-3 py-2 text-sm focus:outline-none"
-              >
-                <option value="">Selecionar colaborador...</option>
-                {colaboradores.map((c) => (
-                  <option key={c.id} value={c.id}>{c.nomeCompleto} — {c.cargo.nome}</option>
-                ))}
-              </select>
-            </div>
-
-            {!selectedColaborador && (
-              <div className="bg-white icp-card p-12 text-center text-gray-400">
-                Selecione um colaborador para ver o scorecard
-              </div>
-            )}
-
-            {selectedColaborador && scorecardData && (
-              <>
-                {/* Hero cards */}
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="bg-white icp-card p-6 shadow-sm col-span-1">
-                    <p className="text-xs text-gray-500 uppercase tracking-wide">Nota YTD</p>
-                    <p className={`text-4xl font-bold mt-1 ${notaColor(scorecardData.notaYTD)}`}>
-                      {fmtN(scorecardData.notaYTD)}
-                    </p>
-                  </div>
-                  <div className="rounded-lg p-6 col-span-2" style={{ background: "var(--nav-bg)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                    <p className="text-xs uppercase tracking-wide" style={{ color: "rgba(255,255,255,0.4)" }}>Prêmio Projetado YTD</p>
-                    <p className="text-4xl font-bold mt-1 tabular-nums" style={{ color: "white" }}>{fmt(scorecardData.premioYTD)}</p>
-                    <p className="text-sm mt-2" style={{ color: "rgba(255,255,255,0.45)" }}>Target anual: {fmt(scorecardData.targetAnual)}</p>
-                  </div>
-                </div>
-
-                {/* Metas table with sparklines */}
-                <div className="bg-white icp-card overflow-hidden">
-                  <div className="px-5 py-3.5 icp-card-header flex items-center justify-between">
-                    <h3 className="icp-section-title">Metas e Resultados</h3>
-                    <button onClick={() => window.print()} className="btn-ghost text-xs px-3 py-1">Imprimir / PDF</button>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr>
-                          {["Indicador","Peso","Alvo","Evolução","Nota Média","Prêmio"].map((h) => (
-                            <th key={h} className="text-left px-4 py-2.5">{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {scorecardData.metas.map((item, i) => {
-                          const chartData = MESES.map((mes, idx) => {
-                            const r = item.realizacoes.find((r) => r.mesReferencia === idx + 1);
-                            return { mes, nota: r?.notaCalculada ?? null };
-                          }).filter((d) => d.nota !== null);
-                          const cor = item.notaMedia >= 100 ? "#059669" : item.notaMedia >= 70 ? "#d97706" : "#dc2626";
-                          return (
-                            <tr key={i}>
-                              <td className="px-4 py-3">{item.indicador.nome}</td>
-                              <td className="px-4 py-3 tabular-nums">{item.meta.pesoNaCesta}%</td>
-                              <td className="px-4 py-3 tabular-nums">{item.meta.metaAlvo.toLocaleString("pt-BR")}</td>
-                              <td className="px-4 py-2" style={{ width: 100, minWidth: 80 }}>
-                                {chartData.length > 1 ? (
-                                  <ResponsiveContainer width="100%" height={32}>
-                                    <LineChart data={chartData} margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
-                                      <Line type="monotone" dataKey="nota" dot={false} stroke={cor} strokeWidth={1.5} />
-                                    </LineChart>
-                                  </ResponsiveContainer>
-                                ) : <span className="text-xs" style={{ color: "var(--ink-subtle)" }}>—</span>}
-                              </td>
-                              <td className={`px-4 py-3 font-semibold tabular-nums`} style={{ color: cor }}>{fmtN(item.notaMedia)}</td>
-                              <td className="px-4 py-3 font-medium tabular-nums" style={{ color: "var(--ink)" }}>{fmt(item.premioProjetado)}</td>
-                            </tr>
-                          );
-                        })}
-                        {scorecardData.metas.length === 0 && (
-                          <tr><td colSpan={6} className="px-4 py-8 text-center" style={{ color: "var(--ink-muted)" }}>Sem metas vinculadas</td></tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        )}
-
-        {/* ── INDICADORES ───────────────────────────────────────────────── */}
-        {activeTab === "indicadores" && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="icp-page-title">Indicadores</h2>
-              <button
-                onClick={() => setShowIndicadorForm(!showIndicadorForm)}
-                className="btn-primary"
-              >
-                + Novo Indicador
-              </button>
-            </div>
-
-            {showIndicadorForm && (() => {
-              const autoCode = `IND-${String(indicadores.length + 1).padStart(3, "0")}`;
-              const codigoDisplay = indicadorForm.codigo || autoCode;
-              return (
-              <form onSubmit={(e) => { if (!indicadorForm.codigo) setIndicadorForm((f) => ({ ...f, codigo: autoCode })); handleCriarIndicador(e); }}
-                className="bg-white icp-card p-5 grid grid-cols-2 md:grid-cols-3 gap-4">
-                <div className="col-span-2 md:col-span-3">
-                  <h3 className="text-sm font-semibold text-blue-900">Novo Indicador</h3>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Código (auto)</label>
-                  <div className="flex items-center gap-2">
-                    <input value={codigoDisplay} readOnly
-                      className="w-full border border-gray-200 bg-gray-100 rounded px-2 py-1.5 text-sm font-mono text-gray-500 cursor-not-allowed" />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Nome *</label>
-                  <input required value={indicadorForm.nome} onChange={(e) => setIndicadorForm({ ...indicadorForm, nome: e.target.value })}
-                    placeholder="Ex: Volume de Vendas" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Unidade *</label>
-                  <select required value={indicadorForm.unidade} onChange={(e) => setIndicadorForm({ ...indicadorForm, unidade: e.target.value })}
-                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
-                    <option value="%">% — Percentual</option>
-                    <option value="R$">R$ — Reais</option>
-                    <option value="un">un — Unidades</option>
-                    <option value="dias">dias — Dias</option>
-                    <option value="h">h — Horas</option>
-                    <option value="pts">pts — Pontos</option>
-                    <option value="#"># — Quantidade</option>
-                    <option value="índice">índice</option>
-                    <option value="NPS">NPS</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Tipo *</label>
-                  <select required value={indicadorForm.tipo} onChange={(e) => setIndicadorForm({ ...indicadorForm, tipo: e.target.value })}
-                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
-                    <option value="VOLUME_FINANCEIRO">Volume Financeiro</option>
-                    <option value="CUSTO_PRAZO">Custo / Prazo</option>
-                    <option value="PROJETO_MARCO">Projeto / Marco</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Abrangência *</label>
-                  <select required value={indicadorForm.abrangencia} onChange={(e) => setIndicadorForm({ ...indicadorForm, abrangencia: e.target.value })}
-                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
-                    <option value="CORPORATIVO">Corporativo</option>
-                    <option value="AREA">Área</option>
-                    <option value="INDIVIDUAL">Individual</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Polaridade *</label>
-                  <select required value={indicadorForm.polaridade} onChange={(e) => setIndicadorForm({ ...indicadorForm, polaridade: e.target.value })}
-                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
-                    <option value="MAIOR_MELHOR">↑ Maior é Melhor (ex: vendas, receita)</option>
-                    <option value="MENOR_MELHOR">↓ Menor é Melhor (ex: custo, prazo, defeitos)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Analista Responsável</label>
-                  <select value={indicadorForm.analistaResp} onChange={(e) => setIndicadorForm({ ...indicadorForm, analistaResp: e.target.value })}
-                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
-                    <option value="">— Selecionar —</option>
-                    {colaboradores.map((c) => (
-                      <option key={c.id} value={c.nomeCompleto}>{c.nomeCompleto} ({c.cargo.nome})</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Diretivo / Objetivo Estratégico</label>
-                  <input value={indicadorForm.diretivo} onChange={(e) => setIndicadorForm({ ...indicadorForm, diretivo: e.target.value })}
-                    placeholder="Ex: Crescer receita 20%" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Origem dos Dados</label>
-                  <input value={indicadorForm.origemDado} onChange={(e) => setIndicadorForm({ ...indicadorForm, origemDado: e.target.value })}
-                    placeholder="Ex: ERP, BI, Planilha..." className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Descrição</label>
-                  <input value={indicadorForm.descricao} onChange={(e) => setIndicadorForm({ ...indicadorForm, descricao: e.target.value })}
-                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
-                </div>
-                <div className="col-span-2 md:col-span-3 border-t border-blue-200 pt-3">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" checked={indicadorForm.isDivisivel}
-                      onChange={(e) => setIndicadorForm({ ...indicadorForm, isDivisivel: e.target.checked, divisorId: "" })}
-                      className="w-4 h-4 rounded border-gray-300" />
-                    <span className="text-sm font-medium text-gray-700">É um indicador divisível? (ex: Despesa ÷ Receita Líquida)</span>
-                  </label>
-                  {indicadorForm.isDivisivel && (
-                    <div className="mt-2">
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Divisor — Indicador denominador *</label>
-                      <select required={indicadorForm.isDivisivel} value={indicadorForm.divisorId}
-                        onChange={(e) => setIndicadorForm({ ...indicadorForm, divisorId: e.target.value })}
-                        className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm max-w-sm">
-                        <option value="">Selecionar indicador divisor...</option>
-                        {indicadores.map((i) => (
-                          <option key={i.id} value={i.id}>{i.codigo} — {i.nome}</option>
-                        ))}
-                      </select>
-                      <p className="text-xs text-gray-500 mt-1">Este indicador será calculado como: <strong>{indicadorForm.nome || "Indicador"}</strong> ÷ <strong>{indicadores.find((i) => String(i.id) === indicadorForm.divisorId)?.nome ?? "?"}</strong></p>
-                    </div>
-                  )}
-                </div>
-                <div className="col-span-2 md:col-span-3 flex gap-2">
-                  <button type="submit" className="btn-primary">
-                    Criar Indicador
-                  </button>
-                  <button type="button" onClick={() => setShowIndicadorForm(false)}
-                    className="text-sm text-gray-500 hover:text-gray-700 px-4 py-1.5">
-                    Cancelar
-                  </button>
-                </div>
-              </form>
-              );
-            })()}
-
-            <div className="bg-white icp-card overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr>
-                      {["#","Código","Nome","Tipo","Polaridade","Unidade","Analista","Divisor","Status","Metas"].map((h) => (
-                        <th key={h} className="text-left px-4 py-2.5">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="">
-                    {indicadores.map((i) => (
-                      <tr key={i.id} className="">
-                        <td className="px-4 py-3 text-gray-400">{i.id}</td>
-                        <td className="px-4 py-3 text-xs font-mono text-gray-600">{i.codigo}</td>
-                        <td className="px-4 py-3">{i.nome}</td>
-                        <td className="px-4 py-3 text-xs text-gray-600">
-                          {i.tipo === "VOLUME_FINANCEIRO" ? "Volume" : i.tipo === "CUSTO_PRAZO" ? "Custo/Prazo" : "Projeto"}
-                        </td>
-                        <td className="px-4 py-3 text-xs">
-                          <span className={`font-medium ${i.polaridade === "MENOR_MELHOR" ? "text-orange-600" : "text-green-600"}`}>
-                            {i.polaridade === "MENOR_MELHOR" ? "↓ Menor" : "↑ Maior"}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-xs text-gray-600">{i.unidade}</td>
-                        <td className="px-4 py-3 text-xs text-gray-500">{i.analistaResp ?? "—"}</td>
-                        <td className="px-4 py-3 text-xs text-gray-500">
-                          {i.divisor ? <span className="bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded text-xs">÷ {i.divisor.nome}</span> : "—"}
-                        </td>
-                        <td className="px-4 py-3"><StatusBadge status={i.status} /></td>
-                        <td className="px-4 py-3 text-xs text-gray-500">{(i as unknown as { _count?: { metas?: number } })._count?.metas ?? 0}</td>
-                      </tr>
-                    ))}
-                    {indicadores.length === 0 && (
-                      <tr><td colSpan={10}>
-                        <EmptyState icon="📊" title="Nenhum indicador cadastrado"
-                          description="Indicadores definem o que será medido em cada meta do ciclo."
-                          action={{ label: "+ Novo Indicador", onClick: () => setShowIndicadorForm(true) }} />
-                      </td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* ── METAS ─────────────────────────────────────────────────────── */}
         {activeTab === "metas" && (
           <div className="space-y-6">
@@ -1663,14 +1076,6 @@ export default function Home() {
               <h2 className="icp-page-title">Metas</h2>
               <div className="flex items-center gap-2 flex-wrap">
                 <p className="text-sm" style={{ color: "var(--ink-muted)" }}>{metas.length} metas</p>
-                <button onClick={() => setShowMetaTree((v) => !v)}
-                  className="btn-ghost text-xs px-3 py-1.5">
-                  Árvore
-                </button>
-                <button onClick={() => setShowBibliotecaTab((v) => !v)}
-                  className="btn-ghost text-xs px-3 py-1.5">
-                  Biblioteca
-                </button>
                 <button onClick={() => setShowMetasImport((v) => !v)}
                   className="btn-ghost text-xs px-3 py-1.5">
                   Importar XLSX
@@ -1681,61 +1086,6 @@ export default function Home() {
                 </button>
               </div>
             </div>
-
-            {/* Biblioteca de Metas */}
-            {showBibliotecaTab && (
-              <div className="bg-purple-50 border border-purple-200 rounded-xl p-5 space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-purple-800">📚 Biblioteca de Metas</h3>
-                  <button onClick={() => setShowBibForm((v) => !v)} className="text-xs bg-purple-700 text-white px-3 py-1 rounded">+ Novo Template</button>
-                </div>
-                {showBibForm && (
-                  <form onSubmit={handleCriarBiblioteca} className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-white rounded-lg p-4 border border-purple-200">
-                    <div className="col-span-2"><label className="block text-xs text-gray-600 mb-1">Nome *</label>
-                      <input required value={bibForm.nome} onChange={(e) => setBibForm((f) => ({ ...f, nome: e.target.value }))} className="w-full border rounded px-2 py-1 text-sm" /></div>
-                    <div className="col-span-2"><label className="block text-xs text-gray-600 mb-1">Indicador</label>
-                      <input value={bibForm.indicadorNome} onChange={(e) => setBibForm((f) => ({ ...f, indicadorNome: e.target.value }))} className="w-full border rounded px-2 py-1 text-sm" /></div>
-                    <div><label className="block text-xs text-gray-600 mb-1">Tipo</label>
-                      <select value={bibForm.tipo} onChange={(e) => setBibForm((f) => ({ ...f, tipo: e.target.value }))} className="w-full border rounded px-2 py-1 text-sm bg-white">
-                        <option value="VOLUME_FINANCEIRO">Volume/Financeiro</option>
-                        <option value="CUSTO_PRAZO">Custo/Prazo</option>
-                        <option value="PROJETO_MARCO">Projeto/Marco</option>
-                        <option value="QUALITATIVO">Qualitativo</option>
-                      </select></div>
-                    <div><label className="block text-xs text-gray-600 mb-1">Abrangência</label>
-                      <select value={bibForm.abrangencia} onChange={(e) => setBibForm((f) => ({ ...f, abrangencia: e.target.value }))} className="w-full border rounded px-2 py-1 text-sm bg-white">
-                        <option value="CORPORATIVO">Corporativo</option><option value="AREA">Área</option><option value="INDIVIDUAL">Individual</option>
-                      </select></div>
-                    <div><label className="block text-xs text-gray-600 mb-1">Meta Alvo</label>
-                      <input type="number" value={bibForm.metaAlvo} onChange={(e) => setBibForm((f) => ({ ...f, metaAlvo: e.target.value }))} className="w-full border rounded px-2 py-1 text-sm" /></div>
-                    <div><label className="block text-xs text-gray-600 mb-1">Peso Sugerido (%)</label>
-                      <input type="number" value={bibForm.pesoSugerido} onChange={(e) => setBibForm((f) => ({ ...f, pesoSugerido: e.target.value }))} className="w-full border rounded px-2 py-1 text-sm" /></div>
-                    <div className="col-span-2 md:col-span-4 flex gap-2">
-                      <button type="submit" className="bg-purple-700 text-white text-sm px-4 py-1.5 rounded">Salvar</button>
-                      <button type="button" onClick={() => setShowBibForm(false)} className="text-sm text-gray-500 px-3">Cancelar</button>
-                    </div>
-                  </form>
-                )}
-                <div className="space-y-2">
-                  {biblioteca.map((b) => (
-                    <div key={b.id} className="bg-white rounded-lg border border-purple-100 px-4 py-3 flex items-center justify-between">
-                      <div>
-                        <p className="font-medium text-gray-800 text-sm">{b.nome}</p>
-                        <p className="text-xs text-gray-500">{b.indicadorNome} · {b.abrangencia} · Alvo: {b.metaAlvo ?? "—"} · Peso: {b.pesoSugerido}%</p>
-                      </div>
-                      <div className="flex gap-2">
-                        <button onClick={() => {
-                          setMetaForm((f) => ({ ...f, pesoNaCesta: String(b.pesoSugerido), metaAlvo: b.metaAlvo ? String(b.metaAlvo) : "", metaMinima: b.metaMinima ? String(b.metaMinima) : "", metaMaxima: b.metaMaxima ? String(b.metaMaxima) : "" }));
-                          setShowMetaForm(true); setShowBibliotecaTab(false);
-                        }} className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200">Usar</button>
-                        <button onClick={async () => { await fetch(`/api/biblioteca-metas?id=${b.id}`, { method: "DELETE" }); loadBiblioteca(); }} className="text-xs text-red-500 hover:text-red-700 px-2 py-1">✕</button>
-                      </div>
-                    </div>
-                  ))}
-                  {biblioteca.length === 0 && <p className="text-sm text-gray-400 text-center py-4">Nenhum template na biblioteca</p>}
-                </div>
-              </div>
-            )}
 
             {showMetaForm && (
               <form onSubmit={handleCriarMeta} className="bg-white icp-card p-5 grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -1863,39 +1213,6 @@ export default function Home() {
               </div>
             )}
 
-            {/* Árvore de cascata */}
-            {showMetaTree && (
-              <div className="bg-white icp-card p-5">
-                <h3 className="icp-section-title mb-4">Árvore de Cascata</h3>
-                {(() => {
-                  const roots = metas.filter((m) => !m.parentMetaId);
-                  function renderNode(m: typeof metas[0], depth: number): React.ReactNode {
-                    const children = metas.filter((c) => c.parentMetaId === m.id);
-                    const nota = getMetaUltimaNota(m.id);
-                    const cor = nota === null ? "var(--ink-subtle)" : nota >= 100 ? "#059669" : nota >= 70 ? "#d97706" : "#dc2626";
-                    return (
-                      <div key={m.id} style={{ marginLeft: depth * 24 }}>
-                        <div className="flex items-center gap-3 py-2 group" style={{ borderBottom: "1px solid var(--border)" }}>
-                          {depth > 0 && <span style={{ color: "var(--ink-subtle)", fontSize: 12 }}>↳</span>}
-                          <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: cor }} />
-                          <span className="text-sm font-medium flex-1" style={{ color: "var(--ink)" }}>{m.indicador.nome}</span>
-                          <span className="text-xs" style={{ color: "var(--ink-muted)" }}>{m.centroCusto?.nome ?? "Corporativo"}</span>
-                          <span className="text-xs font-semibold tabular-nums" style={{ color: cor }}>
-                            {nota !== null ? `${nota.toFixed(0)} pts` : "—"}
-                          </span>
-                          <StatusBadge status={m.status} />
-                        </div>
-                        {children.map((c) => renderNode(c, depth + 1))}
-                      </div>
-                    );
-                  }
-                  return roots.length === 0
-                    ? <p className="text-sm text-center py-4" style={{ color: "var(--ink-muted)" }}>Nenhuma meta com cascata definida</p>
-                    : roots.map((r) => renderNode(r, 0));
-                })()}
-              </div>
-            )}
-
             <div className="bg-white icp-card overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -1978,9 +1295,6 @@ export default function Home() {
                           <td className="px-4 py-3"><StatusBadge status={m.status} /></td>
                           <td className="px-4 py-3">
                             <div className="flex gap-1 flex-wrap">
-                              {role === "GUARDIAO" && m.status === "DRAFT" && (
-                                <button onClick={() => handleApproveMeta(m.id)} className="text-xs bg-green-600 hover:bg-green-700 text-white px-2 py-0.5 rounded">Aprovar</button>
-                              )}
                               {m.status !== "CANCELADO" && (
                                 <button onClick={() => setAssigningMetaId(assigningMetaId === m.id ? null : m.id)} className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-0.5 rounded">Atribuir</button>
                               )}
@@ -1990,16 +1304,6 @@ export default function Home() {
                                   setShowMetaForm(true);
                                 }} className="text-xs bg-purple-100 hover:bg-purple-200 text-purple-700 px-2 py-0.5 rounded">Cascatear</button>
                               <button onClick={() => handleClonarMeta(m)} className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-0.5 rounded">Clonar</button>
-                              <button onClick={() => {
-                                  const next = expandedPlanoMetaId === m.id ? null : m.id;
-                                  setExpandedPlanoMetaId(next);
-                                  if (next) loadPlanosAcao(next);
-                                }} className="text-xs bg-orange-100 hover:bg-orange-200 text-orange-700 px-2 py-0.5 rounded">Planos</button>
-                              <button onClick={() => {
-                                  const next = expandedHistoricoMetaId === m.id ? null : m.id;
-                                  setExpandedHistoricoMetaId(next);
-                                  if (next) loadHistorico(next);
-                                }} className="text-xs bg-teal-100 hover:bg-teal-200 text-teal-700 px-2 py-0.5 rounded">Histórico</button>
                               {m.status !== "CANCELADO" && role === "GUARDIAO" && (
                                 <button onClick={() => { if (confirm(`Cancelar Meta #${m.id}?`)) handleCancelarMeta(m.id); }} className="text-xs bg-red-100 hover:bg-red-200 text-red-700 px-2 py-0.5 rounded">Cancelar</button>
                               )}
@@ -2018,55 +1322,6 @@ export default function Home() {
                             </form>
                           </td></tr>
                         )}
-                        {expandedPlanoMetaId === m.id && (
-                          <tr className="bg-orange-50"><td colSpan={8} className="px-4 py-3">
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between">
-                                <p className="text-xs font-semibold text-orange-800">Planos de Ação — Meta #{m.id}</p>
-                                <button onClick={() => setShowPlanoForm(showPlanoForm === m.id ? null : m.id)} className="text-xs bg-orange-600 text-white px-2 py-0.5 rounded">+ Novo Plano</button>
-                              </div>
-                              {showPlanoForm === m.id && (
-                                <form onSubmit={(e) => handleCriarPlanoAcao(e, m.id)} className="flex gap-2 flex-wrap bg-white rounded p-2 border border-orange-200">
-                                  <input required placeholder="Descrição *" value={planoForm.descricao} onChange={(e) => setPlanoForm((f) => ({ ...f, descricao: e.target.value }))} className="flex-1 border rounded px-2 py-1 text-xs min-w-48" />
-                                  <input placeholder="Responsável" value={planoForm.responsavel} onChange={(e) => setPlanoForm((f) => ({ ...f, responsavel: e.target.value }))} className="border rounded px-2 py-1 text-xs w-36" />
-                                  <input type="date" value={planoForm.prazo} onChange={(e) => setPlanoForm((f) => ({ ...f, prazo: e.target.value }))} className="border rounded px-2 py-1 text-xs w-36" />
-                                  <button type="submit" className="bg-orange-600 text-white text-xs px-3 py-1 rounded">Salvar</button>
-                                </form>
-                              )}
-                              {planosAcao.filter((p) => p.metaId === m.id).map((p) => (
-                                <div key={p.id} className="flex items-center gap-3 bg-white rounded border border-orange-100 px-3 py-2 text-xs">
-                                  <button onClick={() => handleTogglePlanoStatus(p)} className={`w-4 h-4 rounded-full border-2 flex-shrink-0 ${p.status === "CONCLUIDO" ? "bg-green-500 border-green-500" : p.status === "EM_ANDAMENTO" ? "bg-yellow-400 border-yellow-400" : "bg-white border-gray-400"}`} title="Clique para avançar status" />
-                                  <span className={`flex-1 ${p.status === "CONCLUIDO" ? "line-through text-gray-400" : "text-gray-700"}`}>{p.descricao}</span>
-                                  {p.responsavel && <span className="text-gray-400">{p.responsavel}</span>}
-                                  {p.prazo && <span className="text-gray-400">{new Date(p.prazo).toLocaleDateString("pt-BR")}</span>}
-                                  <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${p.status === "CONCLUIDO" ? "bg-green-100 text-green-700" : p.status === "EM_ANDAMENTO" ? "bg-yellow-100 text-yellow-700" : "bg-gray-100 text-gray-600"}`}>{p.status.replace("_"," ")}</span>
-                                  <button onClick={async () => { await fetch(`/api/planos-acao?id=${p.id}`, { method: "DELETE" }); loadPlanosAcao(m.id); }} className="text-red-400 hover:text-red-600">✕</button>
-                                </div>
-                              ))}
-                              {planosAcao.filter((p) => p.metaId === m.id).length === 0 && <p className="text-xs text-gray-400 text-center py-2">Nenhum plano cadastrado</p>}
-                            </div>
-                          </td></tr>
-                        )}
-                        {expandedHistoricoMetaId === m.id && (
-                          <tr className="bg-teal-50"><td colSpan={8} className="px-4 py-3">
-                            <p className="text-xs font-semibold text-teal-800 mb-2">Histórico de Alterações — Meta #{m.id}</p>
-                            {historico.filter((h) => h.metaId === m.id).length === 0
-                              ? <p className="text-xs text-gray-400 text-center py-2">Nenhuma alteração registrada</p>
-                              : <div className="space-y-1">
-                                {historico.filter((h) => h.metaId === m.id).map((h) => (
-                                  <div key={h.id} className="flex items-center gap-3 text-xs text-gray-600 bg-white rounded border border-teal-100 px-3 py-1.5">
-                                    <span className="text-gray-400">{new Date(h.criadoEm).toLocaleString("pt-BR")}</span>
-                                    <span className="font-medium text-teal-700">{h.campo}</span>
-                                    <span className="text-red-400 line-through">{h.valorAntes ?? "—"}</span>
-                                    <span className="text-gray-400">→</span>
-                                    <span className="text-green-600">{h.valorDepois ?? "—"}</span>
-                                    {h.usuario && <span className="text-gray-400">por {h.usuario}</span>}
-                                  </div>
-                                ))}
-                              </div>
-                            }
-                          </td></tr>
-                        )}
                       </React.Fragment>
                     ))}
                     {metas.length === 0 && (
@@ -2083,228 +1338,311 @@ export default function Home() {
           </div>
         )}
 
-        {/* ── PAINEL ATINGIMENTO NOMINAL ────────────────────────────────── */}
-        {activeTab === "atingimento" && (
-          <div className="space-y-6">
-            <h2 className="icp-page-title">Painel Atingimento Nominal — por Meta</h2>
-            {metas.length === 0 ? (
-              <div className="text-center text-gray-400 py-16">Nenhuma meta cadastrada</div>
-            ) : (
-              <div className="grid grid-cols-1 gap-4">
-                {metas.map((m) => {
-                  const metaRealizacoes = realizacoes.filter((r) => r.meta?.id === m.id);
-                  const porColab = colaboradores.filter((c) => {
-                    return metaRealizacoes.some((r) => r.colaborador?.id === c.id);
-                  });
-                  const melhorNota = metaRealizacoes.reduce((max, r) => Math.max(max, r.notaCalculada ?? 0), 0);
-                  const mediaNota = metaRealizacoes.length > 0
-                    ? metaRealizacoes.reduce((s, r) => s + (r.notaCalculada ?? 0), 0) / metaRealizacoes.length : 0;
-                  const polarLabel = (m.indicador as Indicador).polaridade === "MENOR_MELHOR" ? "↓ Menor é Melhor" : "↑ Maior é Melhor";
-                  const sparkData = MESES.map((mes, i) => {
-                    const mesReals = metaRealizacoes.filter((r) => r.mesReferencia === i + 1);
-                    const avgNota = mesReals.length > 0
-                      ? mesReals.reduce((s, r) => s + (r.notaCalculada ?? 0), 0) / mesReals.length
-                      : null;
-                    return { mes, nota: avgNota };
-                  }).filter((d) => d.nota !== null);
-                  return (
-                    <div key={m.id} className="bg-white icp-card p-5">
-                      <div className="flex items-start justify-between mb-3">
-                        <div>
-                          <h3 className="icp-section-title">{m.indicador.nome}</h3>
-                          <p className="text-xs text-gray-500">{m.centroCusto?.nome ?? "Corporativo"} · Peso: {m.pesoNaCesta}% · Alvo: {m.metaAlvo.toLocaleString("pt-BR")} {m.indicador.unidade}</p>
-                          <p className="text-xs mt-0.5"><span className={`font-medium ${(m.indicador as Indicador).polaridade === "MENOR_MELHOR" ? "text-orange-600" : "text-green-600"}`}>{polarLabel}</span></p>
+        {/* ── AGRUPAMENTOS ─────────────────────────────────────────────── */}
+        {activeTab === "agrupamentos" && (() => {
+          const selectedAgrupamento = agrupamentos.find((a) => a.id === selectedAgrupamentoId) ?? null;
+          const metasNoAgrupamento = new Set((selectedAgrupamento?.metas ?? []).map((m) => m.metaId));
+          const metasDisponiveis = metas.filter((m) =>
+            !metasNoAgrupamento.has(m.id) &&
+            (agrupamentoMetaSearch === "" ||
+              m.indicador.nome.toLowerCase().includes(agrupamentoMetaSearch.toLowerCase()))
+          );
+          const gestores = colaboradores.filter((c) =>
+            colaboradores.some((sub) => sub.gestorId === c.id) || c.gestorId === null
+          );
+
+          return (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <h2 className="icp-page-title">Agrupamentos de Metas</h2>
+                <button onClick={() => setShowAgrupamentoForm(true)} className="btn-primary text-xs">
+                  + Novo Agrupamento
+                </button>
+              </div>
+
+              {/* Create form */}
+              {showAgrupamentoForm && (
+                <div className="bg-white rounded-lg p-5" style={{ border: "1px solid var(--border)" }}>
+                  <h3 className="text-sm font-semibold mb-4" style={{ color: "var(--ink)" }}>Novo Agrupamento</h3>
+                  <form onSubmit={handleCriarAgrupamento} className="space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div>
+                        <label className="text-xs font-medium block mb-1" style={{ color: "var(--ink-secondary)" }}>Nome *</label>
+                        <input required className="icp-input w-full" value={agrupamentoForm.nome}
+                          onChange={(e) => setAgrupamentoForm((f) => ({ ...f, nome: e.target.value }))} placeholder="Ex: Metas Corporativas 2026" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium block mb-1" style={{ color: "var(--ink-secondary)" }}>Tipo *</label>
+                        <select className="icp-input w-full" value={agrupamentoForm.tipo}
+                          onChange={(e) => setAgrupamentoForm((f) => ({ ...f, tipo: e.target.value }))}>
+                          <option value="CORPORATIVO">CORPORATIVO — todos os colaboradores</option>
+                          <option value="AREA">ÁREA — gestor específico</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium block mb-1" style={{ color: "var(--ink-secondary)" }}>Descrição</label>
+                        <input className="icp-input w-full" value={agrupamentoForm.descricao}
+                          onChange={(e) => setAgrupamentoForm((f) => ({ ...f, descricao: e.target.value }))} placeholder="Opcional" />
+                      </div>
+                    </div>
+                    <div className="flex gap-2 pt-1">
+                      <button type="submit" className="btn-primary text-xs">Criar</button>
+                      <button type="button" className="btn-ghost text-xs" onClick={() => setShowAgrupamentoForm(false)}>Cancelar</button>
+                    </div>
+                  </form>
+                </div>
+              )}
+
+              {/* Two-column layout: list + detail */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                {/* Left: agrupamento list */}
+                <div className="space-y-2">
+                  {agrupamentos.length === 0 && (
+                    <div className="bg-white rounded-lg p-8 text-center" style={{ border: "1px solid var(--border)" }}>
+                      <p className="text-xs" style={{ color: "var(--ink-muted)" }}>Nenhum agrupamento criado.</p>
+                      <button onClick={() => setShowAgrupamentoForm(true)} className="btn-primary text-xs mt-3">Criar primeiro</button>
+                    </div>
+                  )}
+                  {agrupamentos.map((ag) => {
+                    const isSelected = ag.id === selectedAgrupamentoId;
+                    return (
+                      <button
+                        key={ag.id}
+                        onClick={() => { setSelectedAgrupamentoId(ag.id); setAgrupamentoGestorId(""); setAgrupamentoCascatear(false); }}
+                        className="w-full text-left rounded-lg p-4 transition-all"
+                        style={{
+                          border: `1px solid ${isSelected ? "var(--accent)" : "var(--border)"}`,
+                          background: isSelected ? "rgba(var(--accent-rgb, 26,115,232),0.06)" : "white",
+                        }}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold truncate" style={{ color: "var(--ink)" }}>{ag.nome}</p>
+                            {ag.descricao && <p className="text-xs truncate mt-0.5" style={{ color: "var(--ink-muted)" }}>{ag.descricao}</p>}
+                          </div>
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded flex-shrink-0 ${
+                            ag.tipo === "CORPORATIVO"
+                              ? "bg-blue-50 text-blue-700 border border-blue-200"
+                              : "bg-purple-50 text-purple-700 border border-purple-200"
+                          }`}>
+                            {ag.tipo === "CORPORATIVO" ? "CORP" : "ÁREA"}
+                          </span>
                         </div>
-                        <div className="text-right">
-                          <p className="text-xs text-gray-400">Média: <span className={`font-bold ${mediaNota >= 100 ? "text-green-600" : mediaNota >= 70 ? "text-yellow-600" : "text-red-600"}`}>{mediaNota.toFixed(1)} pts</span></p>
-                          <p className="text-xs text-gray-400">Melhor: <span className="font-bold text-blue-600">{melhorNota.toFixed(1)} pts</span></p>
-                          <StatusBadge status={m.status} />
+                        <div className="flex items-center gap-3 mt-2">
+                          <span className="text-[11px]" style={{ color: "var(--ink-muted)" }}>
+                            {ag.metas.length} meta{ag.metas.length !== 1 ? "s" : ""}
+                          </span>
+                          {ag.atribuicoes.length > 0 && (
+                            <span className="text-[11px] text-green-600">
+                              ✓ Aplicado {ag.atribuicoes.length}×
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Right: detail panel */}
+                <div className="lg:col-span-2">
+                  {!selectedAgrupamento ? (
+                    <div className="bg-white rounded-lg p-12 text-center" style={{ border: "1px solid var(--border)" }}>
+                      <p className="text-sm" style={{ color: "var(--ink-muted)" }}>Selecione um agrupamento para gerenciar</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {/* Detail header */}
+                      <div className="bg-white rounded-lg p-5" style={{ border: "1px solid var(--border)" }}>
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h3 className="text-base font-semibold" style={{ color: "var(--ink)" }}>{selectedAgrupamento.nome}</h3>
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                                selectedAgrupamento.tipo === "CORPORATIVO"
+                                  ? "bg-blue-50 text-blue-700 border border-blue-200"
+                                  : "bg-purple-50 text-purple-700 border border-purple-200"
+                              }`}>
+                                {selectedAgrupamento.tipo}
+                              </span>
+                            </div>
+                            {selectedAgrupamento.descricao && (
+                              <p className="text-xs mt-1" style={{ color: "var(--ink-muted)" }}>{selectedAgrupamento.descricao}</p>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => handleExcluirAgrupamento(selectedAgrupamento.id)}
+                            className="text-xs px-2 py-1 rounded"
+                            style={{ color: "var(--err-text)", border: "1px solid var(--err-border)" }}
+                          >
+                            Excluir
+                          </button>
                         </div>
                       </div>
-                      {metaRealizacoes.length > 0 ? (
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-xs">
-                            <thead>
-                              <tr>
-                                {["Colaborador","Mês","Realizado","Nota","Prêmio Proj."].map((h) => (
-                                  <th key={h} className="px-3 py-1.5 text-left text-gray-500 uppercase font-medium">{h}</th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-50">
-                              {metaRealizacoes.slice().sort((a, b) => (b.notaCalculada ?? 0) - (a.notaCalculada ?? 0)).map((r) => (
-                                <tr key={r.id} className="">
-                                  <td className="px-3 py-1.5 font-medium text-gray-800">{r.colaborador?.nomeCompleto ?? "Corporativo"}</td>
-                                  <td className="px-3 py-1.5 text-gray-500">{MESES[r.mesReferencia - 1]}/{r.anoReferencia}</td>
-                                  <td className="px-3 py-1.5 text-gray-700">{r.valorRealizado.toLocaleString("pt-BR")} {m.indicador.unidade}</td>
-                                  <td className="px-3 py-1.5">
-                                    <span className={`font-bold ${(r.notaCalculada ?? 0) >= 100 ? "text-green-600" : (r.notaCalculada ?? 0) >= 70 ? "text-yellow-600" : "text-red-600"}`}>
-                                      {(r.notaCalculada ?? 0).toFixed(1)} pts
-                                    </span>
+
+                      {/* Metas no agrupamento */}
+                      <div className="bg-white rounded-lg overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+                        <div className="px-5 py-3 flex items-center justify-between" style={{ borderBottom: "1px solid var(--border)" }}>
+                          <h4 className="text-sm font-semibold" style={{ color: "var(--ink)" }}>
+                            Metas ({selectedAgrupamento.metas.length})
+                          </h4>
+                        </div>
+                        {selectedAgrupamento.metas.length === 0 ? (
+                          <div className="px-5 py-6 text-center">
+                            <p className="text-xs" style={{ color: "var(--ink-muted)" }}>Nenhuma meta adicionada. Use o campo abaixo para adicionar.</p>
+                          </div>
+                        ) : (
+                          <table className="w-full text-sm">
+                            <tbody className="divide-y" style={{ borderColor: "var(--border)" }}>
+                              {selectedAgrupamento.metas.map((item) => (
+                                <tr key={item.id} className="hover:bg-gray-50">
+                                  <td className="px-5 py-3">
+                                    <div className="font-medium text-sm" style={{ color: "var(--ink)" }}>{item.meta.indicador.nome}</div>
+                                    <div className="text-xs" style={{ color: "var(--ink-muted)" }}>
+                                      Alvo: {item.meta.metaAlvo} {item.meta.indicador.unidade} · Peso: {item.meta.pesoNaCesta}%
+                                    </div>
                                   </td>
-                                  <td className="px-3 py-1.5 text-gray-700">{r.premioProjetado != null ? fmt(r.premioProjetado) : "—"}</td>
+                                  <td className="px-5 py-3 text-right">
+                                    <button
+                                      onClick={() => handleRemoveMetaFromAgrupamento(selectedAgrupamento.id, item.metaId)}
+                                      className="text-xs px-2 py-0.5 rounded"
+                                      style={{ color: "var(--err-text)", border: "1px solid var(--err-border)" }}
+                                    >
+                                      Remover
+                                    </button>
+                                  </td>
                                 </tr>
                               ))}
                             </tbody>
                           </table>
-                        </div>
-                      ) : (
-                        <p className="text-xs text-gray-400 text-center py-3">Nenhuma realização lançada</p>
-                      )}
-                      {sparkData.length > 1 && (
-                        <div className="mt-4 pt-3 border-t" style={{ borderColor: "var(--border)" }}>
-                          <p className="text-xs font-medium mb-2" style={{ color: "var(--ink-muted)" }}>Evolução da nota (média mensal)</p>
-                          <div className="h-20 w-full">
-                            <ResponsiveContainer width="100%" height="100%">
-                              <LineChart data={sparkData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-                                <XAxis dataKey="mes" tick={{ fontSize: 9 }} />
-                                <Tooltip formatter={(v) => [`${Number(v).toFixed(1)} pts`, "Nota"]} />
-                                <Line type="monotone" dataKey="nota" stroke="var(--accent)" strokeWidth={2} dot={{ r: 3 }} />
-                              </LineChart>
-                            </ResponsiveContainer>
+                        )}
+
+                        {/* Add meta */}
+                        <div className="px-5 py-3" style={{ borderTop: "1px solid var(--border)", background: "var(--surface-raised)" }}>
+                          <div className="flex gap-2">
+                            <input
+                              className="icp-input flex-1 text-xs"
+                              placeholder="Buscar meta por indicador..."
+                              value={agrupamentoMetaSearch}
+                              onChange={(e) => setAgrupamentoMetaSearch(e.target.value)}
+                            />
                           </div>
+                          {agrupamentoMetaSearch && (
+                            <div className="mt-2 rounded-md overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+                              {metasDisponiveis.slice(0, 8).map((m) => (
+                                <button
+                                  key={m.id}
+                                  onClick={() => { handleAddMetaToAgrupamento(selectedAgrupamento.id, m.id); setAgrupamentoMetaSearch(""); }}
+                                  className="w-full text-left px-3 py-2 text-xs hover:bg-blue-50 flex items-center justify-between gap-2"
+                                  style={{ borderBottom: "1px solid var(--border)" }}
+                                >
+                                  <span style={{ color: "var(--ink)" }}>{m.indicador.nome}</span>
+                                  <span style={{ color: "var(--ink-muted)" }}>Alvo: {m.metaAlvo} {m.indicador.unidade}</span>
+                                </button>
+                              ))}
+                              {metasDisponiveis.length === 0 && (
+                                <p className="px-3 py-2 text-xs" style={{ color: "var(--ink-muted)" }}>Nenhuma meta encontrada ou todas já adicionadas</p>
+                              )}
+                            </div>
+                          )}
                         </div>
-                      )}
-                      {porColab.length === 0 && m._count.colaboradores === 0 && (
-                        <p className="text-xs text-amber-600 mt-2">⚠ Nenhum colaborador atribuído a esta meta</p>
-                      )}
+                      </div>
+
+                      {/* Apply section */}
+                      <div className="bg-white rounded-lg p-5" style={{ border: "1px solid var(--border)" }}>
+                        <h4 className="text-sm font-semibold mb-3" style={{ color: "var(--ink)" }}>Aplicar Agrupamento</h4>
+
+                        {selectedAgrupamento.tipo === "CORPORATIVO" ? (
+                          <div className="space-y-3">
+                            <p className="text-xs" style={{ color: "var(--ink-secondary)" }}>
+                              Atribui todas as metas deste agrupamento a <strong>todos os colaboradores ativos</strong>.
+                            </p>
+                            <button
+                              onClick={() => handleAplicarAgrupamento(selectedAgrupamento.id)}
+                              className="btn-primary text-xs"
+                            >
+                              Aplicar para todos ({colaboradores.filter((c) => c.ativo).length} colaboradores)
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            <p className="text-xs" style={{ color: "var(--ink-secondary)" }}>
+                              Atribui as metas ao gestor selecionado e, opcionalmente, aos seus subordinados diretos.
+                            </p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              <div>
+                                <label className="text-xs font-medium block mb-1" style={{ color: "var(--ink-secondary)" }}>Gestor *</label>
+                                <select
+                                  className="icp-input w-full"
+                                  value={agrupamentoGestorId}
+                                  onChange={(e) => setAgrupamentoGestorId(e.target.value)}
+                                >
+                                  <option value="">Selecionar gestor...</option>
+                                  {colaboradores.map((c) => (
+                                    <option key={c.id} value={c.id}>{c.nomeCompleto} — {c.cargo.nome}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div className="flex items-end">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={agrupamentoCascatear}
+                                    onChange={(e) => setAgrupamentoCascatear(e.target.checked)}
+                                    className="rounded"
+                                  />
+                                  <span className="text-xs" style={{ color: "var(--ink-secondary)" }}>
+                                    Cascatear para subordinados diretos
+                                    {agrupamentoGestorId && (
+                                      <span className="ml-1" style={{ color: "var(--ink-muted)" }}>
+                                        ({colaboradores.filter((c) => c.gestorId === Number(agrupamentoGestorId)).length} subordinados)
+                                      </span>
+                                    )}
+                                  </span>
+                                </label>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => handleAplicarAgrupamento(selectedAgrupamento.id)}
+                              disabled={!agrupamentoGestorId}
+                              className="btn-primary text-xs disabled:opacity-40"
+                            >
+                              Aplicar
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Atribuições history */}
+                        {selectedAgrupamento.atribuicoes.length > 0 && (
+                          <div className="mt-4 pt-4" style={{ borderTop: "1px solid var(--border)" }}>
+                            <p className="text-xs font-semibold mb-2" style={{ color: "var(--ink-secondary)" }}>Aplicações anteriores</p>
+                            <div className="space-y-1.5">
+                              {selectedAgrupamento.atribuicoes.map((atr) => (
+                                <div key={atr.id} className="text-xs flex items-center gap-2">
+                                  <span className="text-green-600">✓</span>
+                                  <span style={{ color: "var(--ink)" }}>
+                                    {atr.gestor ? atr.gestor.nomeCompleto : "Todos os colaboradores"}
+                                  </span>
+                                  {atr.cascatear && (
+                                    <span className="text-purple-600">+ subordinados</span>
+                                  )}
+                                  {atr.aplicadoEm && (
+                                    <span style={{ color: "var(--ink-muted)" }}>
+                                      em {new Date(atr.aplicadoEm).toLocaleDateString("pt-BR")}
+                                    </span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── REALIZAÇÕES ───────────────────────────────────────────────── */}
-        {activeTab === "realizacoes" && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between flex-wrap gap-3">
-              <h2 className="icp-page-title">Realizações</h2>
-              <div className="flex items-center gap-3">
-                <select
-                  value={filterColabId}
-                  onChange={(e) => setFilterColabId(e.target.value)}
-                  className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
-                >
-                  <option value="">Todos os colaboradores</option>
-                  {colaboradores.map((c) => (
-                    <option key={c.id} value={c.id}>{c.nomeCompleto}</option>
-                  ))}
-                </select>
-                <select
-                  value={filterMes}
-                  onChange={(e) => setFilterMes(e.target.value)}
-                  className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
-                >
-                  <option value="">Todos os meses</option>
-                  {MESES.map((m, i) => (
-                    <option key={i + 1} value={i + 1}>{m}</option>
-                  ))}
-                </select>
-                <button
-                  onClick={() => setShowRealizacaoForm(!showRealizacaoForm)}
-                  className="btn-primary"
-                >
-                  + Lançar Realização
-                </button>
+                  )}
+                </div>
               </div>
             </div>
-
-            {/* Inline form */}
-            {showRealizacaoForm && (
-              <form onSubmit={handleLancarRealizacao} className="bg-white icp-card p-5 grid grid-cols-2 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Meta</label>
-                  <select required value={realizacaoForm.metaId} onChange={(e) => setRealizacaoForm({ ...realizacaoForm, metaId: e.target.value })}
-                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
-                    <option value="">Selecionar...</option>
-                    {metas.map((m) => (
-                      <option key={m.id} value={m.id}>#{m.id} — {m.indicador.nome}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Colaborador (opcional)</label>
-                  <select value={realizacaoForm.colaboradorId} onChange={(e) => setRealizacaoForm({ ...realizacaoForm, colaboradorId: e.target.value })}
-                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
-                    <option value="">Corporativo</option>
-                    {colaboradores.map((c) => (
-                      <option key={c.id} value={c.id}>{c.nomeCompleto}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Mês</label>
-                  <select required value={realizacaoForm.mesReferencia} onChange={(e) => setRealizacaoForm({ ...realizacaoForm, mesReferencia: e.target.value })}
-                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
-                    <option value="">Selecionar...</option>
-                    {MESES.map((m, i) => (
-                      <option key={i + 1} value={i + 1}>{m}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Ano</label>
-                  <input type="number" required value={realizacaoForm.anoReferencia}
-                    onChange={(e) => setRealizacaoForm({ ...realizacaoForm, anoReferencia: e.target.value })}
-                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Valor Realizado</label>
-                  <input type="number" step="any" required value={realizacaoForm.valorRealizado}
-                    onChange={(e) => setRealizacaoForm({ ...realizacaoForm, valorRealizado: e.target.value })}
-                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
-                </div>
-                <div className="flex items-end gap-2">
-                  <button type="submit" className="btn-primary">
-                    Salvar
-                  </button>
-                  <button type="button" onClick={() => setShowRealizacaoForm(false)}
-                    className="bg-white border border-gray-300 text-gray-600 text-sm px-4 py-1.5 rounded transition-colors hover:bg-gray-50">
-                    Cancelar
-                  </button>
-                </div>
-              </form>
-            )}
-
-            <div className="bg-white icp-card overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr>
-                      {["Meta / Indicador","Colaborador","Mês/Ano","Realizado","Nota","Prêmio","Status"].map((h) => (
-                        <th key={h} className="text-left px-4 py-2.5">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="">
-                    {realizacoesFiltradas.map((r) => (
-                      <tr key={r.id} className="">
-                        <td className="px-4 py-3">{r.meta?.indicador?.nome ?? `Meta #${r.meta?.id}`}</td>
-                        <td className="px-4 py-3">{r.colaborador?.nomeCompleto ?? "Corporativo"}</td>
-                        <td className="px-4 py-3">{MESES[(r.mesReferencia ?? 1) - 1]}/{r.anoReferencia}</td>
-                        <td className="px-4 py-3">{r.valorRealizado?.toLocaleString("pt-BR")}</td>
-                        <td className={`px-4 py-3 ${notaColor(r.notaCalculada)}`}>
-                          {r.notaCalculada !== null ? fmtN(r.notaCalculada) : "—"}
-                        </td>
-                        <td className="px-4 py-3 text-gray-800">{r.premioProjetado ? fmt(r.premioProjetado) : "—"}</td>
-                        <td className="px-4 py-3"><StatusBadge status={r.status} /></td>
-                      </tr>
-                    ))}
-                    {realizacoesFiltradas.length === 0 && (
-                      <tr><td colSpan={7}>
-                        <EmptyState icon="📋" title="Nenhuma realização encontrada"
-                          description={realizacoes.length > 0 ? "Ajuste os filtros para ver as realizações." : "Registre o valor realizado de cada indicador para calcular as notas."}
-                          action={realizacoes.length === 0 ? { label: "Lançar Realização", onClick: () => setShowRealizacaoForm(true) } : undefined} />
-                      </td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* ── COLABORADORES ─────────────────────────────────────────────── */}
         {activeTab === "colaboradores" && (
@@ -2405,10 +1743,10 @@ export default function Home() {
                           <span className="bg-indigo-50 text-indigo-700 text-xs font-semibold px-2 py-0.5 rounded">{c.cargo.nivelHierarquico}</span>
                         </td>
                         <td className="px-4 py-3">
-                          <span className={`text-xs font-semibold ${c.cargo.targetBonusPerc >= 20 ? "text-green-700" : c.cargo.targetBonusPerc >= 10 ? "text-blue-700" : "text-gray-600"}`}>
-                            {c.cargo.targetBonusPerc}%
+                          <span className={`text-xs font-semibold ${c.cargo.targetMultiploSalarial >= 2 ? "text-green-700" : c.cargo.targetMultiploSalarial >= 1 ? "text-blue-700" : "text-gray-600"}`}>
+                            {c.cargo.targetMultiploSalarial}x
                           </span>
-                          <span className="text-xs text-gray-400 ml-1">= {fmt(c.salarioBase * 12 * c.cargo.targetBonusPerc / 100)}/ano</span>
+                          <span className="text-xs text-gray-400 ml-1">= {fmt(c.salarioBase * c.cargo.targetMultiploSalarial)}/mês</span>
                         </td>
                         <td className="px-4 py-3">{c.centroCusto.nome}</td>
                         <td className="px-4 py-3 text-gray-800">{fmt(c.salarioBase)}</td>
@@ -2433,922 +1771,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* ── WORKFLOW ──────────────────────────────────────────────────── */}
-        {activeTab === "workflow" && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="icp-page-title">
-                Workflow — Caixa de Entrada
-                {pendingCount > 0 && (
-                  <span className="ml-2 bg-red-500 text-white text-sm rounded-full px-2 py-0.5">{pendingCount}</span>
-                )}
-              </h2>
-            </div>
-
-            {role !== "GUARDIAO" && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-yellow-800 text-sm">
-                Apenas o papel GUARDIÃO pode visualizar e agir sobre o workflow.
-              </div>
-            )}
-
-            {role === "GUARDIAO" && (
-              <>
-                <div className="space-y-3">
-                  {workflowItems.map((item) => (
-                    <div key={item.id} className="bg-white icp-card p-5 flex items-start justify-between gap-4">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xs font-semibold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
-                            {item.tipo.replace(/_/g, " ")}
-                          </span>
-                          <StatusBadge status={item.status} />
-                          <span className="text-xs text-gray-400">
-                            {new Date(item.criadoEm).toLocaleDateString("pt-BR")}
-                          </span>
-                        </div>
-                        <p className="text-sm font-medium text-gray-800">{item.descricao}</p>
-                        {item.comentario && (
-                          <p className="text-xs text-gray-500 mt-1">{item.comentario}</p>
-                        )}
-                        <p className="text-xs text-gray-400 mt-1">
-                          Solicitante: {item.solicitante?.name ?? "Sistema"}
-                        </p>
-                      </div>
-                      <div className="flex gap-2 flex-shrink-0">
-                        <button
-                          onClick={() => handleWorkflowAction(item.id, "APROVADO")}
-                          className="bg-green-600 hover:bg-green-700 text-white text-xs font-medium px-3 py-1.5 rounded transition-colors"
-                        >
-                          Aprovar
-                        </button>
-                        <button
-                          onClick={() => handleWorkflowAction(item.id, "REJEITADO")}
-                          className="bg-red-500 hover:bg-red-600 text-white text-xs font-medium px-3 py-1.5 rounded transition-colors"
-                        >
-                          Rejeitar
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                  {workflowItems.length === 0 && (
-                    <div className="bg-white icp-card p-8 text-center text-gray-400">
-                      <p className="text-lg mb-1">Nenhuma pendência</p>
-                      <p className="text-sm">Todos os itens foram processados.</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Waivers section */}
-                <div className="mt-6">
-                  <h3 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                    Solicitações de Prorrogação (Waivers)
-                    {waivers.length > 0 && (
-                      <span className="bg-orange-500 text-white text-xs rounded-full px-2 py-0.5">{waivers.length} pendente(s)</span>
-                    )}
-                  </h3>
-                  {waivers.length === 0 ? (
-                    <div className="bg-white icp-card p-6 text-center text-gray-400 text-sm">
-                      Sem solicitações de prorrogação pendentes.
-                    </div>
-                  ) : (
-                    <div className="bg-white icp-card overflow-hidden">
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr>
-                              {["Colaborador","Janela","Justificativa","Nova Data Limite","Ações"].map((h) => (
-                                <th key={h} className="text-left px-4 py-2.5">{h}</th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody className="">
-                            {waivers.map((w) => (
-                              <tr key={w.id} className="">
-                                <td className="px-4 py-3">
-                                  {w.colaborador?.nomeCompleto ?? `#${w.colaboradorId}`}
-                                  <br /><span className="text-xs text-gray-400 font-mono">{w.colaborador?.matricula}</span>
-                                </td>
-                                <td className="px-4 py-3">
-                                  {MESES[(w.janela.mesReferencia ?? 1) - 1]}/{w.janela.anoReferencia}
-                                </td>
-                                <td className="px-4 py-3 text-gray-600 max-w-xs truncate">{w.justificativa}</td>
-                                <td className="px-4 py-3">
-                                  {new Date(w.novaDataLimite).toLocaleDateString("pt-BR")}
-                                </td>
-                                <td className="px-4 py-3">
-                                  <div className="flex gap-2">
-                                    <button
-                                      onClick={() => handleWaiverAction(w.id, "APROVADO")}
-                                      className="bg-green-600 hover:bg-green-700 text-white text-xs font-medium px-2.5 py-1 rounded transition-colors"
-                                    >
-                                      Aprovar
-                                    </button>
-                                    <button
-                                      onClick={() => handleWaiverAction(w.id, "REJEITADO")}
-                                      className="bg-red-500 hover:bg-red-600 text-white text-xs font-medium px-2.5 py-1 rounded transition-colors"
-                                    >
-                                      Rejeitar
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-        )}
-
-        {/* ── JANELAS ───────────────────────────────────────────────────── */}
-        {activeTab === "janelas" && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="icp-page-title">Janelas de Apuração</h2>
-              {role === "GUARDIAO" && (
-                <button
-                  onClick={() => setShowJanelaForm(!showJanelaForm)}
-                  className="btn-primary"
-                >
-                  + Nova Janela
-                </button>
-              )}
-            </div>
-
-            {showJanelaForm && (
-              <form onSubmit={handleCreateJanela} className="bg-blue-50 border border-blue-200 rounded-xl p-5 grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Mês</label>
-                  <select required value={janelaForm.mesReferencia}
-                    onChange={(e) => setJanelaForm({ ...janelaForm, mesReferencia: e.target.value })}
-                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
-                    <option value="">Selecionar...</option>
-                    {MESES.map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Ano</label>
-                  <input type="number" required value={janelaForm.anoReferencia}
-                    onChange={(e) => setJanelaForm({ ...janelaForm, anoReferencia: e.target.value })}
-                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Data Abertura</label>
-                  <input type="date" required value={janelaForm.dataAbertura}
-                    onChange={(e) => setJanelaForm({ ...janelaForm, dataAbertura: e.target.value })}
-                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Data Fechamento</label>
-                  <input type="date" required value={janelaForm.dataFechamento}
-                    onChange={(e) => setJanelaForm({ ...janelaForm, dataFechamento: e.target.value })}
-                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
-                </div>
-                <div className="col-span-2 md:col-span-4 flex gap-2">
-                  <button type="submit" className="btn-primary">
-                    Criar Janela
-                  </button>
-                  <button type="button" onClick={() => setShowJanelaForm(false)}
-                    className="bg-white border border-gray-300 text-gray-600 text-sm px-4 py-1.5 rounded hover:bg-gray-50 transition-colors">
-                    Cancelar
-                  </button>
-                </div>
-              </form>
-            )}
-
-            <div className="bg-white icp-card overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr>
-                      {["Mês","Ano","Abertura","Fechamento","Status","Waivers","Ação"].map((h) => (
-                        <th key={h} className="text-left px-4 py-2.5">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="">
-                    {janelas.map((j) => (
-                      <tr key={j.id} className="">
-                        <td className="px-4 py-3">{MESES[j.mesReferencia - 1]}</td>
-                        <td className="px-4 py-3">{j.anoReferencia}</td>
-                        <td className="px-4 py-3">{new Date(j.dataAbertura).toLocaleDateString("pt-BR")}</td>
-                        <td className="px-4 py-3">{new Date(j.dataFechamento).toLocaleDateString("pt-BR")}</td>
-                        <td className="px-4 py-3">
-                          <StatusBadge status={j.status} />
-                          {j.isOpen && <span className="ml-1.5 text-xs text-green-600 font-medium">• ao vivo</span>}
-                        </td>
-                        <td className="px-4 py-3">
-                          {j.waiversPendentes > 0 ? (
-                            <span className="bg-orange-100 text-orange-700 text-xs px-2 py-0.5 rounded-full font-medium">
-                              {j.waiversPendentes} pendente(s)
-                            </span>
-                          ) : (
-                            <span className="text-gray-400">—</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          {role === "GUARDIAO" && j.status !== "FECHADA" && (
-                            <button
-                              onClick={() => handleFecharJanela(j.id)}
-                              className="text-xs bg-red-500 hover:bg-red-600 text-white px-2.5 py-1 rounded transition-colors"
-                            >
-                              Fechar
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                    {janelas.length === 0 && (
-                      <tr><td colSpan={7}>
-                        <EmptyState icon="🗓" title="Nenhuma janela de apuração"
-                          description="Janelas controlam o período em que realizações podem ser lançadas." />
-                      </td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── IMPORTAÇÃO BP ─────────────────────────────────────────────── */}
-        {activeTab === "importacao" && (role === "BP" || role === "GUARDIAO") && (
-          <div className="space-y-6">
-            <h2 className="icp-page-title">Importação em Lote — BP Consolidador</h2>
-
-            <form onSubmit={handleBulkImport} className="bg-white icp-card p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Mês Referência</label>
-                  <select required value={importForm.mesReferencia}
-                    onChange={(e) => setImportForm({ ...importForm, mesReferencia: e.target.value })}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
-                    <option value="">Selecionar...</option>
-                    {MESES.map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Ano Referência</label>
-                  <input type="number" required value={importForm.anoReferencia}
-                    onChange={(e) => setImportForm({ ...importForm, anoReferencia: e.target.value })}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <button type="button" onClick={handleDownloadTemplateBP} className="btn-ghost text-xs">
-                  Baixar Template XLSX
-                </button>
-                <span className="text-xs" style={{ color: "var(--ink-muted)" }}>Preencha o template e faça upload abaixo</span>
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-xs font-medium text-gray-700">
-                  Arquivo XLSX <span className="text-gray-400 font-normal">(colunas: matricula · codigo_indicador · valor_realizado · observacao)</span>
-                </label>
-                <input
-                  type="file"
-                  accept=".xlsx,.xls"
-                  onChange={(e) => setImportCsvFile(e.target.files?.[0] ?? null)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"
-                />
-                {importCsvFile && (
-                  <p className="text-xs text-green-700 font-medium">✓ {importCsvFile.name} ({(importCsvFile.size / 1024).toFixed(0)} KB)</p>
-                )}
-              </div>
-
-              <button
-                type="submit"
-                disabled={importLoading}
-                className="bg-blue-700 hover:bg-blue-800 disabled:bg-blue-400 text-white text-sm font-medium px-6 py-2 rounded-lg transition-colors"
-              >
-                {importLoading ? "Processando..." : "Processar Importação"}
-              </button>
-            </form>
-
-            {importResult && (
-              <div className="bg-white icp-card p-6 space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="bg-green-100 text-green-700 rounded-lg p-3 text-center min-w-[80px]">
-                    <p className="text-2xl font-bold">{importResult.processed}</p>
-                    <p className="text-xs">processados</p>
-                  </div>
-                  {importResult.erros.length > 0 && (
-                    <div className="bg-red-100 text-red-700 rounded-lg p-3 text-center min-w-[80px]">
-                      <p className="text-2xl font-bold">{importResult.erros.length}</p>
-                      <p className="text-xs">erros</p>
-                    </div>
-                  )}
-                </div>
-
-                {importResult.erros.length > 0 && (
-                  <div>
-                    <h4 className="text-sm font-medium text-red-700 mb-2">Erros de importação:</h4>
-                    <div className="space-y-1.5">
-                      {importResult.erros.map((err, i) => (
-                        <div key={i} className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm flex gap-3">
-                          <span className="font-mono text-red-700 font-medium">{err.matricula}</span>
-                          <span className="text-red-600">{err.motivo}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === "importacao" && role !== "BP" && role !== "GUARDIAO" && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-8 text-center text-yellow-800">
-            Acesso restrito a papéis BP e GUARDIÃO.
-          </div>
-        )}
-
-        {/* ── ELEGÍVEIS ─────────────────────────────────────────────────── */}
-        {activeTab === "elegiveis" && (
-          <div className="space-y-6">
-            <h2 className="icp-page-title">Comparação entre Elegíveis</h2>
-            <p className="text-sm text-gray-500">Ranking de todos os colaboradores com realizações lançadas no ciclo, ordenado por nota média.</p>
-            {rankingElegiveis.length === 0 ? (
-              <div className="text-center text-gray-400 py-16">Nenhuma realização lançada ainda</div>
-            ) : (
-              <div className="bg-white icp-card overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr>
-                        {["#","Colaborador","Cargo","Nível","Metas","Realizações","Nota Média","Prêmio YTD","Target Anual","% do Target"].map((h) => (
-                          <th key={h} className="text-left px-4 py-2.5">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="">
-                      {rankingElegiveis.map((row, idx) => {
-                        const { fator, tipo: movTipo } = calcFatorProRata(row.colaborador.id);
-                        const premioAjustado = row.premioYTD * fator;
-                        const percTarget = row.targetAnual > 0 ? (premioAjustado / row.targetAnual) * 100 : 0;
-                        const medal = idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : null;
-                        return (
-                          <tr key={row.colaborador.id} className={idx < 3 ? "bg-amber-50" : "hover:bg-gray-50"}>
-                            <td className="px-4 py-3 text-gray-500 font-medium">
-                              {medal ? <span>{medal}</span> : <span className="text-gray-400">{idx + 1}</span>}
-                            </td>
-                            <td className="px-4 py-3">{row.colaborador.nomeCompleto}</td>
-                            <td className="px-4 py-3">{row.colaborador.cargo.nome}</td>
-                            <td className="px-4 py-3 text-gray-500">{row.colaborador.cargo.nivelHierarquico}</td>
-                            <td className="px-4 py-3 text-gray-500">{row.metasAtribuidas}</td>
-                            <td className="px-4 py-3 text-gray-500">{row.totalRealizacoes > 0 ? row.totalRealizacoes : <span className="text-gray-300">—</span>}</td>
-                            <td className={`px-4 py-3 ${row.totalRealizacoes > 0 ? notaColor(row.notaMedia) : "text-gray-300"}`}>{row.totalRealizacoes > 0 ? fmtN(row.notaMedia) : "—"}</td>
-                            <td className="px-4 py-3">
-                              <p className="text-blue-700 font-medium">{fmt(premioAjustado)}</p>
-                              {movTipo && fator < 1 && <p className="text-xs text-amber-600">{fmt(row.premioYTD)} × {(fator * 100).toFixed(0)}%</p>}
-                            </td>
-                            <td className="px-4 py-3">{fmt(row.targetAnual)}</td>
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-2">
-                                <div className="flex-1 bg-gray-200 rounded-full h-1.5 min-w-[60px]">
-                                  <div
-                                    className={`h-1.5 rounded-full ${percTarget >= 100 ? "bg-green-500" : percTarget >= 70 ? "bg-yellow-500" : "bg-red-400"}`}
-                                    style={{ width: `${Math.min(percTarget, 100)}%` }}
-                                  />
-                                </div>
-                                <span className={`text-xs font-medium ${percTarget >= 100 ? "text-green-600" : percTarget >= 70 ? "text-yellow-600" : "text-red-500"}`}>
-                                  {percTarget.toFixed(0)}%
-                                </span>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── RELATÓRIO DE FECHAMENTO ──────────────────────────────────────── */}
-        {activeTab === "relatorio" && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between flex-wrap gap-3">
-              <h2 className="icp-page-title">Relatório de Fechamento — Ciclo {cicloAtivo?.anoFiscal}</h2>
-              <div className="flex items-center gap-2">
-                <button onClick={handleExportRelatorioCSV} className="btn-ghost text-xs">
-                  Exportar XLSX
-                </button>
-                <button onClick={() => window.print()} className="btn-ghost text-xs">
-                  Imprimir PDF
-                </button>
-              </div>
-            </div>
-
-            {/* Summary cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {[
-                { label: "Colaboradores Elegíveis", value: String(rankingElegiveis.length) },
-                { label: "Metas Ativas", value: String(metas.filter((m) => m.status === "APROVADO" || m.status === "ATIVO").length) },
-                { label: "Realizações Lançadas", value: String(realizacoes.length) },
-                { label: "Total Prêmio Projetado", value: fmt(totalPremioProjetado) },
-              ].map((card) => (
-                <div key={card.label} className="bg-white icp-card p-4">
-                  <p className="text-xs text-gray-500 mb-1">{card.label}</p>
-                  <p className="text-2xl font-bold text-gray-800">{card.value}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* Ciclo info */}
-            <div className="bg-white icp-card p-5">
-              <h3 className="font-semibold text-gray-700 mb-3">Informações do Ciclo</h3>
-              <dl className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                <div><dt className="text-gray-500">Ano Fiscal</dt><dd className="font-medium">{cicloAtivo?.anoFiscal}</dd></div>
-                <div><dt className="text-gray-500">Status</dt><dd><StatusBadge status={cicloAtivo?.status ?? "—"} /></dd></div>
-                <div><dt className="text-gray-500">Bonus Pool</dt><dd className="font-medium">{cicloAtivo?.bonusPool ? fmt(cicloAtivo.bonusPool) : "—"}</dd></div>
-                <div><dt className="text-gray-500">Realizações Aprovadas</dt><dd className="font-medium">{totalRealizacoesAprovadas}</dd></div>
-              </dl>
-            </div>
-
-            {/* Full elegíveis table */}
-            {rankingElegiveis.length > 0 && (
-              <div className="bg-white icp-card overflow-hidden">
-                <div className="px-5 py-3 icp-card-header">
-                  <h3 className="font-semibold text-gray-700">Atingimento por Colaborador</h3>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr>
-                        {["Colaborador","Matrícula","Cargo","Nível","Nota Média","Prêmio YTD","Target Anual","% Target"].map((h) => (
-                          <th key={h} className="text-left px-4 py-2.5">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="">
-                      {rankingElegiveis.map((row) => {
-                        const percTarget = row.targetAnual > 0 ? (row.premioYTD / row.targetAnual) * 100 : 0;
-                        return (
-                          <tr key={row.colaborador.id} className="">
-                            <td className="px-4 py-3">{row.colaborador.nomeCompleto}</td>
-                            <td className="px-4 py-3 text-gray-500">{row.colaborador.matricula}</td>
-                            <td className="px-4 py-3">{row.colaborador.cargo.nome}</td>
-                            <td className="px-4 py-3 text-gray-500">{row.colaborador.cargo.nivelHierarquico}</td>
-                            <td className={`px-4 py-3 ${notaColor(row.notaMedia)}`}>{fmtN(row.notaMedia)}</td>
-                            <td className="px-4 py-3 text-blue-700 font-medium">{fmt(row.premioYTD)}</td>
-                            <td className="px-4 py-3">{fmt(row.targetAnual)}</td>
-                            <td className={`px-4 py-3 font-medium ${percTarget >= 100 ? "text-green-600" : percTarget >= 70 ? "text-yellow-600" : "text-red-500"}`}>
-                              {percTarget.toFixed(0)}%
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                    <tfoot className="bg-gray-50 border-t-2 border-gray-200">
-                      <tr>
-                        <td colSpan={5} className="px-4 py-2.5 text-xs font-semibold text-gray-600">TOTAL</td>
-                        <td className="px-4 py-2.5 text-blue-700 font-bold">{fmt(totalPremioProjetado)}</td>
-                        <td className="px-4 py-2.5 text-gray-600 font-semibold">
-                          {fmt(rankingElegiveis.reduce((s, r) => s + r.targetAnual, 0))}
-                        </td>
-                        <td className="px-4 py-2.5 font-semibold text-gray-700">
-                          {rankingElegiveis.reduce((s, r) => s + r.targetAnual, 0) > 0
-                            ? ((totalPremioProjetado / rankingElegiveis.reduce((s, r) => s + r.targetAnual, 0)) * 100).toFixed(0)
-                            : "0"}%
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {/* Meta breakdown */}
-            <div className="bg-white icp-card overflow-hidden">
-              <div className="px-5 py-3 icp-card-header">
-                <h3 className="font-semibold text-gray-700">Metas do Ciclo</h3>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr>
-                      {["Indicador","CC","Polaridade","Peso","Alvo","Colaboradores","Realizações","Status"].map((h) => (
-                        <th key={h} className="text-left px-4 py-2.5">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="">
-                    {metas.map((m) => (
-                      <tr key={m.id} className="">
-                        <td className="px-4 py-3">{m.indicador.nome}</td>
-                        <td className="px-4 py-3 text-gray-500">{m.centroCusto?.nome ?? "Corporativo"}</td>
-                        <td className="px-4 py-3">
-                          <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${m.indicador.polaridade === "MENOR_MELHOR" ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"}`}>
-                            {m.indicador.polaridade === "MENOR_MELHOR" ? "↓ Menor" : "↑ Maior"}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">{m.pesoNaCesta}%</td>
-                        <td className="px-4 py-3">{m.metaAlvo.toLocaleString("pt-BR")}</td>
-                        <td className="px-4 py-3 text-gray-500">{m._count.colaboradores}</td>
-                        <td className="px-4 py-3 text-gray-500">{m._count.realizacoes}</td>
-                        <td className="px-4 py-3"><StatusBadge status={m.status} /></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── CONFERÊNCIA E VALIDAÇÃO ───────────────────────────────────── */}
-        {activeTab === "conferencia" && (
-          <div className="space-y-6">
-            <h2 className="icp-page-title">Conferência e Validação</h2>
-
-            {/* Status geral */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {[
-                { label: "Metas sem problemas", value: String(validacaoMetas.filter((v) => v.ok).length), color: "text-green-700", bg: "bg-green-50 border-green-200" },
-                { label: "Erros críticos", value: String(totalErros), color: totalErros > 0 ? "text-red-700" : "text-gray-500", bg: totalErros > 0 ? "bg-red-50 border-red-200" : "bg-gray-50 border-gray-200" },
-                { label: "Avisos", value: String(totalAvisos), color: totalAvisos > 0 ? "text-amber-700" : "text-gray-500", bg: totalAvisos > 0 ? "bg-amber-50 border-amber-200" : "bg-gray-50 border-gray-200" },
-                { label: "Total de metas", value: String(metas.length), color: "text-blue-700", bg: "bg-blue-50 border-blue-200" },
-              ].map((c) => (
-                <div key={c.label} className={`rounded-xl border p-4 ${c.bg}`}>
-                  <p className="text-xs text-gray-500 mb-1">{c.label}</p>
-                  <p className={`text-2xl font-bold ${c.color}`}>{c.value}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* Checklist por meta */}
-            <div className="bg-white icp-card overflow-hidden">
-              <div className="px-5 py-3 icp-card-header flex items-center justify-between">
-                <h3 className="font-semibold text-gray-700">Checklist por Meta</h3>
-                <span className="text-xs text-gray-400">{validacaoMetas.filter((v) => v.ok).length}/{metas.length} ok</span>
-              </div>
-              <div className="">
-                {validacaoMetas.map((v) => (
-                  <div key={v.meta.id} className={`px-5 py-3 flex items-start gap-3 ${v.erros.length > 0 ? "bg-red-50" : v.avisos.length > 0 ? "bg-amber-50" : "bg-green-50"}`}>
-                    <span className="text-lg mt-0.5 flex-shrink-0">
-                      {v.erros.length > 0 ? "🔴" : v.avisos.length > 0 ? "🟡" : "🟢"}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-800 text-sm">{v.meta.indicador.nome}
-                        <span className="ml-2 text-xs text-gray-500">{v.meta.centroCusto?.nome ?? "Corporativo"} · Peso {v.meta.pesoNaCesta}%</span>
-                      </p>
-                      {v.erros.map((e, i) => (
-                        <p key={i} className="text-xs text-red-700 mt-0.5">✗ {e}</p>
-                      ))}
-                      {v.avisos.map((a, i) => (
-                        <p key={i} className="text-xs text-amber-700 mt-0.5">⚠ {a}</p>
-                      ))}
-                      {v.ok && <p className="text-xs text-green-700 mt-0.5">Tudo ok</p>}
-                    </div>
-                    <StatusBadge status={v.meta.status} />
-                  </div>
-                ))}
-                {metas.length === 0 && <div className="px-5 py-8 text-center text-gray-400 text-sm">Nenhuma meta cadastrada</div>}
-              </div>
-            </div>
-
-            {/* Por Centro de Custo */}
-            {ccRows.length > 0 && (
-              <div className="bg-white icp-card overflow-hidden">
-                <div className="px-5 py-3 icp-card-header">
-                  <h3 className="font-semibold text-gray-700">Consolidado por Centro de Custo</h3>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr>
-                        {["Centro de Custo","Metas","Colaboradores","Realizações","Nota Média","Prêmio YTD"].map((h) => (
-                          <th key={h} className="text-left px-4 py-2.5">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="">
-                      {ccRows.map((row) => (
-                        <tr key={row.nome} className="">
-                          <td className="px-4 py-3">{row.nome}</td>
-                          <td className="px-4 py-3">{row.metas}</td>
-                          <td className="px-4 py-3">{row.colaboradores}</td>
-                          <td className="px-4 py-3">{row.realizacoesCount}</td>
-                          <td className={`px-4 py-3 ${notaColor(row.notaMedia)}`}>{row.realizacoesCount > 0 ? fmtN(row.notaMedia) : "—"}</td>
-                          <td className="px-4 py-3 text-blue-700 font-medium">{fmt(row.premioYTD)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {/* Por Cargo/Nível */}
-            {cargoRows.length > 0 && (
-              <div className="bg-white icp-card overflow-hidden">
-                <div className="px-5 py-3 icp-card-header">
-                  <h3 className="font-semibold text-gray-700">Consolidado por Cargo / Nível</h3>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr>
-                        {["Cargo","Nível","Colaboradores","Nota Média","Prêmio YTD","Target Total","% Target"].map((h) => (
-                          <th key={h} className="text-left px-4 py-2.5">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="">
-                      {cargoRows.map((row) => {
-                        const perc = row.targetTotal > 0 ? (row.premioYTD / row.targetTotal) * 100 : 0;
-                        return (
-                          <tr key={`${row.cargo}|${row.nivel}`} className="">
-                            <td className="px-4 py-3">{row.cargo}</td>
-                            <td className="px-4 py-3"><span className="bg-indigo-50 text-indigo-700 text-xs font-semibold px-2 py-0.5 rounded">{row.nivel}</span></td>
-                            <td className="px-4 py-3">{row.count}</td>
-                            <td className={`px-4 py-3 ${notaColor(row.notaMedia)}`}>{fmtN(row.notaMedia)}</td>
-                            <td className="px-4 py-3 text-blue-700 font-medium">{fmt(row.premioYTD)}</td>
-                            <td className="px-4 py-3">{fmt(row.targetTotal)}</td>
-                            <td className={`px-4 py-3 font-medium ${perc >= 100 ? "text-green-600" : perc >= 70 ? "text-yellow-600" : "text-red-500"}`}>{perc.toFixed(0)}%</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {/* Evolução mês a mês */}
-            {evolucaoMensal.length > 0 && (
-              <div className="bg-white icp-card overflow-hidden">
-                <div className="px-5 py-3 icp-card-header">
-                  <h3 className="font-semibold text-gray-700">Evolução Mês a Mês</h3>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr>
-                        {["Mês","Realizações","Nota Média","Prêmio Projetado"].map((h) => (
-                          <th key={h} className="text-left px-4 py-2.5">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="">
-                      {evolucaoMensal.map((m) => (
-                        <tr key={m.mesNum} className="">
-                          <td className="px-4 py-3">{m.mes}</td>
-                          <td className="px-4 py-3">{m.count}</td>
-                          <td className={`px-4 py-3 ${notaColor(m.notaMedia)}`}>{m.notaMedia !== null ? fmtN(m.notaMedia) : "—"}</td>
-                          <td className="px-4 py-3 text-blue-700 font-medium">{fmt(m.premioTotal)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {evolucaoMensal.length === 0 && ccRows.length === 0 && (
-              <div className="text-center text-gray-400 py-12">Nenhuma realização lançada ainda — os painéis consolidados aparecerão aqui.</div>
-            )}
-
-            {/* Colaboradores sem metas (req 742) */}
-            {(() => {
-              const comMeta = new Set(metas.flatMap((m) => m.colaboradorIds));
-              const semMeta = colaboradores.filter((c) => c.ativo && !comMeta.has(c.id));
-              if (semMeta.length === 0) return null;
-              return (
-                <div className="bg-red-50 border border-red-200 rounded-xl overflow-hidden">
-                  <div className="px-5 py-3 border-b border-red-100 flex items-center justify-between">
-                    <h3 className="font-semibold text-red-800">⚠ Colaboradores Ativos Sem Metas ({semMeta.length})</h3>
-                    <span className="text-xs text-red-500">Estes colaboradores não estão atribuídos a nenhuma meta do ciclo ativo</span>
-                  </div>
-                  <table className="w-full text-sm">
-                    <thead className="bg-red-100"><tr>
-                      {["Matrícula","Nome","Cargo","CC"].map((h) => <th key={h} className="text-left px-4 py-2 text-red-700 font-medium text-xs uppercase">{h}</th>)}
-                    </tr></thead>
-                    <tbody className="divide-y divide-red-100">
-                      {semMeta.map((c) => (
-                        <tr key={c.id} className="hover:bg-red-50/50">
-                          <td className="px-4 py-2 font-mono text-xs text-gray-500">{c.matricula}</td>
-                          <td className="px-4 py-2 text-gray-800">{c.nomeCompleto}</td>
-                          <td className="px-4 py-2 text-gray-600">{c.cargo.nome}</td>
-                          <td className="px-4 py-2 text-gray-600">{c.centroCusto.nome}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              );
-            })()}
-          </div>
-        )}
-
-        {/* ── MOVIMENTAÇÕES RH ──────────────────────────────────────────── */}
-        {activeTab === "movimentacoes" && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="icp-page-title">Movimentações RH</h2>
-                <p className="text-sm text-gray-500 mt-0.5">Admissões, transferências, promoções e desligamentos — com cálculo pro-rata automático</p>
-              </div>
-              <button onClick={() => setShowMovForm(!showMovForm)}
-                className="btn-primary">
-                + Registrar Movimentação
-              </button>
-            </div>
-
-            {showMovForm && (
-              <form onSubmit={handleCriarMovimentacao} className="bg-white icp-card p-5 grid grid-cols-2 md:grid-cols-3 gap-4">
-                <div className="col-span-2 md:col-span-3">
-                  <h3 className="text-sm font-semibold text-blue-900">Nova Movimentação</h3>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Colaborador *</label>
-                  <select required value={movForm.colaboradorId} onChange={(e) => setMovForm({ ...movForm, colaboradorId: e.target.value })}
-                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
-                    <option value="">Selecionar...</option>
-                    {colaboradores.map((c) => <option key={c.id} value={c.id}>{c.nomeCompleto} — {c.matricula}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Tipo *</label>
-                  <select required value={movForm.tipo} onChange={(e) => setMovForm({ ...movForm, tipo: e.target.value })}
-                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
-                    <option value="ADMISSAO">Admissão</option>
-                    <option value="TRANSFERENCIA">Transferência de CC</option>
-                    <option value="PROMOCAO">Promoção</option>
-                    <option value="DESLIGAMENTO">Desligamento</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Data Efetiva *</label>
-                  <input required type="date" value={movForm.dataEfetiva} onChange={(e) => setMovForm({ ...movForm, dataEfetiva: e.target.value })}
-                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
-                </div>
-                {(movForm.tipo === "PROMOCAO") && (<>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Cargo Anterior</label>
-                    <select value={movForm.cargoAnteriorId} onChange={(e) => setMovForm({ ...movForm, cargoAnteriorId: e.target.value })}
-                      className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
-                      <option value="">Selecionar...</option>
-                      {cargos.map((c) => <option key={c.id} value={c.id}>{c.nome} ({c.nivelHierarquico}) — {c.targetBonusPerc}%</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Cargo Novo *</label>
-                    <select required value={movForm.cargoNovoId} onChange={(e) => setMovForm({ ...movForm, cargoNovoId: e.target.value })}
-                      className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
-                      <option value="">Selecionar...</option>
-                      {cargos.map((c) => <option key={c.id} value={c.id}>{c.nome} ({c.nivelHierarquico}) — {c.targetBonusPerc}%</option>)}
-                    </select>
-                  </div>
-                </>)}
-                {(movForm.tipo === "TRANSFERENCIA") && (<>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">CC Anterior</label>
-                    <select value={movForm.ccAnteriorId} onChange={(e) => setMovForm({ ...movForm, ccAnteriorId: e.target.value })}
-                      className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
-                      <option value="">Selecionar...</option>
-                      {centrosCusto.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">CC Novo *</label>
-                    <select required value={movForm.ccNovoId} onChange={(e) => setMovForm({ ...movForm, ccNovoId: e.target.value })}
-                      className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
-                      <option value="">Selecionar...</option>
-                      {centrosCusto.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                    </select>
-                  </div>
-                </>)}
-                <div className="col-span-2 md:col-span-3 flex gap-2">
-                  <button type="submit" className="btn-primary">Registrar</button>
-                  <button type="button" onClick={() => setShowMovForm(false)} className="text-sm text-gray-500 px-4 py-1.5">Cancelar</button>
-                </div>
-              </form>
-            )}
-
-            {/* Pro-rata summary por colaborador */}
-            {movimentacoes.length > 0 && (
-              <div className="bg-white icp-card overflow-hidden">
-                <div className="px-5 py-3 icp-card-header">
-                  <h3 className="font-semibold text-gray-700">Impacto Pro-Rata por Colaborador</h3>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr>
-                        {["Colaborador","Tipo","Data Efetiva","Fator Pro-Rata","Situação","Prêmio Bruto","Prêmio Ajustado"].map((h) => (
-                          <th key={h} className="text-left px-4 py-2.5">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="">
-                      {movimentacoes.map((mv) => {
-                        const { fator, descricao } = calcFatorProRata(mv.colaboradorId);
-                        const colRealizacoes = realizacoes.filter((r) => r.colaborador?.id === mv.colaboradorId);
-                        const premioBruto = colRealizacoes.reduce((s, r) => s + (r.premioProjetado ?? 0), 0);
-                        const premioAjustado = premioBruto * fator;
-                        return (
-                          <tr key={mv.id} className="">
-                            <td className="px-4 py-3">{mv.colaborador.nomeCompleto}</td>
-                            <td className="px-4 py-3">
-                              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${mv.tipo === "ADMISSAO" ? "bg-green-100 text-green-700" : mv.tipo === "DESLIGAMENTO" ? "bg-red-100 text-red-700" : mv.tipo === "PROMOCAO" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}>
-                                {mv.tipo}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3">{new Date(mv.dataEfetiva).toLocaleDateString("pt-BR")}</td>
-                            <td className="px-4 py-3 font-semibold text-blue-700">{(fator * 100).toFixed(0)}%</td>
-                            <td className="px-4 py-3 text-xs text-gray-500">{descricao}</td>
-                            <td className="px-4 py-3">{fmt(premioBruto)}</td>
-                            <td className="px-4 py-3 font-semibold text-green-700">{fmt(premioAjustado)}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {/* Full list */}
-            <div className="bg-white icp-card overflow-hidden">
-              <div className="px-5 py-3 icp-card-header flex items-center justify-between">
-                <h3 className="font-semibold text-gray-700">Histórico de Movimentações</h3>
-                <span className="text-xs text-gray-400">{movimentacoes.length} registros</span>
-              </div>
-              {movimentacoes.length === 0 ? (
-                <div className="px-5 py-10 text-center text-gray-400 text-sm">Nenhuma movimentação registrada no ciclo</div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr>
-                        {["Colaborador","Tipo","Data","Cargo Ant.","Cargo Novo","CC Ant.","CC Novo","Status"].map((h) => (
-                          <th key={h} className="text-left px-4 py-2.5">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="">
-                      {movimentacoes.map((mv) => (
-                        <tr key={mv.id} className="">
-                          <td className="px-4 py-3">{mv.colaborador.nomeCompleto}</td>
-                          <td className="px-4 py-3"><StatusBadge status={mv.tipo} /></td>
-                          <td className="px-4 py-3">{new Date(mv.dataEfetiva).toLocaleDateString("pt-BR")}</td>
-                          <td className="px-4 py-3 text-xs text-gray-500">{mv.cargoAnterior?.nome ?? "—"}</td>
-                          <td className="px-4 py-3 text-xs text-gray-500">{mv.cargoNovo?.nome ?? "—"}</td>
-                          <td className="px-4 py-3 text-xs text-gray-500">{mv.ccAnterior?.nome ?? "—"}</td>
-                          <td className="px-4 py-3 text-xs text-gray-500">{mv.ccNovo?.nome ?? "—"}</td>
-                          <td className="px-4 py-3"><StatusBadge status={mv.status} /></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-
-            {/* Metas a Contratar — admitidos/transferidos sem metas (req 736) */}
-            {(() => {
-              const comMeta = new Set(metas.flatMap((m) => m.colaboradorIds));
-              const movRecentes = movimentacoes.filter((mv) => ["ADMISSAO","TRANSFERENCIA"].includes(mv.tipo));
-              const semMeta = movRecentes.filter((mv) => mv.colaborador && !comMeta.has(mv.colaborador.id));
-              if (semMeta.length === 0) return null;
-              return (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl overflow-hidden">
-                  <div className="px-5 py-3 border-b border-amber-100">
-                    <h3 className="font-semibold text-amber-800">⚠ Metas a Contratar ({semMeta.length} colaboradores)</h3>
-                    <p className="text-xs text-amber-600 mt-0.5">Admitidos ou transferidos que ainda não possuem metas atribuídas no ciclo ativo</p>
-                  </div>
-                  <table className="w-full text-sm">
-                    <thead className="bg-amber-100"><tr>
-                      {["Colaborador","Tipo Mov.","Data","Cargo","CC"].map((h) => <th key={h} className="text-left px-4 py-2 text-amber-700 font-medium text-xs uppercase">{h}</th>)}
-                    </tr></thead>
-                    <tbody className="divide-y divide-amber-100">
-                      {semMeta.map((mv) => (
-                        <tr key={mv.id} className="hover:bg-amber-50/50">
-                          <td className="px-4 py-2 font-medium text-gray-800">{mv.colaborador?.nomeCompleto ?? "—"}</td>
-                          <td className="px-4 py-2"><span className={`text-xs px-2 py-0.5 rounded font-medium ${mv.tipo === "ADMISSAO" ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"}`}>{mv.tipo}</span></td>
-                          <td className="px-4 py-2 text-gray-500 text-xs">{new Date(mv.dataEfetiva).toLocaleDateString("pt-BR")}</td>
-                          <td className="px-4 py-2 text-gray-600">{mv.colaborador?.cargo?.nome ?? "—"}</td>
-                          <td className="px-4 py-2 text-gray-600">{mv.colaborador?.centroCusto?.nome ?? "—"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              );
-            })()}
-          </div>
-        )}
-
         {/* ── CADASTROS ─────────────────────────────────────────────────── */}
         {activeTab === "cadastros" && (
           <div className="space-y-6">
@@ -3358,10 +1780,10 @@ export default function Home() {
 
             {/* Sub-tabs */}
             <div className="flex gap-2 border-b border-gray-200">
-              {(["ciclos","empresa","cargo","cc"] as const).map((sub) => (
+              {(["ciclos","empresa","cargo","cc","indicadores"] as const).map((sub) => (
                 <button key={sub} onClick={() => setCadastroSub(sub)}
                   className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${cadastroSub === sub ? "border-blue-600 text-blue-700" : "border-transparent text-gray-500 hover:text-gray-700"}`}>
-                  {sub === "ciclos" ? "Ciclos ICP" : sub === "empresa" ? "Empresas" : sub === "cargo" ? "Cargos" : "Centros de Custo"}
+                  {sub === "ciclos" ? "Ciclos ICP" : sub === "empresa" ? "Empresas" : sub === "cargo" ? "Cargos" : sub === "cc" ? "Centros de Custo" : "Indicadores"}
                 </button>
               ))}
             </div>
@@ -3544,9 +1966,9 @@ export default function Home() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Target Bonus (%)</label>
-                      <input type="number" step="0.1" min="0" max="100" value={cargoForm.targetBonusPerc}
-                        onChange={(e) => setCargoForm((f) => ({ ...f, targetBonusPerc: e.target.value }))}
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Múltiplo Salarial (ex: 1.5 = 1.5× salário mensal)</label>
+                      <input type="number" step="0.01" min="0" value={cargoForm.targetMultiploSalarial}
+                        onChange={(e) => setCargoForm((f) => ({ ...f, targetMultiploSalarial: e.target.value }))}
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
                     </div>
                     <div>
@@ -3564,7 +1986,7 @@ export default function Home() {
                 <div className="bg-white icp-card overflow-hidden">
                   <table className="w-full text-sm">
                     <thead><tr>
-                      {["Código","Nome","Grade","Target Bonus","Salário Teto","Colaboradores"].map((h) => (
+                      {["Código","Nome","Grade","Múltiplo Salarial","Salário Teto","Colaboradores"].map((h) => (
                         <th key={h} className="text-left px-4 py-2.5">{h}</th>
                       ))}
                     </tr></thead>
@@ -3574,7 +1996,7 @@ export default function Home() {
                           <td className="px-4 py-3 font-mono text-gray-500 text-xs">{c.codigo}</td>
                           <td className="px-4 py-3">{c.nome}</td>
                           <td className="px-4 py-3"><span className="bg-indigo-50 text-indigo-700 text-xs font-semibold px-2 py-0.5 rounded">{c.nivelHierarquico}</span></td>
-                          <td className="px-4 py-3 text-green-700 font-semibold">{c.targetBonusPerc}%</td>
+                          <td className="px-4 py-3 text-green-700 font-semibold">{c.targetMultiploSalarial}x</td>
                           <td className="px-4 py-3">{c.salarioTeto ? fmt(c.salarioTeto) : "—"}</td>
                           <td className="px-4 py-3">{c._count?.colaboradores ?? 0}</td>
                         </tr>
@@ -3589,6 +2011,111 @@ export default function Home() {
             )}
 
             {/* CENTRO DE CUSTO */}
+            {cadastroSub === "indicadores" && (
+              <div className="space-y-4">
+                <div className="flex justify-end">
+                  <button onClick={() => setShowIndicadorForm((v) => !v)}
+                    className="btn-primary">
+                    + Novo Indicador
+                  </button>
+                </div>
+                {showIndicadorForm && (
+                  <form onSubmit={handleCriarIndicador} className="bg-blue-50 border border-blue-200 rounded-xl p-5 grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Código</label>
+                      <input value={indicadorForm.codigo} onChange={(e) => setIndicadorForm((f) => ({ ...f, codigo: e.target.value }))}
+                        placeholder="Auto-gerado" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Nome *</label>
+                      <input required value={indicadorForm.nome} onChange={(e) => setIndicadorForm((f) => ({ ...f, nome: e.target.value }))}
+                        placeholder="Nome do indicador" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Tipo</label>
+                      <select value={indicadorForm.tipo} onChange={(e) => setIndicadorForm((f) => ({ ...f, tipo: e.target.value }))}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+                        <option value="VOLUME_FINANCEIRO">Volume/Financeiro</option>
+                        <option value="CUSTO_PRAZO">Custo/Prazo</option>
+                        <option value="PROJETO_MARCO">Projeto/Marco</option>
+                        <option value="QUALITATIVO">Qualitativo</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Polaridade</label>
+                      <select value={indicadorForm.polaridade} onChange={(e) => setIndicadorForm((f) => ({ ...f, polaridade: e.target.value }))}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+                        <option value="MAIOR_MELHOR">Maior é Melhor</option>
+                        <option value="MENOR_MELHOR">Menor é Melhor</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Abrangência</label>
+                      <select value={indicadorForm.abrangencia} onChange={(e) => setIndicadorForm((f) => ({ ...f, abrangencia: e.target.value }))}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+                        <option value="CORPORATIVO">Corporativo</option>
+                        <option value="AREA">Área</option>
+                        <option value="INDIVIDUAL">Individual</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Unidade</label>
+                      <input value={indicadorForm.unidade} onChange={(e) => setIndicadorForm((f) => ({ ...f, unidade: e.target.value }))}
+                        placeholder="%" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Diretivo</label>
+                      <input value={indicadorForm.diretivo} onChange={(e) => setIndicadorForm((f) => ({ ...f, diretivo: e.target.value }))}
+                        placeholder="Diretivo responsável" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Analista Resp.</label>
+                      <input value={indicadorForm.analistaResp} onChange={(e) => setIndicadorForm((f) => ({ ...f, analistaResp: e.target.value }))}
+                        placeholder="Analista responsável" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Origem do Dado</label>
+                      <input value={indicadorForm.origemDado} onChange={(e) => setIndicadorForm((f) => ({ ...f, origemDado: e.target.value }))}
+                        placeholder="Sistema de origem" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div className="col-span-2 md:col-span-3">
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Descrição</label>
+                      <input value={indicadorForm.descricao} onChange={(e) => setIndicadorForm((f) => ({ ...f, descricao: e.target.value }))}
+                        placeholder="Descrição do indicador" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div className="col-span-2 md:col-span-3 flex gap-3">
+                      <button type="submit" className="btn-primary">Salvar</button>
+                      <button type="button" onClick={() => setShowIndicadorForm(false)} className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2">Cancelar</button>
+                    </div>
+                  </form>
+                )}
+                <div className="bg-white icp-card overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead><tr>
+                      {["Código","Nome","Tipo","Polaridade","Abrangência","Unidade"].map((h) => (
+                        <th key={h} className="text-left px-4 py-2.5">{h}</th>
+                      ))}
+                    </tr></thead>
+                    <tbody>
+                      {indicadores.map((ind) => (
+                        <tr key={ind.id}>
+                          <td className="px-4 py-3 font-mono text-gray-500 text-xs">{ind.codigo}</td>
+                          <td className="px-4 py-3 font-medium">{ind.nome}</td>
+                          <td className="px-4 py-3 text-gray-500">{ind.tipo}</td>
+                          <td className="px-4 py-3 text-gray-500">{ind.polaridade}</td>
+                          <td className="px-4 py-3 text-gray-500">{ind.abrangencia}</td>
+                          <td className="px-4 py-3 text-gray-500">{ind.unidade}</td>
+                        </tr>
+                      ))}
+                      {indicadores.length === 0 && (
+                        <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">Nenhum indicador cadastrado</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
             {cadastroSub === "cc" && (
               <div className="space-y-4">
                 <div className="flex justify-end">
@@ -3656,332 +2183,6 @@ export default function Home() {
                 </div>
               </div>
             )}
-          </div>
-        )}
-
-        {/* ── DIAGNÓSTICO ───────────────────────────────────────────────── */}
-        {activeTab === "diagnostico" && (
-          <div className="space-y-6 max-w-3xl">
-            <div className="flex items-center justify-between flex-wrap gap-3">
-              <div>
-                <h2 className="icp-page-title">Diagnóstico de Consistência</h2>
-                <p className="text-sm mt-0.5" style={{ color: "var(--ink-muted)" }}>
-                  Verifica a integridade dos dados do ciclo {cicloAtivo?.anoFiscal ?? "–"} e aponta inconsistências.
-                </p>
-              </div>
-              <button
-                onClick={handleDiagnostico}
-                disabled={diagnosticoLoading}
-                className="btn-primary"
-              >
-                {diagnosticoLoading ? "Analisando..." : diagnosticoRodou ? "Reanalisar" : "Executar Diagnóstico"}
-              </button>
-            </div>
-
-            {!diagnosticoRodou && !diagnosticoLoading && (
-              <div className="bg-white icp-card p-10 text-center">
-                <div className="text-4xl mb-3">🔍</div>
-                <p className="font-medium text-sm" style={{ color: "var(--ink)" }}>Pronto para analisar</p>
-                <p className="text-xs mt-1 max-w-xs mx-auto" style={{ color: "var(--ink-muted)" }}>
-                  Clique em "Executar Diagnóstico" para verificar a consistência dos dados do ciclo ativo.
-                </p>
-              </div>
-            )}
-
-            {diagnosticoLoading && (
-              <div className="bg-white icp-card p-10 text-center">
-                <div className="text-3xl mb-3 animate-spin inline-block">⚙️</div>
-                <p className="text-sm font-medium mt-2" style={{ color: "var(--ink-muted)" }}>Analisando dados...</p>
-              </div>
-            )}
-
-            {diagnosticoRodou && !diagnosticoLoading && (() => {
-              const erros = diagnosticoResults.filter((r) => r.tipo === "ERRO");
-              const avisos = diagnosticoResults.filter((r) => r.tipo === "AVISO");
-              const oks = diagnosticoResults.filter((r) => r.tipo === "OK");
-              return (
-                <div className="space-y-4">
-                  {/* Resumo */}
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="bg-white icp-card p-4 text-center">
-                      <p className="text-2xl font-bold" style={{ color: erros.length > 0 ? "var(--err-text)" : "var(--ok-text)" }}>{erros.length}</p>
-                      <p className="text-xs mt-0.5 font-medium" style={{ color: "var(--ink-secondary)" }}>Erros</p>
-                    </div>
-                    <div className="bg-white icp-card p-4 text-center">
-                      <p className="text-2xl font-bold" style={{ color: avisos.length > 0 ? "var(--warn-text)" : "var(--ok-text)" }}>{avisos.length}</p>
-                      <p className="text-xs mt-0.5 font-medium" style={{ color: "var(--ink-secondary)" }}>Avisos</p>
-                    </div>
-                    <div className="bg-white icp-card p-4 text-center">
-                      <p className="text-2xl font-bold" style={{ color: "var(--ok-text)" }}>{oks.length}</p>
-                      <p className="text-xs mt-0.5 font-medium" style={{ color: "var(--ink-secondary)" }}>OK</p>
-                    </div>
-                  </div>
-
-                  {/* Lista de checks */}
-                  {diagnosticoResults.map((check) => {
-                    const colors = {
-                      ERRO:  { bg: "var(--err-bg)",  border: "var(--err-border)",  text: "var(--err-text)",  icon: "❌" },
-                      AVISO: { bg: "var(--warn-bg)", border: "var(--warn-border)", text: "var(--warn-text)", icon: "⚠️" },
-                      OK:    { bg: "var(--ok-bg)",   border: "var(--ok-border)",   text: "var(--ok-text)",   icon: "✓" },
-                    }[check.tipo];
-                    return (
-                      <div
-                        key={check.id}
-                        style={{ background: colors.bg, border: `1px solid ${colors.border}` }}
-                        className="rounded-xl p-4"
-                      >
-                        <div className="flex items-start gap-3">
-                          <span className="text-base flex-shrink-0 mt-0.5">{colors.icon}</span>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-xs font-medium px-2 py-0.5 rounded" style={{ background: "rgba(0,0,0,0.06)", color: colors.text }}>
-                                {check.categoria}
-                              </span>
-                              <p className="font-semibold text-sm" style={{ color: "var(--ink)" }}>{check.titulo}</p>
-                            </div>
-                            <p className="text-sm mt-1" style={{ color: "var(--ink-secondary)" }}>{check.descricao}</p>
-                            {check.detalhes.length > 0 && (
-                              <ul className="mt-2 space-y-0.5">
-                                {check.detalhes.slice(0, 8).map((d, i) => (
-                                  <li key={i} className="text-xs font-mono" style={{ color: "var(--ink-secondary)" }}>• {d}</li>
-                                ))}
-                                {check.detalhes.length > 8 && (
-                                  <li className="text-xs" style={{ color: "var(--ink-muted)" }}>... e mais {check.detalhes.length - 8}</li>
-                                )}
-                              </ul>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })()}
-          </div>
-        )}
-
-        {/* ── AJUDA ─────────────────────────────────────────────────────── */}
-        {activeTab === "ajuda" && (
-          <div className="space-y-8 max-w-3xl">
-            <div className="flex items-center justify-between flex-wrap gap-3">
-              <div>
-                <h2 className="icp-page-title">Manual do Sistema ICP</h2>
-                <p className="text-sm mt-1" style={{ color: "var(--ink-muted)" }}>Incentivo de Curto Prazo — guia completo de uso.</p>
-              </div>
-              <div className="bg-white icp-card p-4 flex flex-wrap items-center gap-4">
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold" style={{ color: "var(--ink)" }}>Dados de demonstração</p>
-                  <p className="text-xs mt-0.5" style={{ color: "var(--ink-muted)" }}>Popula o banco com colaboradores, metas e realizações de exemplo.</p>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <button onClick={handleSeed} disabled={seedLoading} className="btn-primary text-xs">
-                    {seedLoading ? "Carregando..." : "Carregar Demo"}
-                  </button>
-                  <button onClick={handleReset} disabled={resetLoading} className="btn-danger text-xs">
-                    {resetLoading ? "Limpando..." : "Limpar Tudo"}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Como usar — fluxo principal */}
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 space-y-4">
-              <h3 className="font-bold text-blue-900">Como usar — Fluxo Principal do Ciclo</h3>
-              {[
-                { step: "1", title: "Configurar o Ciclo", desc: "O sistema já cria o ciclo ativo automaticamente. Se precisar criar um novo, acesse a API /api/ciclos (POST) com anoFiscal, mesInicio, mesFim e status ATIVO." },
-                { step: "2", title: "Carregar Colaboradores", desc: "Use o botão 'Carregar Dados Demo' para popular o banco com dados de exemplo, ou importe via API /api/colaboradores." },
-                { step: "3", title: "Cadastrar Indicadores", desc: "Vá em Indicadores → + Novo Indicador. O código é gerado automaticamente. Defina: nome, tipo (Volume/Custo/Projeto), polaridade (↑ Maior ou ↓ Menor é melhor), unidade, analista responsável e origem dos dados." },
-                { step: "4", title: "Criar Metas", desc: "Vá em Metas → + Nova Meta. Vincule um indicador, defina o Centro de Custo (ou deixe Corporativo), e os valores: mínimo, alvo e máximo. O peso na cesta define a participação dessa meta no prêmio total." },
-                { step: "5", title: "Cascatear Metas (opcional)", desc: "Clique em 'Cascatear' em uma meta corporativa para criar uma meta filha de área ou individual. A meta filha herda o indicador e os valores, mas pode ter CC e alvo diferentes." },
-                { step: "6", title: "Atribuir Colaboradores às Metas", desc: "Na tabela de Metas, clique em 'Atribuir' na linha da meta e selecione o colaborador. Repita para todos os elegíveis de cada meta." },
-                { step: "7", title: "Criar Janelas de Apuração", desc: "Vá em Janelas → + Nova Janela. Defina o mês/ano de referência e as datas de abertura e fechamento. Enquanto a janela estiver aberta, realizações podem ser lançadas." },
-                { step: "8", title: "Lançar Realizações", desc: "Vá em Realizações → + Lançar Realização (ou use Importação BP para lote). Informe a meta, o colaborador, o mês/ano e o valor realizado. O sistema calcula a nota automaticamente." },
-                { step: "9", title: "Aprovar no Workflow", desc: "Vá em Workflow. O Guardião aprova ou rejeita metas e realizações pendentes. Metas precisam ser aprovadas antes de gerar prêmio." },
-                { step: "10", title: "Acompanhar Resultados", desc: "Use: Dashboard (visão geral), Atingimento (por meta), Elegíveis (ranking), Conferência (validação e consolidados) e Relatório (fechamento para impressão/PDF)." },
-              ].map((s) => (
-                <div key={s.step} className="flex gap-3">
-                  <div className="w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">{s.step}</div>
-                  <div>
-                    <p className="icp-section-title text-sm">{s.title}</p>
-                    <p className="text-sm text-gray-600 mt-0.5">{s.desc}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Movimentações RH */}
-            <div className="bg-purple-50 border border-purple-200 rounded-xl p-5 space-y-3">
-              <h3 className="font-bold text-purple-900">Movimentações RH — Pro-Rata</h3>
-              <p className="text-sm text-gray-600">Quando um colaborador entra, sai ou muda de cargo/CC durante o ciclo, o prêmio é ajustado proporcionalmente.</p>
-              {[
-                { tipo: "Admissão", desc: "Informe a data de admissão. O sistema calcula quantos meses o colaborador ficou no ciclo e aplica o fator (ex: admitido em Jul de um ciclo Jan-Dez = 6/12 = 50%)." },
-                { tipo: "Desligamento", desc: "Informe a data de saída. O fator é calculado como meses trabalhados / total de meses do ciclo." },
-                { tipo: "Promoção", desc: "Informe data, cargo anterior e cargo novo. O sistema mostra o split: X meses com target antigo + Y meses com novo target." },
-                { tipo: "Transferência", desc: "Informe data, CC anterior e CC novo. O prêmio dos meses no CC antigo usa as metas daquele CC; os demais meses, as metas do novo CC." },
-              ].map((m) => (
-                <div key={m.tipo} className="flex gap-2">
-                  <span className="text-purple-600 font-semibold text-sm w-28 flex-shrink-0">{m.tipo}</span>
-                  <span className="text-sm text-gray-600">{m.desc}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* Motor matemático */}
-            <div className="bg-green-50 border border-green-200 rounded-xl p-5 space-y-3">
-              <h3 className="font-bold text-green-900">Motor Matemático — Como a Nota é Calculada</h3>
-              {[
-                { label: "↑ Maior é Melhor (MAIOR_MELHOR)", formula: "Nota = (Realizado ÷ Alvo) × 100" },
-                { label: "↓ Menor é Melhor (MENOR_MELHOR)", formula: "Nota = (Alvo ÷ Realizado) × 100  — quanto menor o realizado, maior a nota" },
-                { label: "Projeto / Marco (PROJETO_MARCO)", formula: "Nota = 100 se realizado ≥ 1 (concluído), senão 0" },
-                { label: "Abaixo do mínimo", formula: "Nota = 0 — se o realizado não atingir o mínimo definido" },
-                { label: "Teto (cap)", formula: "Nota máxima = (Meta Máxima ÷ Alvo) × 100, ou 120% se máximo não definido" },
-              ].map((m) => (
-                <div key={m.label}>
-                  <p className="text-sm font-semibold text-gray-700">{m.label}</p>
-                  <p className="text-sm text-green-800 font-mono mt-0.5">{m.formula}</p>
-                </div>
-              ))}
-              <div className="border-t border-green-200 pt-3">
-                <p className="text-sm font-semibold text-gray-700">Prêmio Projetado por Realização</p>
-                <p className="text-sm text-green-800 font-mono mt-0.5">Prêmio = Salário Base × 12 × (Target Bonus %) × (Nota ÷ 100) × (Peso na Cesta ÷ 100)</p>
-              </div>
-            </div>
-
-            {/* Papéis */}
-            <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 space-y-3">
-              <h3 className="font-bold text-gray-800">Papéis e Permissões</h3>
-              {[
-                { papel: "GUARDIÃO", desc: "Acesso total. Aprova metas, realizações e waivers no Workflow. Único que pode aprovar." },
-                { papel: "BP (Business Partner)", desc: "Lança realizações em lote via Importação BP. Pode abrir waivers (prorrogações) para colaboradores." },
-                { papel: "GESTOR", desc: "Visualiza o Painel Gestor com a equipe. Acompanha notas e prêmios dos subordinados." },
-                { papel: "COLABORADOR", desc: "Acessa o Cockpit individual. Visualiza suas metas, evolução e prêmio projetado." },
-              ].map((p) => (
-                <div key={p.papel} className="flex gap-2">
-                  <span className="bg-indigo-100 text-indigo-700 text-xs font-semibold px-2 py-0.5 rounded-full h-fit mt-0.5 flex-shrink-0">{p.papel}</span>
-                  <span className="text-sm text-gray-600">{p.desc}</span>
-                </div>
-              ))}
-            </div>
-
-            <h3 className="font-bold text-gray-800 pt-2">Descrição de Cada Tela</h3>
-            <p className="text-sm text-gray-500 -mt-4">Referência rápida de finalidade por tab.</p>
-            {[
-              {
-                icon: "📊", tab: "Dashboard",
-                desc: "Visão executiva do ciclo: total de colaboradores, metas ativas, workflow pendente, uso do bonus pool, top colaboradores e alertas de engajamento.",
-              },
-              {
-                icon: "👤", tab: "Cockpit",
-                desc: "Painel individual do colaborador — prêmio projetado ao vivo, evolução mensal e ofensores (quais metas estão puxando a nota para baixo).",
-              },
-              {
-                icon: "👥", tab: "Painel Gestor",
-                desc: "Visão do gestor sobre a equipe: heatmap de desempenho, nota e prêmio de cada subordinado por indicador.",
-              },
-              {
-                icon: "📋", tab: "Scorecard",
-                desc: "Ficha completa de um colaborador: todas as metas, realizações por mês, nota YTD e prêmio acumulado.",
-              },
-              {
-                icon: "📈", tab: "Indicadores",
-                desc: "Cadastro dos KPIs do ciclo: nome, tipo, polaridade, unidade, analista responsável, divisor. Define 'o que mede'. O código é gerado automaticamente.",
-              },
-              {
-                icon: "🎯", tab: "Metas",
-                desc: "Vincula um indicador a um centro de custo e define os valores (mínimo, alvo, máximo, peso). Também permite atribuir colaboradores à meta.",
-              },
-              {
-                icon: "📉", tab: "Atingimento",
-                desc: "Painel de atingimento por meta — mostra todas as metas com suas realizações, nota calculada e prêmio projetado mês a mês.",
-              },
-              {
-                icon: "🏆", tab: "Elegíveis",
-                desc: "Ranking de todos os colaboradores com realizações lançadas: nota média, prêmio YTD, target anual e % atingido. Serve para comparar entre pares.",
-              },
-              {
-                icon: "📄", tab: "Relatório",
-                desc: "Fechamento do ciclo — resumo executivo com cards, tabela completa por colaborador (com totais) e breakdown de metas. Botão de imprimir/exportar PDF.",
-              },
-              {
-                icon: "⚡", tab: "Realizações",
-                desc: "Lançamento dos valores realizados por meta/mês. É aqui que o BP ou colaborador registra o resultado do período. A nota é recalculada apenas se o valor mudar.",
-              },
-              {
-                icon: "👔", tab: "Colaboradores",
-                desc: "Base de elegíveis: matrícula, cargo, grade (nível hierárquico), target bonus com valor anual calculado, centro de custo e salário base.",
-              },
-              {
-                icon: "✅", tab: "Workflow",
-                desc: "Caixa de entrada do Guardião para aprovar ou rejeitar metas e realizações submetidas pelo BP ou colaborador.",
-              },
-              {
-                icon: "🗓", tab: "Janelas",
-                desc: "Controle dos períodos de apuração — abre e fecha a janela de cada mês. Gerencia prorrogações (waivers) para colaboradores com prazo estendido.",
-              },
-              {
-                icon: "📥", tab: "Importação BP",
-                desc: "Importação em lote de realizações via XLSX. O BP baixa o template, preenche as colunas (matricula · codigo_indicador · valor_realizado · observacao) e faz upload do arquivo.",
-              },
-            ].map((item) => (
-              <div key={item.tab} className="bg-white icp-card p-5 flex gap-4">
-                <span className="text-2xl flex-shrink-0">{item.icon}</span>
-                <div>
-                  <h3 className="icp-section-title mb-1">{item.tab}</h3>
-                  <p className="text-sm text-gray-600 leading-relaxed">{item.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* ── COCKPIT DO COLABORADOR ──────────────────────────────────────── */}
-        {activeTab === "cockpit" && (
-          <div className="space-y-4">
-            <div className="flex items-center gap-4">
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">Cockpit do Colaborador</h1>
-                <p className="text-xs text-gray-500 mt-0.5">Simulador R$ vivo — prêmio projetado, ofensores e evolução mensal</p>
-              </div>
-              <select
-                value={cockpitColId ?? ""}
-                onChange={(e) => setCockpitColId(e.target.value ? Number(e.target.value) : null)}
-                className="ml-auto border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Selecione colaborador...</option>
-                {colaboradores.map((c) => (
-                  <option key={c.id} value={c.id}>{c.nomeCompleto} — {c.matricula}</option>
-                ))}
-              </select>
-            </div>
-            <CockpitColaborador colaboradorId={cockpitColId} cicloId={cicloAtivo?.id ?? null} />
-          </div>
-        )}
-
-        {/* ── PAINEL DO GESTOR ────────────────────────────────────────────── */}
-        {activeTab === "gestor" && (
-          <div className="space-y-4">
-            <div className="flex items-center gap-4">
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">Painel do Gestor</h1>
-                <p className="text-xs text-gray-500 mt-0.5">Heatmap da equipe e visão cruzada por indicador</p>
-              </div>
-              <select
-                value={gestorColId ?? ""}
-                onChange={(e) => setGestorColId(e.target.value ? Number(e.target.value) : null)}
-                className="ml-auto border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Selecione gestor...</option>
-                {colaboradores.map((c) => (
-                  <option key={c.id} value={c.id}>{c.nomeCompleto} — {c.cargo.nome}</option>
-                ))}
-              </select>
-            </div>
-            <PainelGestor
-              gestorId={gestorColId}
-              cicloId={cicloAtivo?.id ?? null}
-              colaboradores={colaboradores.map((c) => ({ id: c.id, nomeCompleto: c.nomeCompleto, gestorId: null }))}
-            />
           </div>
         )}
 

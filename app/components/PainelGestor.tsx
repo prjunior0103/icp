@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 
 interface ColaboradorEquipe {
   colaborador: { id: number; nomeCompleto: string; matricula: string; salarioBase: number };
-  cargo: { nome: string; nivelHierarquico: string; targetBonusPerc: number };
+  cargo: { nome: string; nivelHierarquico: string; targetMultiploSalarial: number };
   metas: {
     meta: { id: number; pesoNaCesta: number; metaAlvo: number; indicador: { nome: string; tipo: string; unidade: string } };
     notaMedia: number;

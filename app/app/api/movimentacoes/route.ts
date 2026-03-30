@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
     });
 
     // Enrich with cargo/cc names from related records
-    const cargos = await prisma.cargo.findMany({ select: { id: true, nome: true, nivelHierarquico: true, targetBonusPerc: true } });
+    const cargos = await prisma.cargo.findMany({ select: { id: true, nome: true, nivelHierarquico: true, targetMultiploSalarial: true } });
     const ccs = await prisma.centroCusto.findMany({ select: { id: true, nome: true } });
     const cargoMap = new Map(cargos.map((c) => [c.id, c]));
     const ccMap = new Map(ccs.map((c) => [c.id, c]));

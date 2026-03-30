@@ -31,17 +31,17 @@ export async function POST() {
     const cargoDiretor = await prisma.cargo.upsert({
       where: { codigo: "DIR" },
       update: {},
-      create: { codigo: "DIR", nome: "Diretor", nivelHierarquico: "N1", targetBonusPerc: 40 },
+      create: { codigo: "DIR", nome: "Diretor", nivelHierarquico: "N1", targetMultiploSalarial: 4.8 },
     });
     const cargoGerente = await prisma.cargo.upsert({
       where: { codigo: "GER" },
       update: {},
-      create: { codigo: "GER", nome: "Gerente", nivelHierarquico: "N2", targetBonusPerc: 25 },
+      create: { codigo: "GER", nome: "Gerente", nivelHierarquico: "N2", targetMultiploSalarial: 3.0 },
     });
     const cargoAnalista = await prisma.cargo.upsert({
       where: { codigo: "ANL" },
       update: {},
-      create: { codigo: "ANL", nome: "Analista", nivelHierarquico: "N4", targetBonusPerc: 15 },
+      create: { codigo: "ANL", nome: "Analista", nivelHierarquico: "N4", targetMultiploSalarial: 1.8 },
     });
 
     // Colaboradores

@@ -48,7 +48,7 @@ model Cargo {
   codigo           String        @unique
   nome             String
   nivelHierarquico String        @default("N4")
-  targetBonusPerc  Float         @default(0)
+  targetMultiploSalarial  Float  @default(0)
   salarioTeto      Float?
   colaboradores    Colaborador[]
 }
@@ -77,6 +77,7 @@ model Colaborador {
   metas            MetaColaborador[]
   realizacoes      Realizacao[]
   movimentacoes    MovimentacaoRH[]
+  atribuicoesAgrupamento AgrupamentoAtribuicao[] @relation("GestorAgrupamento")
 }
 
 // ─── Ciclo ICP ───────────────────────────────────────────────────────────────
@@ -93,6 +94,7 @@ model CicloICP {
   indicadores    Indicador[]
   metas          Meta[]
   janelas        JanelaApuracao[]
+  agrupamentos   Agrupamento[]
 }
 
 // ─── Indicadores ─────────────────────────────────────────────────────────────
@@ -149,6 +151,7 @@ model Meta {
   workflowItems   WorkflowItem[]
   historico       MetaHistorico[]
   planosAcao      PlanoAcao[]
+  agrupamentos    AgrupamentoMeta[]
 
   @@index([cicloId])
   @@index([indicadorId])
@@ -204,6 +207,45 @@ model MetaColaborador {
   ativo             Boolean     @default(true)
 
   @@unique([metaId, colaboradorId])
+}
+
+// ─── Agrupamentos de Metas ────────────────────────────────────────────────────
+
+model Agrupamento {
+  id          Int                    @id @default(autoincrement())
+  nome        String
+  descricao   String?
+  tipo        String                 // CORPORATIVO | AREA
+  cicloId     Int
+  ciclo       CicloICP               @relation(fields: [cicloId], references: [id])
+  metas       AgrupamentoMeta[]
+  atribuicoes AgrupamentoAtribuicao[]
+  criadoEm    DateTime               @default(now())
+
+  @@index([cicloId])
+}
+
+model AgrupamentoMeta {
+  id              Int         @id @default(autoincrement())
+  agrupamentoId   Int
+  agrupamento     Agrupamento @relation(fields: [agrupamentoId], references: [id], onDelete: Cascade)
+  metaId          Int
+  meta            Meta        @relation(fields: [metaId], references: [id])
+
+  @@unique([agrupamentoId, metaId])
+}
+
+model AgrupamentoAtribuicao {
+  id              Int          @id @default(autoincrement())
+  agrupamentoId   Int
+  agrupamento     Agrupamento  @relation(fields: [agrupamentoId], references: [id], onDelete: Cascade)
+  gestorId        Int?
+  gestor          Colaborador? @relation("GestorAgrupamento", fields: [gestorId], references: [id])
+  cascatear       Boolean      @default(false)
+  aplicadoEm      DateTime?
+  criadoEm        DateTime     @default(now())
+
+  @@unique([agrupamentoId, gestorId])
 }
 
 // ─── Realizações ─────────────────────────────────────────────────────────────

@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
         codigo: body.codigo,
         nome: body.nome,
         nivelHierarquico: body.nivelHierarquico ?? "N4",
-        targetBonusPerc: Number(body.targetBonusPerc ?? 0),
+        targetMultiploSalarial: Number(body.targetMultiploSalarial ?? 0),
         salarioTeto: body.salarioTeto ? Number(body.salarioTeto) : undefined,
       },
     });
@@ -40,7 +40,7 @@ export async function PUT(req: NextRequest) {
       where: { id: Number(id) },
       data: {
         ...data,
-        targetBonusPerc: data.targetBonusPerc !== undefined ? Number(data.targetBonusPerc) : undefined,
+        targetMultiploSalarial: data.targetMultiploSalarial !== undefined ? Number(data.targetMultiploSalarial) : undefined,
         salarioTeto: data.salarioTeto !== undefined ? (data.salarioTeto ? Number(data.salarioTeto) : null) : undefined,
       },
     });

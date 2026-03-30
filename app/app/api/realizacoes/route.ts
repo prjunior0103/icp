@@ -124,7 +124,7 @@ export async function POST(req: NextRequest) {
       if (colaborador) {
         premioProjetado = calcularPremio(
           colaborador.salarioBase,
-          colaborador.cargo.targetBonusPerc,
+          colaborador.cargo.targetMultiploSalarial,
           nota,
           meta.pesoNaCesta
         );
