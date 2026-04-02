@@ -97,41 +97,41 @@ describe("calcularNota — PROJETO_MARCO", () => {
 // ─── calcularPremio ───────────────────────────────────────────────────────────
 
 describe("calcularPremio", () => {
-  it("fórmula base: salario * 12 * bonus% * nota% * peso%", () => {
-    // salario=10000, bonus=15%, nota=100%, peso=100%
-    // 10000 * 12 * 0.15 * 1.00 * 1.00 = 18000
-    expect(calcularPremio(10000, 15, 100, 100)).toBeCloseTo(18000);
+  it("fórmula base: salario * multiploSalarial * nota% * peso%", () => {
+    // salario=10000, multiplo=1.5x, nota=100%, peso=100%
+    // 10000 * 1.5 * 1.00 * 1.00 = 15000
+    expect(calcularPremio(10000, 1.5, 100, 100)).toBeCloseTo(15000);
   });
 
   it("nota parcial reduz prêmio proporcionalmente", () => {
-    // salario=10000, bonus=15%, nota=50%, peso=100%
-    // 18000 * 0.50 = 9000
-    expect(calcularPremio(10000, 15, 50, 100)).toBeCloseTo(9000);
+    // salario=10000, multiplo=1.5x, nota=50%, peso=100%
+    // 15000 * 0.50 = 7500
+    expect(calcularPremio(10000, 1.5, 50, 100)).toBeCloseTo(7500);
   });
 
   it("peso parcial reduz prêmio proporcionalmente", () => {
-    // salario=10000, bonus=15%, nota=100%, peso=50%
-    // 18000 * 0.50 = 9000
-    expect(calcularPremio(10000, 15, 100, 50)).toBeCloseTo(9000);
+    // salario=10000, multiplo=1.5x, nota=100%, peso=50%
+    // 15000 * 0.50 = 7500
+    expect(calcularPremio(10000, 1.5, 100, 50)).toBeCloseTo(7500);
   });
 
   it("nota e peso parciais combinados", () => {
-    // salario=10000, bonus=15%, nota=80%, peso=60%
-    // 18000 * 0.80 * 0.60 = 8640
-    expect(calcularPremio(10000, 15, 80, 60)).toBeCloseTo(8640);
+    // salario=10000, multiplo=1.5x, nota=80%, peso=60%
+    // 15000 * 0.80 * 0.60 = 7200
+    expect(calcularPremio(10000, 1.5, 80, 60)).toBeCloseTo(7200);
   });
 
   it("nota 0 → prêmio 0", () => {
-    expect(calcularPremio(10000, 15, 0, 100)).toBe(0);
+    expect(calcularPremio(10000, 1.5, 0, 100)).toBe(0);
   });
 
   it("salário zero → prêmio zero", () => {
-    expect(calcularPremio(0, 15, 100, 100)).toBe(0);
+    expect(calcularPremio(0, 1.5, 100, 100)).toBe(0);
   });
 
   it("nota acima de 100 (superação) gera prêmio superior ao alvo", () => {
-    // nota=120% → prêmio 20% acima do target
-    expect(calcularPremio(10000, 15, 120, 100)).toBeCloseTo(21600);
+    // nota=120% → prêmio 20% acima do target: 15000 * 1.20 = 18000
+    expect(calcularPremio(10000, 1.5, 120, 100)).toBeCloseTo(18000);
   });
 });
 

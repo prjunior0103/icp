@@ -70,21 +70,19 @@ export async function PUT(req: NextRequest) {
       );
     }
 
-    const waiver = await prisma.prorrogacaoWaiver.update({
-      where: { id: Number(id) },
-      data: { status, resolvidoEm: new Date() },
-    });
-
-    // When approved: update janela status and extend dataFechamento
-    if (status === "APROVADO") {
-      await prisma.janelaApuracao.update({
-        where: { id: waiver.janelaId },
-        data: {
-          status: "PRORROGADA",
-          dataFechamento: waiver.novaDataLimite,
-        },
+    const waiver = await prisma.$transaction(async (tx) => {
+      const updated = await tx.prorrogacaoWaiver.update({
+        where: { id: Number(id) },
+        data: { status, resolvidoEm: new Date() },
       });
-    }
+      if (status === "APROVADO") {
+        await tx.janelaApuracao.update({
+          where: { id: updated.janelaId },
+          data: { status: "PRORROGADA", dataFechamento: updated.novaDataLimite },
+        });
+      }
+      return updated;
+    });
 
     return NextResponse.json({ data: waiver });
   } catch (err) {

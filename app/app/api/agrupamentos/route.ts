@@ -65,16 +65,21 @@ export async function POST(req: NextRequest) {
 /** Returns all subordinate IDs at every level below gestorId (direct + indirect). */
 async function getSubordinadosRecursivo(gestorId: number): Promise<number[]> {
   const todos: number[] = [];
+  const visited = new Set<number>();
   const fila = [gestorId];
   while (fila.length > 0) {
     const atual = fila.shift()!;
+    if (visited.has(atual)) continue;
+    visited.add(atual);
     const diretos = await prisma.colaborador.findMany({
       where: { gestorId: atual, ativo: true },
       select: { id: true },
     });
     for (const d of diretos) {
-      todos.push(d.id);
-      fila.push(d.id);
+      if (!visited.has(d.id)) {
+        todos.push(d.id);
+        fila.push(d.id);
+      }
     }
   }
   return todos;
@@ -125,22 +130,22 @@ async function handleAplicar(body: {
     }
   }
 
-  // Create MetaColaborador records (upsert to avoid duplicates)
+  // Create MetaColaborador records (upsert to avoid duplicates) — wrapped in transaction
   let criados = 0;
-  for (const metaId of metaIds) {
-    for (const colaboradorId of colaboradorIds) {
-      await prisma.metaColaborador.upsert({
-        where: { metaId_colaboradorId: { metaId, colaboradorId } },
-        update: { ativo: true },
-        create: { metaId, colaboradorId },
-      });
-      criados++;
-    }
-  }
-
-  // Record the attribution
   const gestorIdValue = body.gestorId != null ? Number(body.gestorId) : null;
-  await prisma.agrupamentoAtribuicao.upsert({
+
+  await prisma.$transaction(async (tx) => {
+    for (const metaId of metaIds) {
+      for (const colaboradorId of colaboradorIds) {
+        await tx.metaColaborador.upsert({
+          where: { metaId_colaboradorId: { metaId, colaboradorId } },
+          update: { ativo: true },
+          create: { metaId, colaboradorId },
+        });
+        criados++;
+      }
+    }
+    await tx.agrupamentoAtribuicao.upsert({
     where: {
       agrupamentoId_gestorId: {
         agrupamentoId: Number(body.agrupamentoId),
@@ -154,6 +159,7 @@ async function handleAplicar(body: {
       cascatear: body.cascatear ?? false,
       aplicadoEm: new Date(),
     },
+    });
   });
 
   return NextResponse.json({ data: { criados, colaboradores: colaboradorIds.length } });
