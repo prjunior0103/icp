@@ -50,13 +50,17 @@ export async function POST(req: NextRequest) {
         indicadorId: Number(body.indicadorId),
         cicloId: Number(body.cicloId),
         centroCustoId: body.centroCustoId ? Number(body.centroCustoId) : undefined,
-        pesoNaCesta: Number(body.pesoNaCesta ?? 100),
         metaMinima: body.metaMinima ? Number(body.metaMinima) : undefined,
         metaAlvo: Number(body.metaAlvo ?? 100),
         metaMaxima: body.metaMaxima ? Number(body.metaMaxima) : undefined,
         status: body.status ?? "DRAFT",
         smart: body.smart ?? null,
         parentMetaId: body.parentMetaId ? Number(body.parentMetaId) : undefined,
+        nome: body.nome || null,
+        polaridade: body.polaridade || null,
+        tipo: body.tipo || null,
+        unidade: body.unidade || null,
+        valorOrcado: body.valorOrcado ? Number(body.valorOrcado) : undefined,
       },
       include: { indicador: true, centroCusto: true },
     });
@@ -89,16 +93,18 @@ export async function PUT(req: NextRequest) {
 
     // Build update fields
     if (status) updateData.status = status;
-    if (data.pesoNaCesta !== undefined) updateData.pesoNaCesta = Number(data.pesoNaCesta);
     if (data.metaMinima !== undefined) updateData.metaMinima = data.metaMinima !== null ? Number(data.metaMinima) : null;
     if (data.metaAlvo !== undefined) updateData.metaAlvo = Number(data.metaAlvo);
     if (data.metaMaxima !== undefined) updateData.metaMaxima = data.metaMaxima !== null ? Number(data.metaMaxima) : null;
     if (data.indicadorId !== undefined) updateData.indicadorId = Number(data.indicadorId);
-    if (data.centroCustoId !== undefined)
-      updateData.centroCustoId = data.centroCustoId ? Number(data.centroCustoId) : null;
-    if (data.parentMetaId !== undefined)
-      updateData.parentMetaId = data.parentMetaId ? Number(data.parentMetaId) : null;
+    if (data.centroCustoId !== undefined) updateData.centroCustoId = data.centroCustoId ? Number(data.centroCustoId) : null;
+    if (data.parentMetaId !== undefined) updateData.parentMetaId = data.parentMetaId ? Number(data.parentMetaId) : null;
     if (data.smart !== undefined) updateData.smart = data.smart;
+    if (data.nome !== undefined) updateData.nome = data.nome || null;
+    if (data.polaridade !== undefined) updateData.polaridade = data.polaridade || null;
+    if (data.tipo !== undefined) updateData.tipo = data.tipo || null;
+    if (data.unidade !== undefined) updateData.unidade = data.unidade || null;
+    if (data.valorOrcado !== undefined) updateData.valorOrcado = data.valorOrcado !== null ? Number(data.valorOrcado) : null;
 
     const meta = await prisma.meta.update({
       where: { id: Number(id) },
@@ -110,7 +116,6 @@ export async function PUT(req: NextRequest) {
     if (metaAtual) {
       const auditFields: Array<[string, unknown, unknown]> = [
         ["status", metaAtual.status, updateData.status],
-        ["pesoNaCesta", metaAtual.pesoNaCesta, updateData.pesoNaCesta],
         ["metaMinima", metaAtual.metaMinima, updateData.metaMinima],
         ["metaAlvo", metaAtual.metaAlvo, updateData.metaAlvo],
         ["metaMaxima", metaAtual.metaMaxima, updateData.metaMaxima],

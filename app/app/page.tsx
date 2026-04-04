@@ -32,13 +32,15 @@ interface Colaborador {
 interface CicloICP { id: number; anoFiscal: number; status: string; bonusPool: number | null; mesInicio: number; mesFim: number; }
 interface Indicador { id: number; codigo: string; nome: string; tipo: string; polaridade: string; abrangencia: string; unidade: string; status: string; diretivo?: string; analistaResp?: string; origemDado?: string; divisorId?: number | null; divisor?: { id: number; nome: string } | null; }
 interface Meta {
-  id: number; pesoNaCesta: number; metaAlvo: number; metaMinima: number | null;
+  id: number; metaAlvo: number; metaMinima: number | null;
   metaMaxima: number | null; status: string; smart?: string | null;
   indicador: Indicador; centroCusto: CentroCusto | null;
   _count: { colaboradores: number; realizacoes: number; filhas: number };
   colaboradorIds: number[];
   parentMetaId: number | null;
   parentMeta: { id: number; indicador: { nome: string }; centroCusto: { nome: string } | null } | null;
+  nome?: string | null; polaridade?: string | null; tipo?: string | null;
+  unidade?: string | null; valorOrcado?: number | null;
 }
 interface MetaHistorico { id: number; metaId: number; campo: string; valorAntes: string | null; valorDepois: string | null; usuario: string | null; criadoEm: string; }
 interface PlanoAcao { id: number; metaId: number; descricao: string; responsavel: string | null; prazo: string | null; status: string; criadoEm: string; }
@@ -62,7 +64,7 @@ interface JanelaApuracao {
   isOpen: boolean; waiversPendentes: number;
 }
 interface AgrupamentoMetaItem {
-  id: number; metaId: number;
+  id: number; metaId: number; pesoNaCesta: number;
   meta: Meta & { indicador: Indicador };
 }
 interface AgrupamentoAtribuicaoItem {
@@ -217,9 +219,13 @@ export default function Home() {
   // Nova Meta form state
   const [showMetaForm, setShowMetaForm] = useState(false);
   const [metaForm, setMetaForm] = useState({
-    indicadorId: "", centroCustoId: "", pesoNaCesta: "100", metaAlvo: "",
+    indicadorId: "", centroCustoId: "", metaAlvo: "",
     metaMinima: "", metaMaxima: "", parentMetaId: "",
     smart_e: "", smart_m: "", smart_a: "", smart_r: "", smart_t: "",
+    nome: "", polaridade: "", tipo: "", unidade: "", valorOrcado: "",
+    metrica: "", fonte: "", responsavelDados: "", descricao: "",
+    divisivel: false, divisorIndicadorId: "",
+    baseline: "", periodicidade: "", perspectiva: "", tipoIndicador: "", auditorDados: "",
   });
   const [cascateandoMetaId, setCascateandoMetaId] = useState<number | null>(null);
   const [cloningMetaId, setCloningMetaId] = useState<number | null>(null);
@@ -250,7 +256,7 @@ export default function Home() {
   }
 
   // Inline editing
-  const [inlineEdit, setInlineEdit] = useState<{ metaId: number; field: "pesoNaCesta" | "metaAlvo" | "metaMinima" | "metaMaxima"; value: string } | null>(null);
+  const [inlineEdit, setInlineEdit] = useState<{ metaId: number; field: "metaAlvo" | "metaMinima" | "metaMaxima"; value: string } | null>(null);
 
   // Import metas XLSX
   const [showMetasImport, setShowMetasImport] = useState(false);
@@ -466,12 +472,16 @@ export default function Home() {
           indicadorId: Number(metaForm.indicadorId),
           cicloId: cicloAtivo.id,
           centroCustoId: metaForm.centroCustoId ? Number(metaForm.centroCustoId) : null,
-          pesoNaCesta: Number(metaForm.pesoNaCesta),
           metaAlvo: Number(metaForm.metaAlvo),
           metaMinima: metaForm.metaMinima ? Number(metaForm.metaMinima) : null,
           metaMaxima: metaForm.metaMaxima ? Number(metaForm.metaMaxima) : null,
           parentMetaId: metaForm.parentMetaId ? Number(metaForm.parentMetaId) : null,
           smart: smartObj,
+          nome: metaForm.nome || null,
+          polaridade: metaForm.polaridade || null,
+          tipo: metaForm.tipo || null,
+          unidade: metaForm.unidade || null,
+          valorOrcado: metaForm.valorOrcado ? Number(metaForm.valorOrcado) : null,
         }),
       });
       if (!res.ok) {
@@ -479,7 +489,29 @@ export default function Home() {
         addToast(`Erro ao criar meta: ${err.error ?? res.status}`, "err");
         return;
       }
-      setMetaForm({ indicadorId: "", centroCustoId: "", pesoNaCesta: "100", metaAlvo: "", metaMinima: "", metaMaxima: "", parentMetaId: "", smart_e: "", smart_m: "", smart_a: "", smart_r: "", smart_t: "" });
+      // Update Indicador governance fields if any were filled
+      const hasIndicadorFields = metaForm.metrica || metaForm.fonte || metaForm.responsavelDados || metaForm.descricao ||
+        metaForm.baseline || metaForm.periodicidade || metaForm.perspectiva || metaForm.tipoIndicador || metaForm.auditorDados ||
+        metaForm.divisivel;
+      if (hasIndicadorFields && metaForm.indicadorId) {
+        await fetch("/api/indicadores", {
+          method: "PUT", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: Number(metaForm.indicadorId),
+            ...(metaForm.metrica && { metrica: metaForm.metrica }),
+            ...(metaForm.fonte && { origemDado: metaForm.fonte }),
+            ...(metaForm.responsavelDados && { analistaResp: metaForm.responsavelDados }),
+            ...(metaForm.descricao && { descricao: metaForm.descricao }),
+            ...(metaForm.baseline && { baseline: Number(metaForm.baseline) }),
+            ...(metaForm.periodicidade && { periodicidade: metaForm.periodicidade }),
+            ...(metaForm.perspectiva && { perspectiva: metaForm.perspectiva }),
+            ...(metaForm.tipoIndicador && { tipoIndicador: metaForm.tipoIndicador }),
+            ...(metaForm.auditorDados && { auditorDados: metaForm.auditorDados }),
+            ...(metaForm.divisivel && metaForm.divisorIndicadorId && { divisorId: Number(metaForm.divisorIndicadorId) }),
+          }),
+        });
+      }
+      setMetaForm({ indicadorId: "", centroCustoId: "", metaAlvo: "", metaMinima: "", metaMaxima: "", parentMetaId: "", smart_e: "", smart_m: "", smart_a: "", smart_r: "", smart_t: "", nome: "", polaridade: "", fonte: "", responsavelDados: "", metrica: "", descricao: "", valorOrcado: "", unidade: "", divisivel: false, divisorIndicadorId: "", tipo: "", baseline: "", periodicidade: "", perspectiva: "", tipoIndicador: "", auditorDados: "" });
       setShowMetaForm(false);
       setCascateandoMetaId(null);
       setCloningMetaId(null);
@@ -566,12 +598,19 @@ export default function Home() {
     setMetaForm({
       indicadorId: String(meta.indicador.id),
       centroCustoId: meta.centroCusto ? String(meta.centroCusto.id) : "",
-      pesoNaCesta: String(meta.pesoNaCesta),
       metaAlvo: String(meta.metaAlvo),
       metaMinima: meta.metaMinima !== null ? String(meta.metaMinima) : "",
       metaMaxima: meta.metaMaxima !== null ? String(meta.metaMaxima) : "",
       parentMetaId: "",
       smart_e: "", smart_m: "", smart_a: "", smart_r: "", smart_t: "",
+      nome: meta.nome ?? "",
+      polaridade: meta.polaridade ?? "",
+      tipo: meta.tipo ?? "",
+      unidade: meta.unidade ?? "",
+      valorOrcado: meta.valorOrcado !== null && meta.valorOrcado !== undefined ? String(meta.valorOrcado) : "",
+      metrica: "", fonte: "", responsavelDados: "", descricao: "",
+      divisivel: false, divisorIndicadorId: "",
+      baseline: "", periodicidade: "", perspectiva: "", tipoIndicador: "", auditorDados: "",
     });
     setShowMetaForm(true);
     setCascateandoMetaId(null);
@@ -1122,12 +1161,6 @@ export default function Home() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Peso na Cesta (%) *</label>
-                  <input required type="number" min="1" max="100" value={metaForm.pesoNaCesta}
-                    onChange={(e) => setMetaForm({ ...metaForm, pesoNaCesta: e.target.value })}
-                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
-                </div>
-                <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Meta Alvo *</label>
                   <input required type="number" step="any" value={metaForm.metaAlvo}
                     onChange={(e) => setMetaForm({ ...metaForm, metaAlvo: e.target.value })}
@@ -1176,11 +1209,130 @@ export default function Home() {
                     ))}
                   </div>
                 </div>
+                {/* Campos de Indicador */}
+                <div className="col-span-2 md:col-span-3 border-t border-green-200 pt-3">
+                  <p className="text-xs font-semibold text-green-800 mb-2">Detalhes do Indicador (opcional — sobrescreve o indicador vinculado)</p>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Nome da Meta</label>
+                      <input value={metaForm.nome} onChange={(e) => setMetaForm({ ...metaForm, nome: e.target.value })}
+                        placeholder="Ex: Crescimento de Receita Q1" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Tipo</label>
+                      <select value={metaForm.tipo} onChange={(e) => setMetaForm({ ...metaForm, tipo: e.target.value })}
+                        className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
+                        <option value="">Usar do indicador</option>
+                        <option value="VOLUME_FINANCEIRO">Volume Financeiro</option>
+                        <option value="CUSTO_PRAZO">Custo/Prazo</option>
+                        <option value="PROJETO_MARCO">Projeto/Marco</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Polaridade</label>
+                      <select value={metaForm.polaridade} onChange={(e) => setMetaForm({ ...metaForm, polaridade: e.target.value })}
+                        className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
+                        <option value="">Usar do indicador</option>
+                        <option value="MAIOR_MELHOR">Quanto maior melhor</option>
+                        <option value="MENOR_MELHOR">Quanto menor melhor</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Unidade</label>
+                      <input value={metaForm.unidade} onChange={(e) => setMetaForm({ ...metaForm, unidade: e.target.value })}
+                        placeholder="Ex: %, R$, unidades" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Métrica</label>
+                      <input value={metaForm.metrica} onChange={(e) => setMetaForm({ ...metaForm, metrica: e.target.value })}
+                        placeholder="Ex: Receita Bruta, NPS score" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Valor Orçado</label>
+                      <input type="number" step="any" value={metaForm.valorOrcado} onChange={(e) => setMetaForm({ ...metaForm, valorOrcado: e.target.value })}
+                        placeholder="Valor orçado (budget)" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Fonte dos Dados</label>
+                      <input value={metaForm.fonte} onChange={(e) => setMetaForm({ ...metaForm, fonte: e.target.value })}
+                        placeholder="Ex: ERP, BI, manual" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Responsável pelos Dados</label>
+                      <input value={metaForm.responsavelDados} onChange={(e) => setMetaForm({ ...metaForm, responsavelDados: e.target.value })}
+                        placeholder="Quem envia os dados" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
+                    </div>
+                    <div className="col-span-2 md:col-span-1">
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Descrição</label>
+                      <input value={metaForm.descricao} onChange={(e) => setMetaForm({ ...metaForm, descricao: e.target.value })}
+                        placeholder="Descrição da meta" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
+                    </div>
+                    <div className="flex items-center gap-2 pt-4">
+                      <input type="checkbox" id="divisivel" checked={metaForm.divisivel}
+                        onChange={(e) => setMetaForm({ ...metaForm, divisivel: e.target.checked, divisorIndicadorId: e.target.checked ? metaForm.divisorIndicadorId : "" })}
+                        className="h-4 w-4 accent-green-600" />
+                      <label htmlFor="divisivel" className="text-xs font-medium text-gray-700">Divisível por indicador</label>
+                    </div>
+                    {metaForm.divisivel && (
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Indicador Divisor</label>
+                        <select value={metaForm.divisorIndicadorId} onChange={(e) => setMetaForm({ ...metaForm, divisorIndicadorId: e.target.value })}
+                          className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
+                          <option value="">Selecionar...</option>
+                          {indicadores.map((i) => (
+                            <option key={i.id} value={i.id}>{i.nome}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Linha de Base (Baseline)</label>
+                      <input type="number" step="any" value={metaForm.baseline} onChange={(e) => setMetaForm({ ...metaForm, baseline: e.target.value })}
+                        placeholder="Valor histórico de referência" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Periodicidade</label>
+                      <select value={metaForm.periodicidade} onChange={(e) => setMetaForm({ ...metaForm, periodicidade: e.target.value })}
+                        className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
+                        <option value="">Não definida</option>
+                        <option value="MENSAL">Mensal</option>
+                        <option value="TRIMESTRAL">Trimestral</option>
+                        <option value="SEMESTRAL">Semestral</option>
+                        <option value="ANUAL">Anual</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Perspectiva BSC</label>
+                      <select value={metaForm.perspectiva} onChange={(e) => setMetaForm({ ...metaForm, perspectiva: e.target.value })}
+                        className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
+                        <option value="">Não classificada</option>
+                        <option value="FINANCEIRA">Financeira</option>
+                        <option value="CLIENTE">Cliente</option>
+                        <option value="PROCESSOS">Processos Internos</option>
+                        <option value="APRENDIZADO">Aprendizado e Crescimento</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Tipo de Indicador</label>
+                      <select value={metaForm.tipoIndicador} onChange={(e) => setMetaForm({ ...metaForm, tipoIndicador: e.target.value })}
+                        className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
+                        <option value="">Não classificado</option>
+                        <option value="LEADING">Leading (processo/antecedente)</option>
+                        <option value="LAGGING">Lagging (resultado/consequente)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Auditor dos Dados</label>
+                      <input value={metaForm.auditorDados} onChange={(e) => setMetaForm({ ...metaForm, auditorDados: e.target.value })}
+                        placeholder="Quem valida os dados enviados" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
+                    </div>
+                  </div>
+                </div>
                 <div className="col-span-2 md:col-span-3 flex gap-2">
                   <button type="submit" className="btn-primary">
                     {cloningMetaId ? "Criar Cópia" : cascateandoMetaId ? "Criar Meta Cascateada" : "Criar Meta"}
                   </button>
-                  <button type="button" onClick={() => { setShowMetaForm(false); setCascateandoMetaId(null); setCloningMetaId(null); setMetaForm({ indicadorId: "", centroCustoId: "", pesoNaCesta: "100", metaAlvo: "", metaMinima: "", metaMaxima: "", parentMetaId: "", smart_e: "", smart_m: "", smart_a: "", smart_r: "", smart_t: "" }); }}
+                  <button type="button" onClick={() => { setShowMetaForm(false); setCascateandoMetaId(null); setCloningMetaId(null); setMetaForm({ indicadorId: "", centroCustoId: "", metaAlvo: "", metaMinima: "", metaMaxima: "", parentMetaId: "", smart_e: "", smart_m: "", smart_a: "", smart_r: "", smart_t: "", nome: "", polaridade: "", fonte: "", responsavelDados: "", metrica: "", descricao: "", valorOrcado: "", unidade: "", divisivel: false, divisorIndicadorId: "", tipo: "", baseline: "", periodicidade: "", perspectiva: "", tipoIndicador: "", auditorDados: "" }); }}
                     className="text-sm text-gray-500 hover:text-gray-700 px-4 py-1.5">
                     Cancelar
                   </button>
@@ -1246,22 +1398,9 @@ export default function Home() {
                             )}
                           </td>
                           <td className="px-4 py-3" style={{ color: "var(--ink-secondary)" }}>{m.centroCusto?.nome ?? "—"}</td>
-                          {/* Peso — inline editable */}
+                          {/* Peso — gerenciado via Agrupamento */}
                           <td className="px-4 py-3">
-                            {inlineEdit?.metaId === m.id && inlineEdit.field === "pesoNaCesta" ? (
-                              <input autoFocus type="number" className="w-14 border rounded px-1 py-0.5 text-xs tabular-nums"
-                                value={inlineEdit.value}
-                                onChange={(e) => setInlineEdit((p) => p ? { ...p, value: e.target.value } : null)}
-                                onBlur={() => handleInlineEdit(m.id, "pesoNaCesta", inlineEdit.value)}
-                                onKeyDown={(e) => { if (e.key === "Enter") handleInlineEdit(m.id, "pesoNaCesta", inlineEdit.value); if (e.key === "Escape") setInlineEdit(null); }} />
-                            ) : (
-                              <span className="cursor-pointer rounded px-1 py-0.5 text-xs tabular-nums"
-                                style={{ color: "var(--ink-secondary)" }}
-                                title="Clique para editar"
-                                onClick={() => setInlineEdit({ metaId: m.id, field: "pesoNaCesta", value: String(m.pesoNaCesta) })}>
-                                {m.pesoNaCesta}%
-                              </span>
-                            )}
+                            <span className="text-xs tabular-nums" style={{ color: "var(--ink-subtle)" }} title="Peso definido no Agrupamento">—</span>
                           </td>
                           {/* Alvo — inline editable */}
                           <td className="px-4 py-3">
@@ -1305,7 +1444,7 @@ export default function Home() {
                               )}
                               <button onClick={() => {
                                   setCascateandoMetaId(m.id);
-                                  setMetaForm({ indicadorId: String(m.indicador.id ?? ""), centroCustoId: "", pesoNaCesta: "100", metaAlvo: String(m.metaAlvo), metaMinima: m.metaMinima ? String(m.metaMinima) : "", metaMaxima: m.metaMaxima ? String(m.metaMaxima) : "", parentMetaId: String(m.id), smart_e: "", smart_m: "", smart_a: "", smart_r: "", smart_t: "" });
+                                  setMetaForm({ indicadorId: String(m.indicador.id ?? ""), centroCustoId: "", metaAlvo: String(m.metaAlvo), metaMinima: m.metaMinima ? String(m.metaMinima) : "", metaMaxima: m.metaMaxima ? String(m.metaMaxima) : "", parentMetaId: String(m.id), smart_e: "", smart_m: "", smart_a: "", smart_r: "", smart_t: "", nome: "", polaridade: "", fonte: "", responsavelDados: "", metrica: "", descricao: "", valorOrcado: "", unidade: "", divisivel: false, divisorIndicadorId: "", tipo: "", baseline: "", periodicidade: "", perspectiva: "", tipoIndicador: "", auditorDados: "" });
                                   setShowMetaForm(true);
                                 }} className="text-xs bg-purple-100 hover:bg-purple-200 text-purple-700 px-2 py-0.5 rounded">Cascatear</button>
                               <button onClick={() => handleClonarMeta(m)} className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-0.5 rounded">Clonar</button>
@@ -1503,7 +1642,7 @@ export default function Home() {
                                   <td className="px-5 py-3">
                                     <div className="font-medium text-sm" style={{ color: "var(--ink)" }}>{item.meta.indicador.nome}</div>
                                     <div className="text-xs" style={{ color: "var(--ink-muted)" }}>
-                                      Alvo: {item.meta.metaAlvo} {item.meta.indicador.unidade} · Peso: {item.meta.pesoNaCesta}%
+                                      Alvo: {item.meta.metaAlvo} {item.meta.indicador.unidade} · Peso: {item.pesoNaCesta}%
                                     </div>
                                   </td>
                                   <td className="px-5 py-3 text-right">

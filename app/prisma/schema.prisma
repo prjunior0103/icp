@@ -121,6 +121,13 @@ model Indicador {
   cicloId           Int
   metas             Meta[]
   status            String    @default("DRAFT") // DRAFT, ATIVO
+  // Campos de governança e classificação
+  baseline          Float?    // Linha de base — valor histórico de referência
+  metrica           String?   // O que está sendo medido (ex: Receita Bruta, NPS)
+  periodicidade     String?   // MENSAL | TRIMESTRAL | SEMESTRAL | ANUAL
+  perspectiva       String?   // BSC: FINANCEIRA | CLIENTE | PROCESSOS | APRENDIZADO
+  tipoIndicador     String?   // LEADING (processo) | LAGGING (resultado)
+  auditorDados      String?   // Quem valida os dados enviados
   criadoEm          DateTime  @default(now())
 
   @@index([cicloId])
@@ -137,12 +144,17 @@ model Meta {
   cicloId         Int
   centroCusto     CentroCusto?      @relation(fields: [centroCustoId], references: [id])
   centroCustoId   Int?
-  pesoNaCesta     Float             @default(100)
-  metaMinima      Float?
-  metaAlvo        Float             @default(100)
-  metaMaxima      Float?
-  status          String            @default("DRAFT") // DRAFT, ATIVO, APROVADO, CANCELADO
-  smart           String?           // JSON: {especifica, mensuravel, atingivel, relevante, temporal}
+  metaMinima         Float?
+  metaAlvo           Float             @default(100)
+  metaMaxima         Float?
+  status             String            @default("DRAFT") // DRAFT, ATIVO, APROVADO, CANCELADO
+  smart              String?           // JSON: {especifica, mensuravel, atingivel, relevante, temporal}
+  // Campos opcionais de override por instância de meta
+  nome               String?           // Nome próprio da meta (sobrescreve Indicador.nome)
+  polaridade         String?           // MAIOR_MELHOR | MENOR_MELHOR (sobrescreve Indicador se preenchido)
+  tipo               String?           // VOLUME_FINANCEIRO | CUSTO_PRAZO | PROJETO_MARCO (sobrescreve Indicador)
+  unidade            String?           // %, R$, unidades (sobrescreve Indicador se preenchido)
+  valorOrcado        Float?            // Valor orçado (budget) — específico desta meta
   parentMetaId    Int?              // Cascateamento: meta pai (corporativa/área)
   parentMeta      Meta?             @relation("MetaCascata", fields: [parentMetaId], references: [id])
   filhas          Meta[]            @relation("MetaCascata")
@@ -212,25 +224,32 @@ model MetaColaborador {
 // ─── Agrupamentos de Metas ────────────────────────────────────────────────────
 
 model Agrupamento {
-  id          Int                    @id @default(autoincrement())
-  nome        String
-  descricao   String?
-  tipo        String                 // CORPORATIVO | AREA
-  cicloId     Int
-  ciclo       CicloICP               @relation(fields: [cicloId], references: [id])
-  metas       AgrupamentoMeta[]
-  atribuicoes AgrupamentoAtribuicao[]
-  criadoEm    DateTime               @default(now())
+  id                   Int                    @id @default(autoincrement())
+  nome                 String
+  descricao            String?
+  tipo                 String                 // CORPORATIVO | AREA
+  cicloId              Int
+  ciclo                CicloICP               @relation(fields: [cicloId], references: [id])
+  metas                AgrupamentoMeta[]
+  atribuicoes          AgrupamentoAtribuicao[]
+  // Suporte a cascateamento
+  parentAgrupamentoId  Int?
+  parentAgrupamento    Agrupamento?           @relation("AgrupamentoCascata", fields: [parentAgrupamentoId], references: [id])
+  filhos               Agrupamento[]          @relation("AgrupamentoCascata")
+  criadoEm             DateTime               @default(now())
 
   @@index([cicloId])
+  @@index([parentAgrupamentoId])
 }
 
 model AgrupamentoMeta {
-  id              Int         @id @default(autoincrement())
-  agrupamentoId   Int
-  agrupamento     Agrupamento @relation(fields: [agrupamentoId], references: [id], onDelete: Cascade)
-  metaId          Int
-  meta            Meta        @relation(fields: [metaId], references: [id])
+  id                    Int         @id @default(autoincrement())
+  agrupamentoId         Int
+  agrupamento           Agrupamento @relation(fields: [agrupamentoId], references: [id], onDelete: Cascade)
+  metaId                Int
+  meta                  Meta        @relation(fields: [metaId], references: [id])
+  pesoNaCesta           Float       @default(0)   // peso desta meta dentro da cesta (soma das metas deve = 100)
+  desceCascateamento    Boolean     @default(true) // se esta meta deve ser incluída no cascade
 
   @@unique([agrupamentoId, metaId])
 }

@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
 
     const metasScorecard = metaColabs.map((mc) => {
       const meta = mc.meta;
-      const pesoEfetivo = mc.pesoPersonalizado ?? meta.pesoNaCesta;
+      const pesoEfetivo = mc.pesoPersonalizado ?? 0;
       const metaRealizacoes = realizacoes.filter((r) => r.metaId === meta.id);
 
       const notas = metaRealizacoes

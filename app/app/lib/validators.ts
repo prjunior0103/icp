@@ -54,7 +54,6 @@ export function validarLinhaColaborador(raw: Record<string, unknown>): {
 export interface MetaRow {
   indicadorCodigo: string;
   centroCustoCodigo: string;
-  pesoNaCesta: string;
   metaMinima: string;
   metaAlvo: string;
   metaMaxima: string;
@@ -71,10 +70,6 @@ export function validarLinhaMeta(raw: Record<string, string>): string | null {
     return `metaAlvo inválido: '${raw.metaAlvo}'`;
   if (alvo <= 0)
     return "metaAlvo deve ser maior que zero";
-
-  const peso = Number(raw.pesoNaCesta ?? 100);
-  if (isNaN(peso) || peso < 0 || peso > 100)
-    return `pesoNaCesta inválido: '${raw.pesoNaCesta}' (deve ser 0–100)`;
 
   if (raw.metaMinima) {
     const min = Number(raw.metaMinima);

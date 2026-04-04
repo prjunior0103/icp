@@ -137,7 +137,7 @@ export async function GET(req: NextRequest) {
     const metaColabs = await prisma.metaColaborador.findMany({
       where: { meta: { cicloId: cicloAlvo.id, status: "APROVADO" }, ativo: true },
       include: {
-        meta: { select: { pesoNaCesta: true, indicador: { select: { nome: true } } } },
+        meta: { select: { indicador: { select: { nome: true } } } },
         colaborador: { select: { nomeCompleto: true, matricula: true } },
       },
     });
@@ -145,7 +145,7 @@ export async function GET(req: NextRequest) {
     // Agrupar por colaborador
     const pesosPorColab = new Map<number, { nome: string; matricula: string; totalPeso: number; metas: string[] }>();
     for (const mc of metaColabs) {
-      const peso = mc.pesoPersonalizado ?? mc.meta.pesoNaCesta;
+      const peso = mc.pesoPersonalizado ?? 0;
       const entry = pesosPorColab.get(mc.colaboradorId) ?? {
         nome: mc.colaborador.nomeCompleto,
         matricula: mc.colaborador.matricula,

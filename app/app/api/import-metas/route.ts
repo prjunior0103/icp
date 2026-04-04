@@ -5,7 +5,6 @@ import { prisma } from "@/app/lib/prisma";
 export async function GET() {
   const headers = [
     "indicadorCodigo",
-    "pesoNaCesta",
     "metaMinima",
     "metaAlvo",
     "metaMaxima",
@@ -86,7 +85,6 @@ export async function POST(req: NextRequest) {
             indicadorId,
             cicloId: Number(cicloId),
             centroCustoId: centroCustoId ?? null,
-            pesoNaCesta: Number(row.pesoNaCesta ?? 100),
             metaMinima: row.metaMinima ? Number(row.metaMinima) : null,
             metaAlvo: Number(row.metaAlvo ?? 100),
             metaMaxima: row.metaMaxima ? Number(row.metaMaxima) : null,

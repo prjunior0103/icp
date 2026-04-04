@@ -40,7 +40,7 @@ export default function LoginPage() {
       {/* Header */}
       <header className="bg-blue-900 text-white py-4 px-6 shadow-md">
         <div className="max-w-7xl mx-auto flex items-center gap-3">
-          <div className="w-9 h-9 bg-blue-400 rounded flex items-center justify-center font-bold text-lg">
+          <div aria-hidden="true" className="w-9 h-9 bg-blue-400 rounded flex items-center justify-center font-bold text-lg">
             ICP
           </div>
           <div>
@@ -53,7 +53,7 @@ export default function LoginPage() {
       </header>
 
       {/* Card */}
-      <div className="flex-1 flex items-center justify-center px-4">
+      <main className="flex-1 flex items-center justify-center px-4">
         <div className="bg-white rounded-xl shadow-lg w-full max-w-sm p-8">
           <h2 className="text-2xl font-bold text-gray-800 mb-1">Entrar</h2>
           <p className="text-gray-500 text-sm mb-6">
@@ -61,17 +61,18 @@ export default function LoginPage() {
           </p>
 
           {error && (
-            <div className="mb-4 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
+            <div role="alert" className="mb-4 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
               {error}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" aria-label="Formulário de login">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">
                 Usuário
               </label>
               <input
+                id="username"
                 type="text"
                 autoComplete="username"
                 required
@@ -83,10 +84,11 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
                 Senha
               </label>
               <input
+                id="password"
                 type="password"
                 autoComplete="current-password"
                 required
@@ -100,6 +102,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
+              aria-label={loading ? "Entrando, aguarde..." : "Entrar no sistema"}
               className="w-full bg-blue-700 hover:bg-blue-800 disabled:bg-blue-400 text-white font-semibold py-2.5 rounded-lg text-sm transition-colors"
             >
               {loading ? "Entrando..." : "Entrar"}
@@ -110,7 +113,7 @@ export default function LoginPage() {
             Sistema ICP — Incentivo de Curto Prazo
           </p>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

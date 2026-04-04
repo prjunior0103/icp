@@ -97,18 +97,20 @@ export async function POST(req: NextRequest) {
 
     const valorChanged = !existing || existing.valorRealizado !== Number(valorRealizado);
 
+    const tipoEfetivo = meta.tipo ?? meta.indicador.tipo;
+    const polaridadeEfetiva = meta.polaridade ?? meta.indicador.polaridade ?? "MAIOR_MELHOR";
     const nota = valorChanged
       ? calcularNota(
-          meta.indicador.tipo,
-          meta.indicador.polaridade ?? "MAIOR_MELHOR",
+          tipoEfetivo,
+          polaridadeEfetiva,
           Number(valorRealizado),
           meta.metaAlvo,
           meta.metaMinima,
           meta.metaMaxima
         )
       : (existing.notaCalculada ?? calcularNota(
-          meta.indicador.tipo,
-          meta.indicador.polaridade ?? "MAIOR_MELHOR",
+          tipoEfetivo,
+          polaridadeEfetiva,
           Number(valorRealizado),
           meta.metaAlvo,
           meta.metaMinima,
@@ -117,16 +119,17 @@ export async function POST(req: NextRequest) {
 
     let premioProjetado: number | undefined;
     if (colaboradorId) {
-      const colaborador = await prisma.colaborador.findUnique({
-        where: { id: Number(colaboradorId) },
-        include: { cargo: true },
-      });
+      const [colaborador, metaColab] = await Promise.all([
+        prisma.colaborador.findUnique({ where: { id: Number(colaboradorId) }, include: { cargo: true } }),
+        prisma.metaColaborador.findFirst({ where: { metaId: Number(metaId), colaboradorId: Number(colaboradorId), ativo: true } }),
+      ]);
       if (colaborador) {
+        const pesoEfetivo = metaColab?.pesoPersonalizado ?? 0;
         premioProjetado = calcularPremio(
           colaborador.salarioBase,
           colaborador.cargo.targetMultiploSalarial,
           nota,
-          meta.pesoNaCesta
+          pesoEfetivo
         );
       }
     }

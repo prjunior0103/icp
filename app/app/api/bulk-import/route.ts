@@ -67,18 +67,19 @@ export async function POST(req: NextRequest) {
         // Calculate nota and premio
         const valorRealizado = Number(row.valorRealizado);
         const nota = calcularNota(
-          meta.indicador.tipo,
-          meta.indicador.polaridade,
+          meta.tipo ?? meta.indicador.tipo,
+          meta.polaridade ?? meta.indicador.polaridade,
           valorRealizado,
           meta.metaAlvo,
           meta.metaMinima,
           meta.metaMaxima
         );
+        const metaColab = await prisma.metaColaborador.findFirst({ where: { metaId: meta.id, colaboradorId: colaborador.id, ativo: true } });
         const premioProjetado = calcularPremio(
           colaborador.salarioBase,
           colaborador.cargo.targetMultiploSalarial,
           nota,
-          meta.pesoNaCesta
+          metaColab?.pesoPersonalizado ?? 0
         );
 
         // Upsert realizacao
