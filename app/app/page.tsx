@@ -210,6 +210,7 @@ export default function Home() {
     abrangencia: "CORPORATIVO", unidade: "%", descricao: "",
     diretivo: "", analistaResp: "", origemDado: "",
     isDivisivel: false, divisorId: "",
+    metrica: "", baseline: "", periodicidade: "", perspectiva: "", tipoIndicador: "", auditorDados: "",
   });
 
   // MetaColaborador assignment
@@ -489,28 +490,6 @@ export default function Home() {
         addToast(`Erro ao criar meta: ${err.error ?? res.status}`, "err");
         return;
       }
-      // Update Indicador governance fields if any were filled
-      const hasIndicadorFields = metaForm.metrica || metaForm.fonte || metaForm.responsavelDados || metaForm.descricao ||
-        metaForm.baseline || metaForm.periodicidade || metaForm.perspectiva || metaForm.tipoIndicador || metaForm.auditorDados ||
-        metaForm.divisivel;
-      if (hasIndicadorFields && metaForm.indicadorId) {
-        await fetch("/api/indicadores", {
-          method: "PUT", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            id: Number(metaForm.indicadorId),
-            ...(metaForm.metrica && { metrica: metaForm.metrica }),
-            ...(metaForm.fonte && { origemDado: metaForm.fonte }),
-            ...(metaForm.responsavelDados && { analistaResp: metaForm.responsavelDados }),
-            ...(metaForm.descricao && { descricao: metaForm.descricao }),
-            ...(metaForm.baseline && { baseline: Number(metaForm.baseline) }),
-            ...(metaForm.periodicidade && { periodicidade: metaForm.periodicidade }),
-            ...(metaForm.perspectiva && { perspectiva: metaForm.perspectiva }),
-            ...(metaForm.tipoIndicador && { tipoIndicador: metaForm.tipoIndicador }),
-            ...(metaForm.auditorDados && { auditorDados: metaForm.auditorDados }),
-            ...(metaForm.divisivel && metaForm.divisorIndicadorId && { divisorId: Number(metaForm.divisorIndicadorId) }),
-          }),
-        });
-      }
       setMetaForm({ indicadorId: "", centroCustoId: "", metaAlvo: "", metaMinima: "", metaMaxima: "", parentMetaId: "", smart_e: "", smart_m: "", smart_a: "", smart_r: "", smart_t: "", nome: "", polaridade: "", fonte: "", responsavelDados: "", metrica: "", descricao: "", valorOrcado: "", unidade: "", divisivel: false, divisorIndicadorId: "", tipo: "", baseline: "", periodicidade: "", perspectiva: "", tipoIndicador: "", auditorDados: "" });
       setShowMetaForm(false);
       setCascateandoMetaId(null);
@@ -541,19 +520,25 @@ export default function Home() {
           analistaResp: indicadorForm.analistaResp || undefined,
           origemDado: indicadorForm.origemDado || undefined,
           divisorId: indicadorForm.isDivisivel && indicadorForm.divisorId ? Number(indicadorForm.divisorId) : null,
+          metrica: indicadorForm.metrica || undefined,
+          baseline: indicadorForm.baseline ? Number(indicadorForm.baseline) : undefined,
+          periodicidade: indicadorForm.periodicidade || undefined,
+          perspectiva: indicadorForm.perspectiva || undefined,
+          tipoIndicador: indicadorForm.tipoIndicador || undefined,
+          auditorDados: indicadorForm.auditorDados || undefined,
           cicloId: cicloAtivo.id,
           status: "ATIVO",
         }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        addToast(`Erro ao criar meta: ${err.error ?? res.status}`, "err");
+        addToast(`Erro ao criar indicador: ${err.error ?? res.status}`, "err");
         return;
       }
-      setIndicadorForm({ codigo: "", nome: "", tipo: "VOLUME_FINANCEIRO", polaridade: "MAIOR_MELHOR", abrangencia: "CORPORATIVO", unidade: "%", descricao: "", diretivo: "", analistaResp: "", origemDado: "", isDivisivel: false, divisorId: "" });
+      setIndicadorForm({ codigo: "", nome: "", tipo: "VOLUME_FINANCEIRO", polaridade: "MAIOR_MELHOR", abrangencia: "CORPORATIVO", unidade: "%", descricao: "", diretivo: "", analistaResp: "", origemDado: "", isDivisivel: false, divisorId: "", metrica: "", baseline: "", periodicidade: "", perspectiva: "", tipoIndicador: "", auditorDados: "" });
       setShowIndicadorForm(false);
       loadIndicadores(cicloAtivo.id);
-      addToast("Meta criada com sucesso", "ok");
+      addToast("Indicador criado com sucesso", "ok");
     } catch (err) {
       addToast(`Erro inesperado: ${String(err)}`, "err");
     }
@@ -1141,7 +1126,7 @@ export default function Home() {
                   {cloningMetaId && <p className="text-xs text-blue-600 mt-0.5">Cópia de #{cloningMetaId} — valores pré-preenchidos, pode alterar</p>}
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Meta *</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Indicador *</label>
                   <select required value={metaForm.indicadorId} onChange={(e) => setMetaForm({ ...metaForm, indicadorId: e.target.value })}
                     className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
                     <option value="">Selecionar...</option>
@@ -1207,125 +1192,6 @@ export default function Home() {
                           placeholder={label} className="w-full border border-gray-200 rounded px-2 py-1 text-xs" />
                       </div>
                     ))}
-                  </div>
-                </div>
-                {/* Campos de Indicador */}
-                <div className="col-span-2 md:col-span-3 border-t border-green-200 pt-3">
-                  <p className="text-xs font-semibold text-green-800 mb-2">Detalhes do Indicador (opcional — sobrescreve o indicador vinculado)</p>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Nome da Meta</label>
-                      <input value={metaForm.nome} onChange={(e) => setMetaForm({ ...metaForm, nome: e.target.value })}
-                        placeholder="Ex: Crescimento de Receita Q1" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Tipo</label>
-                      <select value={metaForm.tipo} onChange={(e) => setMetaForm({ ...metaForm, tipo: e.target.value })}
-                        className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
-                        <option value="">Usar do indicador</option>
-                        <option value="VOLUME_FINANCEIRO">Volume Financeiro</option>
-                        <option value="CUSTO_PRAZO">Custo/Prazo</option>
-                        <option value="PROJETO_MARCO">Projeto/Marco</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Polaridade</label>
-                      <select value={metaForm.polaridade} onChange={(e) => setMetaForm({ ...metaForm, polaridade: e.target.value })}
-                        className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
-                        <option value="">Usar do indicador</option>
-                        <option value="MAIOR_MELHOR">Quanto maior melhor</option>
-                        <option value="MENOR_MELHOR">Quanto menor melhor</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Unidade</label>
-                      <input value={metaForm.unidade} onChange={(e) => setMetaForm({ ...metaForm, unidade: e.target.value })}
-                        placeholder="Ex: %, R$, unidades" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Métrica</label>
-                      <input value={metaForm.metrica} onChange={(e) => setMetaForm({ ...metaForm, metrica: e.target.value })}
-                        placeholder="Ex: Receita Bruta, NPS score" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Valor Orçado</label>
-                      <input type="number" step="any" value={metaForm.valorOrcado} onChange={(e) => setMetaForm({ ...metaForm, valorOrcado: e.target.value })}
-                        placeholder="Valor orçado (budget)" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Fonte dos Dados</label>
-                      <input value={metaForm.fonte} onChange={(e) => setMetaForm({ ...metaForm, fonte: e.target.value })}
-                        placeholder="Ex: ERP, BI, manual" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Responsável pelos Dados</label>
-                      <input value={metaForm.responsavelDados} onChange={(e) => setMetaForm({ ...metaForm, responsavelDados: e.target.value })}
-                        placeholder="Quem envia os dados" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
-                    </div>
-                    <div className="col-span-2 md:col-span-1">
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Descrição</label>
-                      <input value={metaForm.descricao} onChange={(e) => setMetaForm({ ...metaForm, descricao: e.target.value })}
-                        placeholder="Descrição da meta" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
-                    </div>
-                    <div className="flex items-center gap-2 pt-4">
-                      <input type="checkbox" id="divisivel" checked={metaForm.divisivel}
-                        onChange={(e) => setMetaForm({ ...metaForm, divisivel: e.target.checked, divisorIndicadorId: e.target.checked ? metaForm.divisorIndicadorId : "" })}
-                        className="h-4 w-4 accent-green-600" />
-                      <label htmlFor="divisivel" className="text-xs font-medium text-gray-700">Divisível por indicador</label>
-                    </div>
-                    {metaForm.divisivel && (
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">Indicador Divisor</label>
-                        <select value={metaForm.divisorIndicadorId} onChange={(e) => setMetaForm({ ...metaForm, divisorIndicadorId: e.target.value })}
-                          className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
-                          <option value="">Selecionar...</option>
-                          {indicadores.map((i) => (
-                            <option key={i.id} value={i.id}>{i.nome}</option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Linha de Base (Baseline)</label>
-                      <input type="number" step="any" value={metaForm.baseline} onChange={(e) => setMetaForm({ ...metaForm, baseline: e.target.value })}
-                        placeholder="Valor histórico de referência" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Periodicidade</label>
-                      <select value={metaForm.periodicidade} onChange={(e) => setMetaForm({ ...metaForm, periodicidade: e.target.value })}
-                        className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
-                        <option value="">Não definida</option>
-                        <option value="MENSAL">Mensal</option>
-                        <option value="TRIMESTRAL">Trimestral</option>
-                        <option value="SEMESTRAL">Semestral</option>
-                        <option value="ANUAL">Anual</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Perspectiva BSC</label>
-                      <select value={metaForm.perspectiva} onChange={(e) => setMetaForm({ ...metaForm, perspectiva: e.target.value })}
-                        className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
-                        <option value="">Não classificada</option>
-                        <option value="FINANCEIRA">Financeira</option>
-                        <option value="CLIENTE">Cliente</option>
-                        <option value="PROCESSOS">Processos Internos</option>
-                        <option value="APRENDIZADO">Aprendizado e Crescimento</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Tipo de Indicador</label>
-                      <select value={metaForm.tipoIndicador} onChange={(e) => setMetaForm({ ...metaForm, tipoIndicador: e.target.value })}
-                        className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm">
-                        <option value="">Não classificado</option>
-                        <option value="LEADING">Leading (processo/antecedente)</option>
-                        <option value="LAGGING">Lagging (resultado/consequente)</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Auditor dos Dados</label>
-                      <input value={metaForm.auditorDados} onChange={(e) => setMetaForm({ ...metaForm, auditorDados: e.target.value })}
-                        placeholder="Quem valida os dados enviados" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
-                    </div>
                   </div>
                 </div>
                 <div className="col-span-2 md:col-span-3 flex gap-2">
@@ -1927,7 +1793,7 @@ export default function Home() {
               {(["ciclos","empresa","cargo","cc","indicadores"] as const).map((sub) => (
                 <button key={sub} onClick={() => setCadastroSub(sub)}
                   className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${cadastroSub === sub ? "border-blue-600 text-blue-700" : "border-transparent text-gray-500 hover:text-gray-700"}`}>
-                  {sub === "ciclos" ? "Ciclos ICP" : sub === "empresa" ? "Empresas" : sub === "cargo" ? "Cargos" : sub === "cc" ? "Centros de Custo" : "Metas"}
+                  {sub === "ciclos" ? "Ciclos ICP" : sub === "empresa" ? "Empresas" : sub === "cargo" ? "Cargos" : sub === "cc" ? "Centros de Custo" : "Indicadores"}
                 </button>
               ))}
             </div>
@@ -2160,7 +2026,7 @@ export default function Home() {
                 <div className="flex justify-end">
                   <button onClick={() => setShowIndicadorForm((v) => !v)}
                     className="btn-primary">
-                    + Nova Meta
+                    + Novo Indicador
                   </button>
                 </div>
                 {showIndicadorForm && (
@@ -2173,7 +2039,7 @@ export default function Home() {
                     <div className="col-span-2">
                       <label className="block text-xs font-medium text-gray-600 mb-1">Nome *</label>
                       <input required value={indicadorForm.nome} onChange={(e) => setIndicadorForm((f) => ({ ...f, nome: e.target.value }))}
-                        placeholder="Nome da meta" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                        placeholder="Nome do indicador" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">Tipo</label>
@@ -2225,10 +2091,61 @@ export default function Home() {
                     <div className="col-span-2 md:col-span-3">
                       <label className="block text-xs font-medium text-gray-600 mb-1">Descrição</label>
                       <input value={indicadorForm.descricao} onChange={(e) => setIndicadorForm((f) => ({ ...f, descricao: e.target.value }))}
-                        placeholder="Descrição da meta" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                        placeholder="Descrição do indicador" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div className="col-span-2 md:col-span-3 border-t border-blue-200 pt-3">
+                      <p className="text-xs font-semibold text-blue-700 mb-2">Governança (opcional)</p>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Métrica</label>
+                          <input value={indicadorForm.metrica} onChange={(e) => setIndicadorForm((f) => ({ ...f, metrica: e.target.value }))}
+                            placeholder="Ex: Receita Bruta, NPS" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Auditor dos Dados</label>
+                          <input value={indicadorForm.auditorDados} onChange={(e) => setIndicadorForm((f) => ({ ...f, auditorDados: e.target.value }))}
+                            placeholder="Quem valida" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Baseline</label>
+                          <input type="number" step="any" value={indicadorForm.baseline} onChange={(e) => setIndicadorForm((f) => ({ ...f, baseline: e.target.value }))}
+                            placeholder="Valor histórico de referência" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Periodicidade</label>
+                          <select value={indicadorForm.periodicidade} onChange={(e) => setIndicadorForm((f) => ({ ...f, periodicidade: e.target.value }))}
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+                            <option value="">Não definida</option>
+                            <option value="MENSAL">Mensal</option>
+                            <option value="TRIMESTRAL">Trimestral</option>
+                            <option value="SEMESTRAL">Semestral</option>
+                            <option value="ANUAL">Anual</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Perspectiva BSC</label>
+                          <select value={indicadorForm.perspectiva} onChange={(e) => setIndicadorForm((f) => ({ ...f, perspectiva: e.target.value }))}
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+                            <option value="">Não classificada</option>
+                            <option value="FINANCEIRA">Financeira</option>
+                            <option value="CLIENTE">Cliente</option>
+                            <option value="PROCESSOS">Processos Internos</option>
+                            <option value="APRENDIZADO">Aprendizado e Crescimento</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Tipo de Indicador</label>
+                          <select value={indicadorForm.tipoIndicador} onChange={(e) => setIndicadorForm((f) => ({ ...f, tipoIndicador: e.target.value }))}
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+                            <option value="">Não classificado</option>
+                            <option value="LEADING">Leading (processo)</option>
+                            <option value="LAGGING">Lagging (resultado)</option>
+                          </select>
+                        </div>
+                      </div>
                     </div>
                     <div className="col-span-2 md:col-span-3 flex gap-3">
-                      <button type="submit" className="btn-primary">Salvar</button>
+                      <button type="submit" className="btn-primary">Salvar Indicador</button>
                       <button type="button" onClick={() => setShowIndicadorForm(false)} className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2">Cancelar</button>
                     </div>
                   </form>
@@ -2252,7 +2169,7 @@ export default function Home() {
                         </tr>
                       ))}
                       {indicadores.length === 0 && (
-                        <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">Nenhuma meta cadastrada</td></tr>
+                        <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">Nenhum indicador cadastrado</td></tr>
                       )}
                     </tbody>
                   </table>

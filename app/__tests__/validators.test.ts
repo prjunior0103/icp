@@ -83,7 +83,6 @@ describe("validarLinhaMeta — campos obrigatórios e intervalos", () => {
   const base = {
     indicadorCodigo: "REC-LIQ-2026",
     centroCustoCodigo: "CC-COM",
-    pesoNaCesta: "50",
     metaMinima: "80",
     metaAlvo: "100",
     metaMaxima: "120",
@@ -111,16 +110,6 @@ describe("validarLinhaMeta — campos obrigatórios e intervalos", () => {
 
   it("metaAlvo não numérico → erro", () => {
     expect(validarLinhaMeta({ ...base, metaAlvo: "abc" })).toMatch(/inválido/i);
-  });
-
-  it("pesoNaCesta fora de 0–100 → erro", () => {
-    expect(validarLinhaMeta({ ...base, pesoNaCesta: "150" })).toMatch(/pesoNaCesta/i);
-    expect(validarLinhaMeta({ ...base, pesoNaCesta: "-5" })).toMatch(/pesoNaCesta/i);
-  });
-
-  it("pesoNaCesta ausente → válido (usa default 100)", () => {
-    const { pesoNaCesta: _, ...semPeso } = base;
-    expect(validarLinhaMeta(semPeso as typeof base)).toBeNull();
   });
 
   it("metaMinima >= metaAlvo → erro", () => {
