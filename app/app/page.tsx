@@ -282,6 +282,8 @@ export default function Home() {
   const [editingPeso, setEditingPeso] = useState<{ agrupamentoMetaId: number; valor: string } | null>(null);
   const [trocandoAgrupColabId, setTrocandoAgrupColabId] = useState<number | null>(null);
   const [trocandoAgrupTargetId, setTrocandoAgrupTargetId] = useState<string>("");
+  const [agrupamentosViewMode, setAgrupamentosViewMode] = useState<"agrupamentos" | "colaboradores">("agrupamentos");
+  const [colabAgrupSearch, setColabAgrupSearch] = useState("");
 
   // Cadastros state (Empresa / Cargo / CC / Ciclos)
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
@@ -1446,7 +1448,21 @@ export default function Home() {
           return (
             <div className="space-y-6">
               <div className="flex items-center justify-between flex-wrap gap-2">
-                <h2 className="icp-page-title">Agrupamentos de Metas</h2>
+                <div className="flex items-center gap-3">
+                  <h2 className="icp-page-title">Agrupamentos de Metas</h2>
+                  <div className="flex rounded overflow-hidden text-xs" style={{ border: "1px solid var(--border)" }}>
+                    <button
+                      onClick={() => setAgrupamentosViewMode("agrupamentos")}
+                      className={`px-3 py-1 ${agrupamentosViewMode === "agrupamentos" ? "bg-blue-600 text-white" : "bg-white"}`}
+                      style={agrupamentosViewMode !== "agrupamentos" ? { color: "var(--ink-secondary)" } : {}}
+                    >Por agrupamento</button>
+                    <button
+                      onClick={() => setAgrupamentosViewMode("colaboradores")}
+                      className={`px-3 py-1 ${agrupamentosViewMode === "colaboradores" ? "bg-blue-600 text-white" : "bg-white"}`}
+                      style={agrupamentosViewMode !== "colaboradores" ? { color: "var(--ink-secondary)", borderLeft: "1px solid var(--border)" } : { borderLeft: "1px solid var(--border)" }}
+                    >Por colaborador</button>
+                  </div>
+                </div>
                 <button onClick={() => setShowAgrupamentoForm(true)} className="btn-primary text-xs">
                   + Novo Agrupamento
                 </button>
@@ -1485,8 +1501,110 @@ export default function Home() {
                 </div>
               )}
 
+              {/* ── VIEW: Por colaborador ── */}
+              {agrupamentosViewMode === "colaboradores" && (() => {
+                const colabsComAgrup = colaboradores.filter((c) =>
+                  agrupamentos.some((a) => a.metas.some((m) => metas.find((meta) => meta.id === m.metaId)?.colaboradorIds.includes(c.id)))
+                );
+                const semAgrup = colaboradores.filter((c) =>
+                  !agrupamentos.some((a) => a.metas.some((m) => metas.find((meta) => meta.id === m.metaId)?.colaboradorIds.includes(c.id)))
+                );
+                const search = colabAgrupSearch.toLowerCase();
+                const filtered = [...colabsComAgrup, ...semAgrup].filter((c) =>
+                  search === "" || c.nomeCompleto.toLowerCase().includes(search) || c.matricula.toLowerCase().includes(search)
+                );
+                return (
+                  <div className="bg-white rounded-lg overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+                    <div className="px-5 py-3 flex items-center gap-3" style={{ borderBottom: "1px solid var(--border)" }}>
+                      <input
+                        className="icp-input flex-1 text-xs"
+                        placeholder="Buscar colaborador..."
+                        value={colabAgrupSearch}
+                        onChange={(e) => setColabAgrupSearch(e.target.value)}
+                      />
+                      <span className="text-xs" style={{ color: "var(--ink-muted)", whiteSpace: "nowrap" }}>
+                        {filtered.length} colaborador{filtered.length !== 1 ? "es" : ""}
+                      </span>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr style={{ borderBottom: "1px solid var(--border)", background: "var(--surface-raised)" }}>
+                            <th className="px-4 py-2 text-left font-medium" style={{ color: "var(--ink-secondary)" }}>Colaborador</th>
+                            <th className="px-4 py-2 text-left font-medium" style={{ color: "var(--ink-secondary)" }}>Cargo</th>
+                            <th className="px-4 py-2 text-left font-medium" style={{ color: "var(--ink-secondary)" }}>Agrupamentos / Metas</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y" style={{ borderColor: "var(--border)" }}>
+                          {filtered.map((c) => {
+                            const agrupsDoColab = agrupamentos.filter((a) =>
+                              a.metas.some((m) => metas.find((meta) => meta.id === m.metaId)?.colaboradorIds.includes(c.id))
+                            );
+                            return (
+                              <tr key={c.id} className="hover:bg-gray-50">
+                                <td className="px-4 py-2.5">
+                                  <div style={{ color: "var(--ink)" }}>{c.nomeCompleto}</div>
+                                  <div style={{ color: "var(--ink-muted)" }}>{c.matricula}</div>
+                                </td>
+                                <td className="px-4 py-2.5" style={{ color: "var(--ink-secondary)" }}>{c.cargo.nome}</td>
+                                <td className="px-4 py-2.5">
+                                  {agrupsDoColab.length === 0 ? (
+                                    <span className="text-[10px] px-2 py-0.5 rounded bg-gray-100 text-gray-400">Sem agrupamento</span>
+                                  ) : (
+                                    <div className="space-y-1">
+                                      {agrupsDoColab.map((a) => {
+                                        const metasDoColab = a.metas.filter((m) =>
+                                          metas.find((meta) => meta.id === m.metaId)?.colaboradorIds.includes(c.id)
+                                        );
+                                        const totalPeso = metasDoColab.reduce((s, m) => s + m.pesoNaCesta, 0);
+                                        return (
+                                          <div key={a.id} className="flex items-center gap-2 flex-wrap">
+                                            <span
+                                              className="font-medium text-[10px] px-2 py-0.5 rounded cursor-pointer hover:opacity-75"
+                                              style={{ background: "var(--accent-light, #eff6ff)", color: "var(--accent, #2563eb)", border: "1px solid var(--accent-border, #bfdbfe)" }}
+                                              onClick={() => { setSelectedAgrupamentoId(a.id); setAgrupamentosViewMode("agrupamentos"); }}
+                                              title="Clique para abrir este agrupamento"
+                                            >
+                                              {a.nome}
+                                            </span>
+                                            <span className={`text-[10px] px-1.5 py-0.5 rounded ${Math.round(totalPeso) === 100 ? "bg-green-50 text-green-700" : "bg-yellow-50 text-yellow-700"}`}>
+                                              {totalPeso.toFixed(0)}%
+                                            </span>
+                                            <div className="flex flex-wrap gap-1">
+                                              {metasDoColab.map((m) => (
+                                                <span key={m.id} className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">
+                                                  {m.meta.indicador.nome} · {m.pesoNaCesta}%
+                                                </span>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                      {agrupsDoColab.length > 1 && (() => {
+                                        const totalGeral = agrupsDoColab.reduce((s, a) => {
+                                          return s + a.metas.filter((m) => metas.find((meta) => meta.id === m.metaId)?.colaboradorIds.includes(c.id)).reduce((ss, m) => ss + m.pesoNaCesta, 0);
+                                        }, 0);
+                                        return (
+                                          <div className={`text-[10px] font-semibold px-2 py-0.5 rounded w-fit ${Math.round(totalGeral) === 100 ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
+                                            Total combinado: {totalGeral.toFixed(0)}% {Math.round(totalGeral) === 100 ? "✓" : "≠ 100%"}
+                                          </div>
+                                        );
+                                      })()}
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Two-column layout: list + detail */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+              {agrupamentosViewMode === "agrupamentos" && <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
                 {/* Left: agrupamento list */}
                 <div className="space-y-2">
                   {agrupamentos.length === 0 && (
@@ -2004,7 +2122,7 @@ export default function Home() {
                     </div>
                   )}
                 </div>
-              </div>
+              </div>}
             </div>
           );
         })()}
