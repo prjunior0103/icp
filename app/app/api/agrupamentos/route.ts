@@ -46,6 +46,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ data: item }, { status: 201 });
     }
 
+    // Update peso of a meta in agrupamento
+    if (body.action === "updateMetaPeso") {
+      const item = await prisma.agrupamentoMeta.update({
+        where: { id: Number(body.agrupamentoMetaId) },
+        data: { pesoNaCesta: Number(body.pesoNaCesta) },
+      });
+      return NextResponse.json({ data: item });
+    }
+
     // Create agrupamento
     const agrupamento = await prisma.agrupamento.create({
       data: {

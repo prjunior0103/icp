@@ -279,6 +279,7 @@ export default function Home() {
   const [editingAgrupamentoId, setEditingAgrupamentoId] = useState<number | null>(null);
   const [editAgrupamentoForm, setEditAgrupamentoForm] = useState({ nome: "", descricao: "", tipo: "CORPORATIVO" });
   const [agrupamentoAplicarMode, setAgrupamentoAplicarMode] = useState<"todos" | "hierarquia">("todos");
+  const [editingPeso, setEditingPeso] = useState<{ agrupamentoMetaId: number; valor: string } | null>(null);
 
   // Cadastros state (Empresa / Cargo / CC / Ciclos)
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
@@ -725,8 +726,15 @@ export default function Home() {
     const agrupamento = agrupamentos.find((a) => a.id === agrupamentoId);
     if (!agrupamento) return;
     if (agrupamento.metas.length === 0) { addToast("Adicione metas ao agrupamento antes de aplicar.", "err"); return; }
+    const totalPeso = agrupamento.metas.reduce((sum, m) => sum + m.pesoNaCesta, 0);
+    if (Math.round(totalPeso) !== 100) {
+      addToast(`Pesos somam ${totalPeso.toFixed(1)}% — devem somar exatamente 100% antes de aplicar.`, "err"); return;
+    }
     if (agrupamento.tipo === "AREA" && !agrupamentoGestorId) {
       addToast("Selecione um gestor para aplicar o agrupamento de área.", "err"); return;
+    }
+    if (agrupamento.tipo === "CORPORATIVO" && agrupamentoAplicarMode === "hierarquia" && !agrupamentoGestorId) {
+      addToast("Selecione um gestor raiz para aplicar por hierarquia.", "err"); return;
     }
     try {
       const res = await fetch("/api/agrupamentos", {
@@ -783,6 +791,21 @@ export default function Home() {
     } catch (err) {
       addToast(`Erro inesperado: ${String(err)}`, "err");
     }
+  }
+
+  async function handleUpdateMetaPeso(agrupamentoMetaId: number, pesoNaCesta: number) {
+    if (isNaN(pesoNaCesta) || pesoNaCesta < 0 || pesoNaCesta > 100) {
+      addToast("Peso deve ser entre 0 e 100", "err"); return;
+    }
+    try {
+      const res = await fetch("/api/agrupamentos", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "updateMetaPeso", agrupamentoMetaId, pesoNaCesta }),
+      });
+      if (!res.ok) { addToast("Erro ao salvar peso", "err"); return; }
+      await loadAgrupamentos(cicloAtivo?.id);
+      setEditingPeso(null);
+    } catch { addToast("Erro ao salvar peso", "err"); }
   }
 
   async function handleColabImport(e: React.FormEvent) {
@@ -1566,40 +1589,81 @@ export default function Home() {
 
                       {/* Metas no agrupamento */}
                       <div className="bg-white rounded-lg overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-                        <div className="px-5 py-3 flex items-center justify-between" style={{ borderBottom: "1px solid var(--border)" }}>
-                          <h4 className="text-sm font-semibold" style={{ color: "var(--ink)" }}>
-                            Metas ({selectedAgrupamento.metas.length})
-                          </h4>
-                        </div>
-                        {selectedAgrupamento.metas.length === 0 ? (
-                          <div className="px-5 py-6 text-center">
-                            <p className="text-xs" style={{ color: "var(--ink-muted)" }}>Nenhuma meta adicionada. Use o campo abaixo para adicionar.</p>
-                          </div>
-                        ) : (
-                          <table className="w-full text-sm">
-                            <tbody className="divide-y" style={{ borderColor: "var(--border)" }}>
-                              {selectedAgrupamento.metas.map((item) => (
-                                <tr key={item.id} className="hover:bg-gray-50">
-                                  <td className="px-5 py-3">
-                                    <div className="font-medium text-sm" style={{ color: "var(--ink)" }}>{item.meta.indicador.nome}</div>
-                                    <div className="text-xs" style={{ color: "var(--ink-muted)" }}>
-                                      Alvo: {item.meta.metaAlvo} {item.meta.indicador.unidade} · Peso: {item.pesoNaCesta}%
-                                    </div>
-                                  </td>
-                                  <td className="px-5 py-3 text-right">
-                                    <button
-                                      onClick={() => handleRemoveMetaFromAgrupamento(selectedAgrupamento.id, item.metaId)}
-                                      className="text-xs px-2 py-0.5 rounded"
-                                      style={{ color: "var(--err-text)", border: "1px solid var(--err-border)" }}
-                                    >
-                                      Remover
-                                    </button>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        )}
+                        {(() => {
+                          const totalPeso = selectedAgrupamento.metas.reduce((s, m) => s + m.pesoNaCesta, 0);
+                          const pesoOk = Math.round(totalPeso) === 100;
+                          return (
+                            <>
+                              <div className="px-5 py-3 flex items-center justify-between" style={{ borderBottom: "1px solid var(--border)" }}>
+                                <h4 className="text-sm font-semibold" style={{ color: "var(--ink)" }}>
+                                  Metas ({selectedAgrupamento.metas.length})
+                                </h4>
+                                {selectedAgrupamento.metas.length > 0 && (
+                                  <span className={`text-xs font-semibold px-2 py-0.5 rounded ${pesoOk ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
+                                    Total: {totalPeso.toFixed(0)}% {pesoOk ? "✓" : "≠ 100%"}
+                                  </span>
+                                )}
+                              </div>
+                              {selectedAgrupamento.metas.length === 0 ? (
+                                <div className="px-5 py-6 text-center">
+                                  <p className="text-xs" style={{ color: "var(--ink-muted)" }}>Nenhuma meta adicionada. Use o campo abaixo para adicionar.</p>
+                                </div>
+                              ) : (
+                                <table className="w-full text-sm">
+                                  <thead>
+                                    <tr style={{ borderBottom: "1px solid var(--border)", background: "var(--surface-raised)" }}>
+                                      <th className="px-5 py-2 text-left text-xs font-medium" style={{ color: "var(--ink-secondary)" }}>Indicador</th>
+                                      <th className="px-3 py-2 text-center text-xs font-medium" style={{ color: "var(--ink-secondary)" }}>Peso (%)</th>
+                                      <th className="px-5 py-2"></th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y" style={{ borderColor: "var(--border)" }}>
+                                    {selectedAgrupamento.metas.map((item) => (
+                                      <tr key={item.id} className="hover:bg-gray-50">
+                                        <td className="px-5 py-3">
+                                          <div className="font-medium text-sm" style={{ color: "var(--ink)" }}>{item.meta.indicador.nome}</div>
+                                          <div className="text-xs" style={{ color: "var(--ink-muted)" }}>
+                                            Alvo: {item.meta.metaAlvo} {item.meta.indicador.unidade}
+                                          </div>
+                                        </td>
+                                        <td className="px-3 py-3 text-center">
+                                          {editingPeso?.agrupamentoMetaId === item.id ? (
+                                            <input
+                                              type="number" min="0" max="100" step="1"
+                                              className="icp-input w-16 text-center text-xs"
+                                              value={editingPeso.valor}
+                                              onChange={(e) => setEditingPeso({ agrupamentoMetaId: item.id, valor: e.target.value })}
+                                              onBlur={() => handleUpdateMetaPeso(item.id, Number(editingPeso.valor))}
+                                              onKeyDown={(e) => { if (e.key === "Enter") handleUpdateMetaPeso(item.id, Number(editingPeso.valor)); if (e.key === "Escape") setEditingPeso(null); }}
+                                              autoFocus
+                                            />
+                                          ) : (
+                                            <button
+                                              onClick={() => setEditingPeso({ agrupamentoMetaId: item.id, valor: String(item.pesoNaCesta) })}
+                                              className={`text-xs font-semibold px-2 py-0.5 rounded cursor-pointer hover:opacity-75 ${item.pesoNaCesta === 0 ? "bg-red-50 text-red-700 border border-red-200" : "bg-blue-50 text-blue-700 border border-blue-200"}`}
+                                              title="Clique para editar o peso"
+                                            >
+                                              {item.pesoNaCesta}%
+                                            </button>
+                                          )}
+                                        </td>
+                                        <td className="px-5 py-3 text-right">
+                                          <button
+                                            onClick={() => handleRemoveMetaFromAgrupamento(selectedAgrupamento.id, item.metaId)}
+                                            className="text-xs px-2 py-0.5 rounded"
+                                            style={{ color: "var(--err-text)", border: "1px solid var(--err-border)" }}
+                                          >
+                                            Remover
+                                          </button>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              )}
+                            </>
+                          );
+                        })()}
 
                         {/* Add meta */}
                         <div className="px-5 py-3" style={{ borderTop: "1px solid var(--border)", background: "var(--surface-raised)" }}>
@@ -1801,6 +1865,69 @@ export default function Home() {
                           </div>
                         )}
                       </div>
+
+                      {/* Gestão: colaboradores com estas metas */}
+                      {selectedAgrupamento.metas.length > 0 && (() => {
+                        const metaIdsNoAg = selectedAgrupamento.metas.map((m) => m.metaId);
+                        // Collaborators who have at least one of these metas
+                        const colabsComMeta = colaboradores.filter((c) =>
+                          metas.some((m) => metaIdsNoAg.includes(m.id) && m.colaboradorIds.includes(c.id))
+                        );
+                        return (
+                          <div className="bg-white rounded-lg overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+                            <div className="px-5 py-3 flex items-center justify-between" style={{ borderBottom: "1px solid var(--border)" }}>
+                              <h4 className="text-sm font-semibold" style={{ color: "var(--ink)" }}>
+                                Colaboradores com estas metas
+                              </h4>
+                              <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-600">
+                                {colabsComMeta.length} colaborador{colabsComMeta.length !== 1 ? "es" : ""}
+                              </span>
+                            </div>
+                            {colabsComMeta.length === 0 ? (
+                              <div className="px-5 py-5 text-center">
+                                <p className="text-xs" style={{ color: "var(--ink-muted)" }}>Nenhum colaborador recebeu este agrupamento ainda. Aplique acima.</p>
+                              </div>
+                            ) : (
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-xs">
+                                  <thead>
+                                    <tr style={{ borderBottom: "1px solid var(--border)", background: "var(--surface-raised)" }}>
+                                      <th className="px-4 py-2 text-left font-medium" style={{ color: "var(--ink-secondary)" }}>Colaborador</th>
+                                      <th className="px-4 py-2 text-left font-medium" style={{ color: "var(--ink-secondary)" }}>Cargo</th>
+                                      <th className="px-4 py-2 text-left font-medium" style={{ color: "var(--ink-secondary)" }}>Metas recebidas</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y" style={{ borderColor: "var(--border)" }}>
+                                    {colabsComMeta.map((c) => {
+                                      const metasDoColab = selectedAgrupamento.metas.filter((m) =>
+                                        metas.find((meta) => meta.id === m.metaId)?.colaboradorIds.includes(c.id)
+                                      );
+                                      return (
+                                        <tr key={c.id} className="hover:bg-gray-50">
+                                          <td className="px-4 py-2.5">
+                                            <div style={{ color: "var(--ink)" }}>{c.nomeCompleto}</div>
+                                            <div style={{ color: "var(--ink-muted)" }}>{c.matricula}</div>
+                                          </td>
+                                          <td className="px-4 py-2.5" style={{ color: "var(--ink-secondary)" }}>{c.cargo.nome}</td>
+                                          <td className="px-4 py-2.5">
+                                            <div className="flex flex-wrap gap-1">
+                                              {metasDoColab.map((m) => (
+                                                <span key={m.id} className="bg-blue-50 text-blue-700 border border-blue-200 rounded px-1.5 py-0.5 text-[10px]">
+                                                  {m.meta.indicador.nome} · {m.pesoNaCesta}%
+                                                </span>
+                                              ))}
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>
