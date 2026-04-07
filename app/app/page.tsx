@@ -280,6 +280,8 @@ export default function Home() {
   const [editAgrupamentoForm, setEditAgrupamentoForm] = useState({ nome: "", descricao: "", tipo: "CORPORATIVO" });
   const [agrupamentoAplicarMode, setAgrupamentoAplicarMode] = useState<"todos" | "hierarquia">("todos");
   const [editingPeso, setEditingPeso] = useState<{ agrupamentoMetaId: number; valor: string } | null>(null);
+  const [trocandoAgrupColabId, setTrocandoAgrupColabId] = useState<number | null>(null);
+  const [trocandoAgrupTargetId, setTrocandoAgrupTargetId] = useState<string>("");
 
   // Cadastros state (Empresa / Cargo / CC / Ciclos)
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
@@ -728,7 +730,8 @@ export default function Home() {
     if (agrupamento.metas.length === 0) { addToast("Adicione metas ao agrupamento antes de aplicar.", "err"); return; }
     const totalPeso = agrupamento.metas.reduce((sum, m) => sum + m.pesoNaCesta, 0);
     if (Math.round(totalPeso) !== 100) {
-      addToast(`Pesos somam ${totalPeso.toFixed(1)}% — devem somar exatamente 100% antes de aplicar.`, "err"); return;
+      const continuar = confirm(`Os pesos deste agrupamento somam ${totalPeso.toFixed(1)}%. Ao combinar com outros agrupamentos, o total deve ser 100%. Aplicar mesmo assim?`);
+      if (!continuar) return;
     }
     if (agrupamento.tipo === "AREA" && !agrupamentoGestorId) {
       addToast("Selecione um gestor para aplicar o agrupamento de área.", "err"); return;
@@ -806,6 +809,33 @@ export default function Home() {
       await loadAgrupamentos(cicloAtivo?.id);
       setEditingPeso(null);
     } catch { addToast("Erro ao salvar peso", "err"); }
+  }
+
+  async function handleRemoverColaboradorAgrupamento(agrupamentoId: number, colaboradorId: number) {
+    if (!confirm("Remover este colaborador do agrupamento? As metas serão desvinculadas.")) return;
+    try {
+      const res = await fetch("/api/agrupamentos", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "removerColaborador", agrupamentoId, colaboradorId }),
+      });
+      if (!res.ok) { addToast("Erro ao remover colaborador", "err"); return; }
+      await Promise.all([loadAgrupamentos(cicloAtivo?.id), loadMetas(cicloAtivo?.id)]);
+      addToast("Colaborador removido do agrupamento", "info");
+    } catch { addToast("Erro ao remover colaborador", "err"); }
+  }
+
+  async function handleTrocarAgrupamento(fromAgrupamentoId: number, colaboradorId: number, toAgrupamentoId: number) {
+    try {
+      const res = await fetch("/api/agrupamentos", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "trocarAgrupamento", fromAgrupamentoId, toAgrupamentoId, colaboradorId }),
+      });
+      if (!res.ok) { addToast("Erro ao trocar agrupamento", "err"); return; }
+      await Promise.all([loadAgrupamentos(cicloAtivo?.id), loadMetas(cicloAtivo?.id)]);
+      setTrocandoAgrupColabId(null);
+      setTrocandoAgrupTargetId("");
+      addToast("Agrupamento atualizado para o colaborador", "ok");
+    } catch { addToast("Erro ao trocar agrupamento", "err"); }
   }
 
   async function handleColabImport(e: React.FormEvent) {
@@ -1895,6 +1925,7 @@ export default function Home() {
                                       <th className="px-4 py-2 text-left font-medium" style={{ color: "var(--ink-secondary)" }}>Colaborador</th>
                                       <th className="px-4 py-2 text-left font-medium" style={{ color: "var(--ink-secondary)" }}>Cargo</th>
                                       <th className="px-4 py-2 text-left font-medium" style={{ color: "var(--ink-secondary)" }}>Metas recebidas</th>
+                                      <th className="px-4 py-2 text-left font-medium" style={{ color: "var(--ink-secondary)" }}>Ações</th>
                                     </tr>
                                   </thead>
                                   <tbody className="divide-y" style={{ borderColor: "var(--border)" }}>
@@ -1902,6 +1933,7 @@ export default function Home() {
                                       const metasDoColab = selectedAgrupamento.metas.filter((m) =>
                                         metas.find((meta) => meta.id === m.metaId)?.colaboradorIds.includes(c.id)
                                       );
+                                      const outrosAgrupamentos = agrupamentos.filter((a) => a.id !== selectedAgrupamento.id);
                                       return (
                                         <tr key={c.id} className="hover:bg-gray-50">
                                           <td className="px-4 py-2.5">
@@ -1917,6 +1949,47 @@ export default function Home() {
                                                 </span>
                                               ))}
                                             </div>
+                                          </td>
+                                          <td className="px-4 py-2.5">
+                                            {trocandoAgrupColabId === c.id ? (
+                                              <div className="flex items-center gap-1">
+                                                <select
+                                                  className="icp-input text-xs py-0.5"
+                                                  value={trocandoAgrupTargetId}
+                                                  onChange={(e) => setTrocandoAgrupTargetId(e.target.value)}
+                                                >
+                                                  <option value="">Selecione...</option>
+                                                  {outrosAgrupamentos.map((a) => (
+                                                    <option key={a.id} value={a.id}>{a.nome}</option>
+                                                  ))}
+                                                </select>
+                                                <button
+                                                  onClick={() => trocandoAgrupTargetId && handleTrocarAgrupamento(selectedAgrupamento.id, c.id, Number(trocandoAgrupTargetId))}
+                                                  disabled={!trocandoAgrupTargetId}
+                                                  className="text-xs px-2 py-0.5 rounded bg-blue-600 text-white disabled:opacity-40"
+                                                >OK</button>
+                                                <button
+                                                  onClick={() => { setTrocandoAgrupColabId(null); setTrocandoAgrupTargetId(""); }}
+                                                  className="text-xs px-2 py-0.5 rounded"
+                                                  style={{ color: "var(--ink-muted)", border: "1px solid var(--border)" }}
+                                                >✕</button>
+                                              </div>
+                                            ) : (
+                                              <div className="flex gap-1">
+                                                {outrosAgrupamentos.length > 0 && (
+                                                  <button
+                                                    onClick={() => { setTrocandoAgrupColabId(c.id); setTrocandoAgrupTargetId(""); }}
+                                                    className="text-xs px-2 py-0.5 rounded"
+                                                    style={{ color: "var(--ink-secondary)", border: "1px solid var(--border)" }}
+                                                  >Trocar</button>
+                                                )}
+                                                <button
+                                                  onClick={() => handleRemoverColaboradorAgrupamento(selectedAgrupamento.id, c.id)}
+                                                  className="text-xs px-2 py-0.5 rounded"
+                                                  style={{ color: "var(--err-text)", border: "1px solid var(--err-border)" }}
+                                                >Remover</button>
+                                              </div>
+                                            )}
                                           </td>
                                         </tr>
                                       );

@@ -46,6 +46,47 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ data: item }, { status: 201 });
     }
 
+    // Remove a collaborator from an agrupamento (delete their MetaColaborador records for all metas in this agrupamento)
+    if (body.action === "removerColaborador") {
+      const agrupamento = await prisma.agrupamento.findUnique({
+        where: { id: Number(body.agrupamentoId) },
+        include: { metas: true },
+      });
+      if (!agrupamento) return NextResponse.json({ error: "Agrupamento não encontrado" }, { status: 404 });
+      const metaIds = agrupamento.metas.map((m) => m.metaId);
+      await prisma.metaColaborador.deleteMany({
+        where: { colaboradorId: Number(body.colaboradorId), metaId: { in: metaIds } },
+      });
+      return NextResponse.json({ data: { success: true } });
+    }
+
+    // Swap a collaborator from one agrupamento to another
+    if (body.action === "trocarAgrupamento") {
+      const [fromAgrup, toAgrup] = await Promise.all([
+        prisma.agrupamento.findUnique({ where: { id: Number(body.fromAgrupamentoId) }, include: { metas: true } }),
+        prisma.agrupamento.findUnique({ where: { id: Number(body.toAgrupamentoId) }, include: { metas: true } }),
+      ]);
+      if (!fromAgrup || !toAgrup) return NextResponse.json({ error: "Agrupamento não encontrado" }, { status: 404 });
+      const fromMetaIds = fromAgrup.metas.map((m) => m.metaId);
+      const toMetaIds = toAgrup.metas.map((m) => m.metaId);
+      const colaboradorId = Number(body.colaboradorId);
+      await prisma.$transaction(async (tx) => {
+        // Remove from source agrupamento
+        await tx.metaColaborador.deleteMany({
+          where: { colaboradorId, metaId: { in: fromMetaIds } },
+        });
+        // Add to target agrupamento (upsert to avoid duplicates)
+        for (const metaId of toMetaIds) {
+          await tx.metaColaborador.upsert({
+            where: { metaId_colaboradorId: { metaId, colaboradorId } },
+            update: { ativo: true },
+            create: { metaId, colaboradorId },
+          });
+        }
+      });
+      return NextResponse.json({ data: { success: true } });
+    }
+
     // Update peso of a meta in agrupamento
     if (body.action === "updateMetaPeso") {
       const item = await prisma.agrupamentoMeta.update({
