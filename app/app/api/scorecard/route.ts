@@ -87,6 +87,7 @@ export async function GET(req: NextRequest) {
           metaMaxima: meta.metaMaxima,
           status: meta.status,
           centroCusto: meta.centroCusto,
+          indicador: meta.indicador,
         },
         indicador: meta.indicador,
         realizacoes: metaRealizacoes,

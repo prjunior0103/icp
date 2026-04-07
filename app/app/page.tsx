@@ -273,8 +273,12 @@ export default function Home() {
   const [showAgrupamentoForm, setShowAgrupamentoForm] = useState(false);
   const [agrupamentoForm, setAgrupamentoForm] = useState({ nome: "", descricao: "", tipo: "CORPORATIVO" });
   const [agrupamentoMetaSearch, setAgrupamentoMetaSearch] = useState("");
+  const [agrupamentoMetaFocused, setAgrupamentoMetaFocused] = useState(false);
   const [agrupamentoGestorId, setAgrupamentoGestorId] = useState("");
   const [agrupamentoCascatear, setAgrupamentoCascatear] = useState(false);
+  const [editingAgrupamentoId, setEditingAgrupamentoId] = useState<number | null>(null);
+  const [editAgrupamentoForm, setEditAgrupamentoForm] = useState({ nome: "", descricao: "", tipo: "CORPORATIVO" });
+  const [agrupamentoAplicarMode, setAgrupamentoAplicarMode] = useState<"todos" | "hierarquia">("todos");
 
   // Cadastros state (Empresa / Cargo / CC / Ciclos)
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
@@ -730,8 +734,12 @@ export default function Home() {
         body: JSON.stringify({
           action: "aplicar",
           agrupamentoId,
-          gestorId: agrupamento.tipo === "AREA" ? Number(agrupamentoGestorId) : undefined,
-          cascatear: agrupamento.tipo === "AREA" ? agrupamentoCascatear : undefined,
+          gestorId: (agrupamento.tipo === "AREA" || agrupamentoAplicarMode === "hierarquia") && agrupamentoGestorId
+            ? Number(agrupamentoGestorId)
+            : undefined,
+          cascatear: (agrupamento.tipo === "AREA" || agrupamentoAplicarMode === "hierarquia")
+            ? agrupamentoCascatear
+            : undefined,
         }),
       });
       if (!res.ok) {
@@ -754,6 +762,27 @@ export default function Home() {
     if (selectedAgrupamentoId === id) setSelectedAgrupamentoId(null);
     await loadAgrupamentos(cicloAtivo?.id);
     addToast("Agrupamento excluído", "info");
+  }
+
+  async function handleEditarAgrupamento(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingAgrupamentoId) return;
+    try {
+      const res = await fetch("/api/agrupamentos", {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: editingAgrupamentoId, ...editAgrupamentoForm }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        addToast(`Erro ao editar agrupamento: ${err.error ?? res.status}`, "err");
+        return;
+      }
+      setEditingAgrupamentoId(null);
+      await loadAgrupamentos(cicloAtivo?.id);
+      addToast("Agrupamento atualizado", "ok");
+    } catch (err) {
+      addToast(`Erro inesperado: ${String(err)}`, "err");
+    }
   }
 
   async function handleColabImport(e: React.FormEvent) {
@@ -1418,7 +1447,7 @@ export default function Home() {
                     return (
                       <button
                         key={ag.id}
-                        onClick={() => { setSelectedAgrupamentoId(ag.id); setAgrupamentoGestorId(""); setAgrupamentoCascatear(false); }}
+                        onClick={() => { setSelectedAgrupamentoId(ag.id); setAgrupamentoGestorId(""); setAgrupamentoCascatear(false); setAgrupamentoAplicarMode("todos"); setEditingAgrupamentoId(null); }}
                         className="w-full text-left rounded-lg p-4 transition-all"
                         style={{
                           border: `1px solid ${isSelected ? "var(--accent)" : "var(--border)"}`,
@@ -1463,30 +1492,76 @@ export default function Home() {
                     <div className="space-y-4">
                       {/* Detail header */}
                       <div className="bg-white rounded-lg p-5" style={{ border: "1px solid var(--border)" }}>
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <h3 className="text-base font-semibold" style={{ color: "var(--ink)" }}>{selectedAgrupamento.nome}</h3>
-                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                                selectedAgrupamento.tipo === "CORPORATIVO"
-                                  ? "bg-blue-50 text-blue-700 border border-blue-200"
-                                  : "bg-purple-50 text-purple-700 border border-purple-200"
-                              }`}>
-                                {selectedAgrupamento.tipo}
-                              </span>
+                        {editingAgrupamentoId === selectedAgrupamento.id ? (
+                          <form onSubmit={handleEditarAgrupamento} className="space-y-3">
+                            <p className="text-xs font-semibold mb-2" style={{ color: "var(--ink-secondary)" }}>Editar agrupamento</p>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                              <div>
+                                <label className="text-xs font-medium block mb-1" style={{ color: "var(--ink-secondary)" }}>Nome *</label>
+                                <input required className="icp-input w-full" value={editAgrupamentoForm.nome}
+                                  onChange={(e) => setEditAgrupamentoForm((f) => ({ ...f, nome: e.target.value }))} />
+                              </div>
+                              <div>
+                                <label className="text-xs font-medium block mb-1" style={{ color: "var(--ink-secondary)" }}>Tipo *</label>
+                                <select className="icp-input w-full" value={editAgrupamentoForm.tipo}
+                                  onChange={(e) => setEditAgrupamentoForm((f) => ({ ...f, tipo: e.target.value }))}>
+                                  <option value="CORPORATIVO">CORPORATIVO — todos os colaboradores</option>
+                                  <option value="AREA">ÁREA — gestor específico</option>
+                                </select>
+                              </div>
+                              <div>
+                                <label className="text-xs font-medium block mb-1" style={{ color: "var(--ink-secondary)" }}>Descrição</label>
+                                <input className="icp-input w-full" value={editAgrupamentoForm.descricao}
+                                  onChange={(e) => setEditAgrupamentoForm((f) => ({ ...f, descricao: e.target.value }))} />
+                              </div>
                             </div>
-                            {selectedAgrupamento.descricao && (
-                              <p className="text-xs mt-1" style={{ color: "var(--ink-muted)" }}>{selectedAgrupamento.descricao}</p>
-                            )}
+                            <div className="flex gap-2 pt-1">
+                              <button type="submit" className="btn-primary text-xs">Salvar</button>
+                              <button type="button" className="btn-ghost text-xs" onClick={() => setEditingAgrupamentoId(null)}>Cancelar</button>
+                            </div>
+                          </form>
+                        ) : (
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h3 className="text-base font-semibold" style={{ color: "var(--ink)" }}>{selectedAgrupamento.nome}</h3>
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                                  selectedAgrupamento.tipo === "CORPORATIVO"
+                                    ? "bg-blue-50 text-blue-700 border border-blue-200"
+                                    : "bg-purple-50 text-purple-700 border border-purple-200"
+                                }`}>
+                                  {selectedAgrupamento.tipo}
+                                </span>
+                              </div>
+                              {selectedAgrupamento.descricao && (
+                                <p className="text-xs mt-1" style={{ color: "var(--ink-muted)" }}>{selectedAgrupamento.descricao}</p>
+                              )}
+                            </div>
+                            <div className="flex gap-2 flex-shrink-0">
+                              <button
+                                onClick={() => {
+                                  setEditingAgrupamentoId(selectedAgrupamento.id);
+                                  setEditAgrupamentoForm({
+                                    nome: selectedAgrupamento.nome,
+                                    descricao: selectedAgrupamento.descricao ?? "",
+                                    tipo: selectedAgrupamento.tipo,
+                                  });
+                                }}
+                                className="text-xs px-2 py-1 rounded"
+                                style={{ color: "var(--accent)", border: "1px solid var(--accent)" }}
+                              >
+                                Editar
+                              </button>
+                              <button
+                                onClick={() => handleExcluirAgrupamento(selectedAgrupamento.id)}
+                                className="text-xs px-2 py-1 rounded"
+                                style={{ color: "var(--err-text)", border: "1px solid var(--err-border)" }}
+                              >
+                                Excluir
+                              </button>
+                            </div>
                           </div>
-                          <button
-                            onClick={() => handleExcluirAgrupamento(selectedAgrupamento.id)}
-                            className="text-xs px-2 py-1 rounded"
-                            style={{ color: "var(--err-text)", border: "1px solid var(--err-border)" }}
-                          >
-                            Excluir
-                          </button>
-                        </div>
+                        )}
                       </div>
 
                       {/* Metas no agrupamento */}
@@ -1528,20 +1603,24 @@ export default function Home() {
 
                         {/* Add meta */}
                         <div className="px-5 py-3" style={{ borderTop: "1px solid var(--border)", background: "var(--surface-raised)" }}>
+                          <p className="text-xs font-medium mb-2" style={{ color: "var(--ink-secondary)" }}>Adicionar meta</p>
                           <div className="flex gap-2">
                             <input
                               className="icp-input flex-1 text-xs"
-                              placeholder="Buscar meta por indicador..."
+                              placeholder="Buscar por nome do indicador (ou deixe em branco para listar todas)..."
                               value={agrupamentoMetaSearch}
                               onChange={(e) => setAgrupamentoMetaSearch(e.target.value)}
+                              onFocus={() => setAgrupamentoMetaFocused(true)}
+                              onBlur={() => setTimeout(() => setAgrupamentoMetaFocused(false), 150)}
                             />
                           </div>
-                          {agrupamentoMetaSearch && (
+                          {(agrupamentoMetaFocused || agrupamentoMetaSearch) && (
                             <div className="mt-2 rounded-md overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-                              {metasDisponiveis.slice(0, 8).map((m) => (
+                              {metasDisponiveis.slice(0, 10).map((m) => (
                                 <button
                                   key={m.id}
-                                  onClick={() => { handleAddMetaToAgrupamento(selectedAgrupamento.id, m.id); setAgrupamentoMetaSearch(""); }}
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => { handleAddMetaToAgrupamento(selectedAgrupamento.id, m.id); setAgrupamentoMetaSearch(""); setAgrupamentoMetaFocused(false); }}
                                   className="w-full text-left px-3 py-2 text-xs hover:bg-blue-50 flex items-center justify-between gap-2"
                                   style={{ borderBottom: "1px solid var(--border)" }}
                                 >
@@ -1550,7 +1629,14 @@ export default function Home() {
                                 </button>
                               ))}
                               {metasDisponiveis.length === 0 && (
-                                <p className="px-3 py-2 text-xs" style={{ color: "var(--ink-muted)" }}>Nenhuma meta encontrada ou todas já adicionadas</p>
+                                <p className="px-3 py-2 text-xs" style={{ color: "var(--ink-muted)" }}>
+                                  {metas.length === 0 ? "Nenhuma meta cadastrada neste ciclo" : "Todas as metas já foram adicionadas"}
+                                </p>
+                              )}
+                              {metasDisponiveis.length > 10 && (
+                                <p className="px-3 py-2 text-xs" style={{ color: "var(--ink-muted)", background: "var(--surface-raised)" }}>
+                                  +{metasDisponiveis.length - 10} metas — digite para filtrar
+                                </p>
                               )}
                             </div>
                           )}
@@ -1563,20 +1649,89 @@ export default function Home() {
 
                         {selectedAgrupamento.tipo === "CORPORATIVO" ? (
                           <div className="space-y-3">
-                            <p className="text-xs" style={{ color: "var(--ink-secondary)" }}>
-                              Atribui todas as metas deste agrupamento a <strong>todos os colaboradores ativos</strong>.
-                            </p>
-                            <button
-                              onClick={() => handleAplicarAgrupamento(selectedAgrupamento.id)}
-                              className="btn-primary text-xs"
-                            >
-                              Aplicar para todos ({colaboradores.filter((c) => c.ativo).length} colaboradores)
-                            </button>
+                            {/* Mode selector */}
+                            <div className="flex gap-3">
+                              {(["todos", "hierarquia"] as const).map((mode) => (
+                                <label key={mode} className="flex items-center gap-1.5 cursor-pointer">
+                                  <input
+                                    type="radio"
+                                    name="aplicarMode"
+                                    value={mode}
+                                    checked={agrupamentoAplicarMode === mode}
+                                    onChange={() => { setAgrupamentoAplicarMode(mode); setAgrupamentoGestorId(""); setAgrupamentoCascatear(false); }}
+                                    className="accent-blue-600"
+                                  />
+                                  <span className="text-xs" style={{ color: "var(--ink-secondary)" }}>
+                                    {mode === "todos" ? "Todos os colaboradores" : "Por hierarquia"}
+                                  </span>
+                                </label>
+                              ))}
+                            </div>
+
+                            {agrupamentoAplicarMode === "todos" ? (
+                              <div className="space-y-2">
+                                <p className="text-xs" style={{ color: "var(--ink-secondary)" }}>
+                                  Atribui todas as metas deste agrupamento a <strong>todos os colaboradores ativos</strong>.
+                                </p>
+                                <button
+                                  onClick={() => handleAplicarAgrupamento(selectedAgrupamento.id)}
+                                  className="btn-primary text-xs"
+                                >
+                                  Aplicar para todos ({colaboradores.filter((c) => c.ativo).length} colaboradores)
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="space-y-3">
+                                <p className="text-xs" style={{ color: "var(--ink-secondary)" }}>
+                                  Atribui as metas a partir de um gestor raiz, com cascateamento pela hierarquia.
+                                </p>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                  <div>
+                                    <label className="text-xs font-medium block mb-1" style={{ color: "var(--ink-secondary)" }}>Gestor raiz *</label>
+                                    <select
+                                      className="icp-input w-full"
+                                      value={agrupamentoGestorId}
+                                      onChange={(e) => setAgrupamentoGestorId(e.target.value)}
+                                    >
+                                      <option value="">Selecionar gestor...</option>
+                                      {colaboradores.map((c) => (
+                                        <option key={c.id} value={c.id}>{c.nomeCompleto} — {c.cargo.nome}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                  <div className="flex items-end">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={agrupamentoCascatear}
+                                        onChange={(e) => setAgrupamentoCascatear(e.target.checked)}
+                                        className="rounded"
+                                      />
+                                      <span className="text-xs" style={{ color: "var(--ink-secondary)" }}>
+                                        Cascatear para subordinados
+                                        {agrupamentoGestorId && (
+                                          <span className="ml-1" style={{ color: "var(--ink-muted)" }}>
+                                            ({colaboradores.filter((c) => c.gestorId === Number(agrupamentoGestorId)).length} diretos)
+                                          </span>
+                                        )}
+                                      </span>
+                                    </label>
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={() => handleAplicarAgrupamento(selectedAgrupamento.id)}
+                                  disabled={!agrupamentoGestorId}
+                                  className="btn-primary text-xs disabled:opacity-40"
+                                >
+                                  Aplicar
+                                </button>
+                              </div>
+                            )}
                           </div>
                         ) : (
                           <div className="space-y-3">
                             <p className="text-xs" style={{ color: "var(--ink-secondary)" }}>
-                              Atribui as metas ao gestor selecionado e, opcionalmente, aos seus subordinados diretos.
+                              Atribui as metas ao gestor selecionado e, opcionalmente, cascateia pela hierarquia abaixo.
                             </p>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                               <div>
@@ -1601,10 +1756,10 @@ export default function Home() {
                                     className="rounded"
                                   />
                                   <span className="text-xs" style={{ color: "var(--ink-secondary)" }}>
-                                    Cascatear para subordinados diretos
+                                    Cascatear para subordinados
                                     {agrupamentoGestorId && (
                                       <span className="ml-1" style={{ color: "var(--ink-muted)" }}>
-                                        ({colaboradores.filter((c) => c.gestorId === Number(agrupamentoGestorId)).length} subordinados)
+                                        ({colaboradores.filter((c) => c.gestorId === Number(agrupamentoGestorId)).length} diretos)
                                       </span>
                                     )}
                                   </span>

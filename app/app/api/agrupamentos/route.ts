@@ -109,8 +109,9 @@ async function handleAplicar(body: {
 
   // Determine which collaborators receive the metas
   let colaboradorIds: number[] = [];
+  const gestorIdValue = body.gestorId != null ? Number(body.gestorId) : null;
 
-  if (agrupamento.tipo === "CORPORATIVO") {
+  if (agrupamento.tipo === "CORPORATIVO" && !body.gestorId) {
     // All active collaborators
     const todos = await prisma.colaborador.findMany({
       where: { ativo: true },
@@ -118,7 +119,7 @@ async function handleAplicar(body: {
     });
     colaboradorIds = todos.map((c) => c.id);
   } else {
-    // AREA: manager + optionally subordinates
+    // AREA or CORPORATIVO with hierarchical mode: manager + optionally subordinates
     if (!body.gestorId) {
       return NextResponse.json({ error: "gestorId obrigatório para agrupamento AREA" }, { status: 400 });
     }
@@ -132,7 +133,6 @@ async function handleAplicar(body: {
 
   // Create MetaColaborador records (upsert to avoid duplicates) — wrapped in transaction
   let criados = 0;
-  const gestorIdValue = body.gestorId != null ? Number(body.gestorId) : null;
 
   await prisma.$transaction(async (tx) => {
     for (const metaId of metaIds) {
@@ -145,24 +145,53 @@ async function handleAplicar(body: {
         criados++;
       }
     }
-    await tx.agrupamentoAtribuicao.upsert({
-    where: {
-      agrupamentoId_gestorId: {
-        agrupamentoId: Number(body.agrupamentoId),
-        gestorId: gestorIdValue as number,
-      },
-    },
-    update: { aplicadoEm: new Date(), cascatear: body.cascatear ?? false },
-    create: {
-      agrupamentoId: Number(body.agrupamentoId),
-      gestorId: gestorIdValue,
-      cascatear: body.cascatear ?? false,
-      aplicadoEm: new Date(),
-    },
-    });
+    // Record attribution — handle nullable gestorId separately to avoid Prisma null-upsert issues
+    if (gestorIdValue != null) {
+      await tx.agrupamentoAtribuicao.upsert({
+        where: { agrupamentoId_gestorId: { agrupamentoId: Number(body.agrupamentoId), gestorId: gestorIdValue } },
+        update: { aplicadoEm: new Date(), cascatear: body.cascatear ?? false },
+        create: { agrupamentoId: Number(body.agrupamentoId), gestorId: gestorIdValue, cascatear: body.cascatear ?? false, aplicadoEm: new Date() },
+      });
+    } else {
+      // Null gestorId = "all collaborators" application; use findFirst + create/update pattern
+      const existing = await tx.agrupamentoAtribuicao.findFirst({
+        where: { agrupamentoId: Number(body.agrupamentoId), gestorId: null },
+      });
+      if (existing) {
+        await tx.agrupamentoAtribuicao.update({
+          where: { id: existing.id },
+          data: { aplicadoEm: new Date(), cascatear: false },
+        });
+      } else {
+        await tx.agrupamentoAtribuicao.create({
+          data: { agrupamentoId: Number(body.agrupamentoId), gestorId: null, cascatear: false, aplicadoEm: new Date() },
+        });
+      }
+    }
   });
 
   return NextResponse.json({ data: { criados, colaboradores: colaboradorIds.length } });
+}
+
+export async function PUT(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const { id, nome, descricao, tipo } = body;
+    if (!id) return NextResponse.json({ error: "id obrigatório" }, { status: 400 });
+
+    const agrupamento = await prisma.agrupamento.update({
+      where: { id: Number(id) },
+      data: {
+        nome: nome ?? undefined,
+        descricao: descricao !== undefined ? (descricao || null) : undefined,
+        tipo: tipo ?? undefined,
+      },
+      include: { metas: { include: { meta: { include: { indicador: { select: { nome: true, unidade: true, tipo: true } } } } } }, atribuicoes: true },
+    });
+    return NextResponse.json({ data: agrupamento });
+  } catch (err) {
+    return NextResponse.json({ error: String(err) }, { status: 500 });
+  }
 }
 
 export async function DELETE(req: NextRequest) {

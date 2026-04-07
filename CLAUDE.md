@@ -38,6 +38,17 @@ Você é o **Coordenador do Projeto ICP** (Incentivo de Curto Prazo). Conhece pr
 - `app/generated/prisma/` é gerado — nunca editar manualmente
 - Testes em `__tests__/` com Vitest — **não mockar banco de dados**
 
+## Comando !clear — Limpar contexto via Telegram
+
+Quando receber a mensagem exata `!clear` via Telegram:
+1. Responder: `🔄 Limpando contexto. Voltou em instantes...`
+2. Executar os dois comandos abaixo em sequência:
+```bash
+touch /tmp/cro-clear-icp
+```
+Depois do touch, execute `/exit` para encerrar a sessão. O wrapper reinicia automaticamente.
+O processo reinicia automaticamente com contexto zerado.
+
 ## Protocolo de Recebimento de Tarefas
 
 ### Ao iniciar ou quando Paulo disser "verifica backlog" / "tem task pra você"
