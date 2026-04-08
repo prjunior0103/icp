@@ -30,6 +30,11 @@ interface Colaborador {
   cargo: Cargo; centroCusto: CentroCusto; empresa: Empresa;
 }
 interface CicloICP { id: number; anoFiscal: number; status: string; bonusPool: number | null; mesInicio: number; mesFim: number; }
+interface CicloColaboradorSnap {
+  id: number; colaboradorId: number; salarioBase: number; targetMultiploSalarial: number; ativo: boolean;
+  colaborador: { id: number; matricula: string; nomeCompleto: string; email: string };
+  cargo: Cargo; centroCusto: CentroCusto; empresa: Empresa;
+}
 interface Indicador { id: number; codigo: string; nome: string; tipo: string; polaridade: string; abrangencia: string; unidade: string; status: string; diretivo?: string; analistaResp?: string; origemDado?: string; divisorId?: number | null; divisor?: { id: number; nome: string } | null; periodicidade?: string | null; perspectiva?: string | null; tipoIndicador?: string | null; auditorDados?: string | null; metaAlvo?: number | null; metaMinima?: number | null; }
 interface Meta {
   id: number; metaAlvo: number; metaMinima: number | null;
@@ -198,6 +203,7 @@ export default function Home() {
   const [cicloAtivo, setCicloAtivo] = useState<CicloICP | null>(null);
   const userCicloIdRef = React.useRef<number | null>(null);
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
+  const [cicloColabs, setCicloColabs] = useState<CicloColaboradorSnap[]>([]);
   const [metas, setMetas] = useState<Meta[]>([]);
   const [realizacoes, setRealizacoes] = useState<Realizacao[]>([]);
   const [loading, setLoading] = useState(true);
@@ -352,12 +358,11 @@ export default function Home() {
       setShowCicloForm(false);
       setCicloEditId(null);
       setCicloForm({ anoFiscal: "", mesInicio: "1", mesFim: "12", bonusPool: "", status: "SETUP", importarDeCicloId: "" });
-      await loadCiclos();
+      // Set preference BEFORE loadCiclos so it auto-selects the right ciclo
       if (!cicloEditId && resData.data?.id) {
-        const newCiclo = resData.data as CicloICP;
-        userCicloIdRef.current = newCiclo.id;
-        setCicloAtivo(newCiclo); // triggers useEffect that loads cycle data
+        userCicloIdRef.current = resData.data.id;
       }
+      await loadCiclos();
       addToast(cicloEditId ? "Ciclo atualizado" : "Ciclo criado", "ok");
     } catch (err) {
       addToast(`Erro inesperado: ${String(err)}`, "err");
@@ -400,6 +405,13 @@ export default function Home() {
     const ativo = preferred ?? list.find((c) => c.status === "ATIVO") ?? list[0] ?? null;
     setCicloAtivo(ativo);
     return ativo;
+  }, []);
+
+  const loadCicloColabs = useCallback(async (cicloId?: number) => {
+    if (!cicloId) { setCicloColabs([]); return; }
+    const res = await fetch(`/api/ciclo-colaboradores?cicloId=${cicloId}&_t=${Date.now()}`, { cache: "no-store" })
+      .then((r) => r.json()).catch(() => ({ data: [] }));
+    setCicloColabs(res.data ?? []);
   }, []);
 
   const loadColaboradores = useCallback(async () => {
@@ -486,6 +498,7 @@ export default function Home() {
     loadIndicadores(cicloAtivoId);
     loadAgrupamentos(cicloAtivoId);
     loadRealizacoes(cicloAtivoId);
+    loadCicloColabs(cicloAtivoId);
   }, [cicloAtivoId]); // stable callbacks intentionally omitted
 
   async function handleSeed() {
@@ -1080,6 +1093,14 @@ export default function Home() {
     if (res?.data) setColabImportResult(res.data);
     setColabImportLoading(false);
     loadColaboradores();
+    // Re-sync snapshot for current ciclo after import
+    if (cicloAtivo) {
+      await fetch("/api/ciclo-colaboradores", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cicloId: cicloAtivo.id }),
+      });
+      loadCicloColabs(cicloAtivo.id);
+    }
   }
 
   // ── XLSX helpers ─────────────────────────────────────────────────────────
@@ -1180,6 +1201,7 @@ export default function Home() {
                 setAgrupamentos([]);
                 setRealizacoes([]);
                 setDashboardData(null);
+                setCicloColabs([]);
                 setCicloAtivo(c);
                 // Reload all cycle-specific data directly (not via useEffect)
                 await Promise.all([
@@ -1188,6 +1210,7 @@ export default function Home() {
                   loadIndicadores(c.id),
                   loadAgrupamentos(c.id),
                   loadRealizacoes(c.id),
+                  loadCicloColabs(c.id),
                 ]);
               }}
               className="text-xs rounded-md px-2 py-1 focus:outline-none"
@@ -2432,7 +2455,7 @@ export default function Home() {
         {activeTab === "colaboradores" && (
           <div className="space-y-6">
             <div className="flex items-center justify-between flex-wrap gap-2">
-              <h2 className="icp-page-title">Colaboradores <span className="text-sm font-normal text-gray-400">({colaboradores.length})</span></h2>
+              <h2 className="icp-page-title">Colaboradores <span className="text-sm font-normal text-gray-400">({cicloAtivo ? cicloColabs.length : colaboradores.length} {cicloAtivo ? `no ciclo ${cicloAtivo.anoFiscal}` : ""})</span></h2>
               <div className="flex gap-2 flex-wrap">
                 <button
                   onClick={handleDownloadTemplateColaboradores}
@@ -2528,34 +2551,66 @@ export default function Home() {
                     </tr>
                   </thead>
                   <tbody className="">
-                    {colaboradores.map((c) => (
-                      <tr key={c.id} className="">
-                        <td className="px-4 py-3 font-mono text-gray-500 text-xs">{c.matricula}</td>
-                        <td className="px-4 py-3">{c.nomeCompleto}</td>
-                        <td className="px-4 py-3">{c.cargo.nome}</td>
-                        <td className="px-4 py-3">
-                          <span className="bg-indigo-50 text-indigo-700 text-xs font-semibold px-2 py-0.5 rounded">{c.cargo.nivelHierarquico}</span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`text-xs font-semibold ${c.cargo.targetMultiploSalarial >= 2 ? "text-green-700" : c.cargo.targetMultiploSalarial >= 1 ? "text-blue-700" : "text-gray-600"}`}>
-                            {c.cargo.targetMultiploSalarial}x
-                          </span>
-                          <span className="text-xs text-gray-400 ml-1">= {fmt(c.salarioBase * c.cargo.targetMultiploSalarial)}/mês</span>
-                        </td>
-                        <td className="px-4 py-3">{c.centroCusto.nome}</td>
-                        <td className="px-4 py-3 text-gray-800">{fmt(c.salarioBase)}</td>
-                        <td className="px-4 py-3">
-                          <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded-full ${c.ativo ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
-                            {c.ativo ? "Ativo" : "Inativo"}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                    {colaboradores.length === 0 && (
+                    {cicloAtivo ? (
+                      cicloColabs.length > 0 ? cicloColabs.map((snap) => (
+                        <tr key={snap.id} className="">
+                          <td className="px-4 py-3 font-mono text-gray-500 text-xs">{snap.colaborador.matricula}</td>
+                          <td className="px-4 py-3">{snap.colaborador.nomeCompleto}</td>
+                          <td className="px-4 py-3">{snap.cargo.nome}</td>
+                          <td className="px-4 py-3">
+                            <span className="bg-indigo-50 text-indigo-700 text-xs font-semibold px-2 py-0.5 rounded">{snap.cargo.nivelHierarquico}</span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`text-xs font-semibold ${snap.targetMultiploSalarial >= 2 ? "text-green-700" : snap.targetMultiploSalarial >= 1 ? "text-blue-700" : "text-gray-600"}`}>
+                              {snap.targetMultiploSalarial}x
+                            </span>
+                            <span className="text-xs text-gray-400 ml-1">= {fmt(snap.salarioBase * snap.targetMultiploSalarial)}/mês</span>
+                          </td>
+                          <td className="px-4 py-3">{snap.centroCusto.nome}</td>
+                          <td className="px-4 py-3 text-gray-800">{fmt(snap.salarioBase)}</td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded-full ${snap.ativo ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                              {snap.ativo ? "Ativo" : "Inativo"}
+                            </span>
+                          </td>
+                        </tr>
+                      )) : (
+                        <tr><td colSpan={8}>
+                          <EmptyState icon="👥" title="Nenhum colaborador neste ciclo"
+                            description="Importe colaboradores para registrá-los neste ciclo."
+                            action={{ label: "Importar XLSX", onClick: () => setShowColabImport(true) }} />
+                        </td></tr>
+                      )
+                    ) : (
+                      colaboradores.map((c) => (
+                        <tr key={c.id} className="">
+                          <td className="px-4 py-3 font-mono text-gray-500 text-xs">{c.matricula}</td>
+                          <td className="px-4 py-3">{c.nomeCompleto}</td>
+                          <td className="px-4 py-3">{c.cargo.nome}</td>
+                          <td className="px-4 py-3">
+                            <span className="bg-indigo-50 text-indigo-700 text-xs font-semibold px-2 py-0.5 rounded">{c.cargo.nivelHierarquico}</span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`text-xs font-semibold ${c.cargo.targetMultiploSalarial >= 2 ? "text-green-700" : c.cargo.targetMultiploSalarial >= 1 ? "text-blue-700" : "text-gray-600"}`}>
+                              {c.cargo.targetMultiploSalarial}x
+                            </span>
+                            <span className="text-xs text-gray-400 ml-1">= {fmt(c.salarioBase * c.cargo.targetMultiploSalarial)}/mês</span>
+                          </td>
+                          <td className="px-4 py-3">{c.centroCusto.nome}</td>
+                          <td className="px-4 py-3 text-gray-800">{fmt(c.salarioBase)}</td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded-full ${c.ativo ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                              {c.ativo ? "Ativo" : "Inativo"}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                    {!cicloAtivo && colaboradores.length === 0 && (
                       <tr><td colSpan={8}>
                         <EmptyState icon="👥" title="Nenhum colaborador cadastrado"
                           description="Importe colaboradores via XLSX ou cadastre manualmente para começar."
-                          action={{ label: "Importar XLSX", onClick: () => setActiveTab("colaboradores") }} />
+                          action={{ label: "Importar XLSX", onClick: () => setShowColabImport(true) }} />
                       </td></tr>
                     )}
                   </tbody>
