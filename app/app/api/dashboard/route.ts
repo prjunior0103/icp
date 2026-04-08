@@ -25,11 +25,19 @@ export async function GET(req: NextRequest) {
       realizacoesCiclo,
       realizacoesMes,
       janelaAtual,
-      centrosCusto,
+      metasCicloCC,
     ] = await Promise.all([
-      prisma.colaborador.count({ where: { ativo: true } }),
+      prisma.cicloColaborador.count({ where: { cicloId: cId, ativo: true } }),
       prisma.meta.count({ where: { cicloId: cId, status: "APROVADO" } }),
-      prisma.workflowItem.count({ where: { status: "PENDENTE" } }),
+      prisma.workflowItem.count({
+        where: {
+          status: "PENDENTE",
+          OR: [
+            { meta: { cicloId: cId } },
+            { realizacao: { meta: { cicloId: cId } } },
+          ],
+        },
+      }),
       prisma.cicloICP.findUnique({ where: { id: cId } }),
       prisma.realizacao.findMany({
         where: { meta: { cicloId: cId } },
@@ -46,7 +54,12 @@ export async function GET(req: NextRequest) {
           status: { in: ["ABERTA", "PRORROGADA"] },
         },
       }),
-      prisma.centroCusto.findMany({ select: { id: true, nome: true } }),
+      // Only centros de custo that have metas in this cycle
+      prisma.meta.findMany({
+        where: { cicloId: cId, centroCustoId: { not: null } },
+        select: { centroCusto: { select: { id: true, nome: true } } },
+        distinct: ["centroCustoId"],
+      }),
     ]);
 
     const bonusPoolUsado = realizacoesCiclo.reduce(
@@ -73,7 +86,11 @@ export async function GET(req: NextRequest) {
       ccComRealizacoes.map((r) => r.meta.centroCustoId).filter(Boolean)
     );
 
-    const alertasEngajamento = centrosCusto
+    const centrosCustoDoCiclo = metasCicloCC
+      .map((m) => m.centroCusto)
+      .filter((cc): cc is { id: number; nome: string } => cc !== null);
+
+    const alertasEngajamento = centrosCustoDoCiclo
       .filter((cc) => !ccComAtividade.has(cc.id))
       .map((cc) => cc.nome);
 

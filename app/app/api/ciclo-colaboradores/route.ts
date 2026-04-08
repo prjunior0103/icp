@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     const snapshots = await prisma.cicloColaborador.findMany({
       where: { cicloId: Number(cicloId) },
       include: {
-        colaborador: { select: { id: true, matricula: true, nomeCompleto: true, email: true } },
+        colaborador: { select: { id: true, matricula: true, nomeCompleto: true, email: true, gestorId: true } },
         cargo: true,
         centroCusto: true,
         empresa: { select: { id: true, codigo: true, nome: true } },

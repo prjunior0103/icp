@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { signOut } from "next-auth/react";
 import { LineChart, Line, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from "recharts";
 import CockpitColaborador from "@/components/CockpitColaborador";
@@ -32,7 +32,7 @@ interface Colaborador {
 interface CicloICP { id: number; anoFiscal: number; status: string; bonusPool: number | null; mesInicio: number; mesFim: number; }
 interface CicloColaboradorSnap {
   id: number; colaboradorId: number; salarioBase: number; targetMultiploSalarial: number; ativo: boolean;
-  colaborador: { id: number; matricula: string; nomeCompleto: string; email: string };
+  colaborador: { id: number; matricula: string; nomeCompleto: string; email: string; gestorId: number | null };
   cargo: Cargo; centroCusto: CentroCusto; empresa: Empresa;
 }
 interface Indicador { id: number; codigo: string; nome: string; tipo: string; polaridade: string; abrangencia: string; unidade: string; status: string; diretivo?: string; analistaResp?: string; origemDado?: string; divisorId?: number | null; divisor?: { id: number; nome: string } | null; periodicidade?: string | null; perspectiva?: string | null; tipoIndicador?: string | null; auditorDados?: string | null; metaAlvo?: number | null; metaMinima?: number | null; }
@@ -488,6 +488,22 @@ export default function Home() {
 
   const cicloAtivoId = cicloAtivo?.id ?? null;
 
+  // Cycle-specific collaborator list derived from snapshot — use this instead of `colaboradores` in all cycle-scoped contexts
+  const colabsNoCiclo = useMemo((): Colaborador[] =>
+    cicloColabs.map((snap) => ({
+      id: snap.colaborador.id,
+      matricula: snap.colaborador.matricula,
+      nomeCompleto: snap.colaborador.nomeCompleto,
+      email: snap.colaborador.email,
+      salarioBase: snap.salarioBase,
+      ativo: snap.ativo,
+      gestorId: snap.colaborador.gestorId,
+      cargo: snap.cargo,
+      centroCusto: snap.centroCusto,
+      empresa: snap.empresa,
+    })),
+  [cicloColabs]);
+
   // Central function: switch active ciclo and reload all cycle-specific data
   async function switchCiclo(ciclo: CicloICP) {
     userCicloIdRef.current = ciclo.id;
@@ -662,8 +678,8 @@ export default function Home() {
 
   async function handleAtribuirMetaPorGrade(metaId: number, nivelHierarquico: string) {
     const elegíveis = nivelHierarquico === "__TODOS__"
-      ? colaboradores.filter((c) => c.ativo)
-      : colaboradores.filter((c) => c.ativo && c.cargo.nivelHierarquico === nivelHierarquico);
+      ? colabsNoCiclo.filter((c) => c.ativo)
+      : colabsNoCiclo.filter((c) => c.ativo && c.cargo.nivelHierarquico === nivelHierarquico);
     let count = 0;
     for (const c of elegíveis) {
       const res = await fetch("/api/metas", {
@@ -1304,7 +1320,7 @@ export default function Home() {
             {/* KPI Cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {[
-                { label: "Colaboradores", value: dashboardData?.totalColaboradores ?? colaboradores.length, accent: "var(--accent)" },
+                { label: "Colaboradores", value: dashboardData?.totalColaboradores ?? cicloColabs.length, accent: "var(--accent)" },
                 { label: "Metas Ativas", value: dashboardData?.totalMetasAtivas ?? metas.filter((m) => m.status !== "DRAFT").length, accent: "#059669" },
                 { label: "Realizações no Mês", value: dashboardData?.realizacoesMes ?? realizacoes.filter((r) => r.mesReferencia === new Date().getMonth() + 1).length, accent: "#7c3aed" },
                 { label: "Pendências Workflow", value: dashboardData?.workflowPendente ?? 0, accent: "#d97706" },
@@ -1634,7 +1650,7 @@ export default function Home() {
                             <form onSubmit={handleAtribuirMeta} className="flex items-center gap-2">
                               <select required value={assignColabId} onChange={(e) => setAssignColabId(e.target.value)} className="border border-gray-300 rounded px-2 py-1 text-sm flex-1">
                                 <option value="">Selecionar colaborador...</option>
-                                {colaboradores.map((c) => <option key={c.id} value={c.id}>{c.nomeCompleto} — {c.cargo.nome}</option>)}
+                                {colabsNoCiclo.map((c) => <option key={c.id} value={c.id}>{c.nomeCompleto} — {c.cargo.nome}</option>)}
                               </select>
                               <button type="submit" className="text-xs bg-blue-700 text-white px-3 py-1 rounded">Atribuir</button>
                               <button type="button" onClick={() => setAssigningMetaId(null)} className="text-xs text-gray-500 px-2 py-1">✕</button>
@@ -1648,8 +1664,8 @@ export default function Home() {
                               <select value={atribuirGradeNivel} onChange={(e) => setAtribuirGradeNivel(e.target.value)} className="border border-gray-300 rounded px-2 py-1 text-xs">
                                 <option value="">Selecionar grade...</option>
                                 <option value="__TODOS__">Todos os grades elegíveis</option>
-                                {[...new Set(colaboradores.map((c) => c.cargo.nivelHierarquico))].sort().map((n) => (
-                                  <option key={n} value={n}>{n} — {colaboradores.find((c) => c.cargo.nivelHierarquico === n)?.cargo.nome}</option>
+                                {[...new Set(colabsNoCiclo.map((c) => c.cargo.nivelHierarquico))].sort().map((n) => (
+                                  <option key={n} value={n}>{n} — {colabsNoCiclo.find((c) => c.cargo.nivelHierarquico === n)?.cargo.nome}</option>
                                 ))}
                               </select>
                               <button onClick={() => atribuirGradeNivel && handleAtribuirMetaPorGrade(m.id, atribuirGradeNivel)} disabled={!atribuirGradeNivel} className="text-xs bg-purple-700 text-white px-3 py-1 rounded disabled:opacity-40">Atribuir</button>
@@ -1683,8 +1699,8 @@ export default function Home() {
             (agrupamentoMetaSearch === "" ||
               m.indicador.nome.toLowerCase().includes(agrupamentoMetaSearch.toLowerCase()))
           );
-          const gestores = colaboradores.filter((c) =>
-            colaboradores.some((sub) => sub.gestorId === c.id) || c.gestorId === null
+          const gestores = colabsNoCiclo.filter((c) =>
+            colabsNoCiclo.some((sub) => sub.gestorId === c.id) || c.gestorId === null
           );
 
           return (
@@ -1745,14 +1761,14 @@ export default function Home() {
 
               {/* ── VIEW: Por colaborador ── */}
               {agrupamentosViewMode === "colaboradores" && (() => {
-                const colabsComAgrup = colaboradores.filter((c) =>
+                const colabsComAgrup = colabsNoCiclo.filter((c) =>
                   agrupamentos.some((a) => a.metas.some((m) => metas.find((meta) => meta.id === m.metaId)?.colaboradorIds.includes(c.id)))
                 );
-                const semAgrup = colaboradores.filter((c) =>
+                const semAgrup = colabsNoCiclo.filter((c) =>
                   !agrupamentos.some((a) => a.metas.some((m) => metas.find((meta) => meta.id === m.metaId)?.colaboradorIds.includes(c.id)))
                 );
                 const search = colabAgrupSearch.toLowerCase();
-                const gestoresIds = new Set(colaboradores.map((c) => c.gestorId).filter(Boolean));
+                const gestoresIds = new Set(colabsNoCiclo.map((c) => c.gestorId).filter(Boolean));
                 let filtered = [...colabsComAgrup, ...semAgrup].filter((c) =>
                   search === "" || c.nomeCompleto.toLowerCase().includes(search) || c.matricula.toLowerCase().includes(search)
                 );
@@ -1794,7 +1810,7 @@ export default function Home() {
                         onChange={(e) => setColabAgrupGestorId(e.target.value)}
                       >
                         <option value="">Todos os gestores</option>
-                        {colaboradores.filter((c) => gestoresIds.has(c.id)).map((c) => (
+                        {colabsNoCiclo.filter((c) => gestoresIds.has(c.id)).map((c) => (
                           <option key={c.id} value={c.id}>{c.nomeCompleto}</option>
                         ))}
                       </select>
@@ -2169,7 +2185,7 @@ export default function Home() {
                                   onClick={() => handleAplicarAgrupamento(selectedAgrupamento.id)}
                                   className="btn-primary text-xs"
                                 >
-                                  Aplicar para todos ({colaboradores.filter((c) => c.ativo).length} colaboradores)
+                                  Aplicar para todos ({colabsNoCiclo.filter((c) => c.ativo).length} colabsNoCiclo)
                                 </button>
                               </div>
                             ) : (
@@ -2193,7 +2209,7 @@ export default function Home() {
                                     >
                                       <option value="">Selecionar gestor...</option>
                                       {colaboradores
-                                        .filter((c) => !apenasGestores || colaboradores.some((s) => s.gestorId === c.id))
+                                        .filter((c) => !apenasGestores || colabsNoCiclo.some((s) => s.gestorId === c.id))
                                         .map((c) => (
                                           <option key={c.id} value={c.id}>{c.nomeCompleto} — {c.cargo.nome}</option>
                                         ))}
@@ -2201,7 +2217,7 @@ export default function Home() {
                                   </div>
                                   <div className="flex items-end">
                                     {(() => {
-                                      const temSubordinados = agrupamentoGestorId && colaboradores.some((c) => c.gestorId === Number(agrupamentoGestorId));
+                                      const temSubordinados = agrupamentoGestorId && colabsNoCiclo.some((c) => c.gestorId === Number(agrupamentoGestorId));
                                       return (
                                         <label className={`flex items-center gap-2 ${temSubordinados ? "cursor-pointer" : "opacity-40 cursor-not-allowed"}`}>
                                           <input
@@ -2215,7 +2231,7 @@ export default function Home() {
                                             Cascatear para subordinados
                                             {agrupamentoGestorId && (
                                               <span className="ml-1" style={{ color: "var(--ink-muted)" }}>
-                                                ({colaboradores.filter((c) => c.gestorId === Number(agrupamentoGestorId)).length} diretos)
+                                                ({colabsNoCiclo.filter((c) => c.gestorId === Number(agrupamentoGestorId)).length} diretos)
                                               </span>
                                             )}
                                             {!temSubordinados && agrupamentoGestorId && (
@@ -2258,7 +2274,7 @@ export default function Home() {
                                 >
                                   <option value="">Selecionar gestor...</option>
                                   {colaboradores
-                                    .filter((c) => !apenasGestores || colaboradores.some((s) => s.gestorId === c.id))
+                                    .filter((c) => !apenasGestores || colabsNoCiclo.some((s) => s.gestorId === c.id))
                                     .map((c) => (
                                       <option key={c.id} value={c.id}>{c.nomeCompleto} — {c.cargo.nome}</option>
                                     ))}
@@ -2266,7 +2282,7 @@ export default function Home() {
                               </div>
                               <div className="flex items-end">
                                 {(() => {
-                                  const temSubordinados = agrupamentoGestorId && colaboradores.some((c) => c.gestorId === Number(agrupamentoGestorId));
+                                  const temSubordinados = agrupamentoGestorId && colabsNoCiclo.some((c) => c.gestorId === Number(agrupamentoGestorId));
                                   return (
                                     <label className={`flex items-center gap-2 ${temSubordinados ? "cursor-pointer" : "opacity-40 cursor-not-allowed"}`}>
                                       <input
@@ -2280,7 +2296,7 @@ export default function Home() {
                                         Cascatear para subordinados
                                         {agrupamentoGestorId && (
                                           <span className="ml-1" style={{ color: "var(--ink-muted)" }}>
-                                            ({colaboradores.filter((c) => c.gestorId === Number(agrupamentoGestorId)).length} diretos)
+                                            ({colabsNoCiclo.filter((c) => c.gestorId === Number(agrupamentoGestorId)).length} diretos)
                                           </span>
                                         )}
                                         {!temSubordinados && agrupamentoGestorId && (
@@ -2332,7 +2348,7 @@ export default function Home() {
                       {selectedAgrupamento.metas.length > 0 && (() => {
                         const metaIdsNoAg = selectedAgrupamento.metas.map((m) => m.metaId);
                         // Collaborators who have at least one of these metas
-                        const colabsComMeta = colaboradores.filter((c) =>
+                        const colabsComMeta = colabsNoCiclo.filter((c) =>
                           metas.some((m) => metaIdsNoAg.includes(m.id) && m.colaboradorIds.includes(c.id))
                         );
                         return (
@@ -2952,7 +2968,7 @@ export default function Home() {
                       <select value={indicadorForm.diretivo} onChange={(e) => setIndicadorForm((f) => ({ ...f, diretivo: e.target.value }))}
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
                         <option value="">Selecionar diretivo...</option>
-                        {colaboradores.map((c) => <option key={c.id} value={c.nomeCompleto}>{c.nomeCompleto} — {c.cargo.nome}</option>)}
+                        {colabsNoCiclo.map((c) => <option key={c.id} value={c.nomeCompleto}>{c.nomeCompleto} — {c.cargo.nome}</option>)}
                       </select>
                     </div>
                     <div>
@@ -2960,7 +2976,7 @@ export default function Home() {
                       <select value={indicadorForm.analistaResp} onChange={(e) => setIndicadorForm((f) => ({ ...f, analistaResp: e.target.value }))}
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
                         <option value="">Selecionar analista...</option>
-                        {colaboradores.map((c) => <option key={c.id} value={c.nomeCompleto}>{c.nomeCompleto} — {c.cargo.nome}</option>)}
+                        {colabsNoCiclo.map((c) => <option key={c.id} value={c.nomeCompleto}>{c.nomeCompleto} — {c.cargo.nome}</option>)}
                       </select>
                     </div>
                     <div>
@@ -3282,7 +3298,7 @@ export default function Home() {
           // MID for a collaborator: weighted avg of notas across their metas
           function getMID(colabId: number): { nota: number; premio: number; metas: { nome: string; peso: number; nota: number; real: number | null; alvo: number }[] } {
             const colabMetas = metas.filter((m) => m.colaboradorIds.includes(colabId));
-            const colab = colaboradores.find((c) => c.id === colabId);
+            const colab = colabsNoCiclo.find((c) => c.id === colabId);
             const items: { nome: string; peso: number; nota: number; real: number | null; alvo: number }[] = [];
             // MID = Σ(atingimento% × peso) / 100 — usa peso do agrupamento ao qual o colab pertence
             let midSum = 0;
@@ -3353,9 +3369,9 @@ export default function Home() {
                           onChange={(e) => setApuracaoForm((f) => ({ ...f, colabId: e.target.value }))}>
                           <option value="">Geral (sem colaborador)</option>
                           {apuracaoForm.metaId
-                            ? colaboradores.filter((c) => metas.find((m) => m.id === Number(apuracaoForm.metaId))?.colaboradorIds.includes(c.id))
+                            ? colabsNoCiclo.filter((c) => metas.find((m) => m.id === Number(apuracaoForm.metaId))?.colaboradorIds.includes(c.id))
                                 .map((c) => <option key={c.id} value={c.id}>{c.nomeCompleto}</option>)
-                            : colaboradores.map((c) => <option key={c.id} value={c.id}>{c.nomeCompleto}</option>)
+                            : colabsNoCiclo.map((c) => <option key={c.id} value={c.id}>{c.nomeCompleto}</option>)
                           }
                         </select>
                       </div>
@@ -3506,7 +3522,7 @@ export default function Home() {
                       <select value={apuracaoFiltroGestor} onChange={(e) => setApuracaoFiltroGestor(e.target.value)}
                         className="w-full border rounded-lg px-3 py-1.5 text-xs bg-white" style={{ borderColor: "var(--border)" }}>
                         <option value="">Todos</option>
-                        {colaboradores.filter((c) => colaboradores.some((s) => s.gestorId === c.id)).map((g) => (
+                        {colabsNoCiclo.filter((c) => colabsNoCiclo.some((s) => s.gestorId === c.id)).map((g) => (
                           <option key={g.id} value={g.id}>{g.nomeCompleto}</option>
                         ))}
                       </select>
@@ -3546,7 +3562,7 @@ export default function Home() {
 
                   {apuracaoViewMode === "colaborador" && (
                     <div className="space-y-3">
-                      {colaboradores.filter((c) => {
+                      {colabsNoCiclo.filter((c) => {
                         if (!metas.some((m) => m.colaboradorIds.includes(c.id))) return false;
                         if (apuracaoFiltroColab && !c.nomeCompleto.toLowerCase().includes(apuracaoFiltroColab.toLowerCase())) return false;
                         if (apuracaoFiltroGestor && c.gestorId !== Number(apuracaoFiltroGestor)) return false;
@@ -3609,7 +3625,7 @@ export default function Home() {
                           </div>
                         );
                       })}
-                      {colaboradores.filter((c) => metas.some((m) => m.colaboradorIds.includes(c.id))).length === 0 && (
+                      {colabsNoCiclo.filter((c) => metas.some((m) => m.colaboradorIds.includes(c.id))).length === 0 && (
                         <div className="bg-white rounded-xl p-10 text-center" style={{ border: "1px solid var(--border)", color: "var(--ink-muted)" }}>
                           Nenhum colaborador com metas atribuídas
                         </div>
@@ -3626,7 +3642,7 @@ export default function Home() {
                           if (!ag.metas.some((am) => metas.find((m) => m.id === am.metaId && m.colaboradorIds.some((cid) => colabIds.includes(cid))))) return false;
                         }
                         if (apuracaoFiltroGestor) {
-                          const gestorSubIds = colaboradores.filter((c) => c.gestorId === Number(apuracaoFiltroGestor)).map((c) => c.id);
+                          const gestorSubIds = colabsNoCiclo.filter((c) => c.gestorId === Number(apuracaoFiltroGestor)).map((c) => c.id);
                           if (!ag.metas.some((am) => metas.find((m) => m.id === am.metaId && m.colaboradorIds.some((cid) => gestorSubIds.includes(cid))))) return false;
                         }
                         if (apuracaoFiltroIndicador) {
@@ -3713,7 +3729,7 @@ export default function Home() {
                         </tr>
                       </thead>
                       <tbody>
-                        {colaboradores.filter((c) => metas.some((m) => m.colaboradorIds.includes(c.id))).map((c) => {
+                        {colabsNoCiclo.filter((c) => metas.some((m) => m.colaboradorIds.includes(c.id))).map((c) => {
                           const mid = getMID(c.id);
                           return mid.metas.map((item, i) => (
                             <tr key={`${c.id}-${i}`} className="border-b border-gray-200">
