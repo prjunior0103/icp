@@ -362,7 +362,24 @@ export default function Home() {
       if (!cicloEditId && resData.data?.id) {
         userCicloIdRef.current = resData.data.id;
       }
-      await loadCiclos();
+      const newAtivo = await loadCiclos();
+      // Explicitly clear + reload cycle data (don't rely solely on useEffect timing)
+      if (newAtivo?.id) {
+        setMetas([]);
+        setIndicadores([]);
+        setAgrupamentos([]);
+        setRealizacoes([]);
+        setDashboardData(null);
+        setCicloColabs([]);
+        await Promise.all([
+          loadMetas(newAtivo.id),
+          loadDashboard(newAtivo.id),
+          loadIndicadores(newAtivo.id),
+          loadAgrupamentos(newAtivo.id),
+          loadRealizacoes(newAtivo.id),
+          loadCicloColabs(newAtivo.id),
+        ]);
+      }
       addToast(cicloEditId ? "Ciclo atualizado" : "Ciclo criado", "ok");
     } catch (err) {
       addToast(`Erro inesperado: ${String(err)}`, "err");

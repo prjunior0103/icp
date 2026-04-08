@@ -157,6 +157,8 @@ export async function DELETE(req: NextRequest) {
     const id = searchParams.get("id");
     if (!id) return NextResponse.json({ error: "id obrigatorio" }, { status: 400 });
 
+    // Delete dependents first (FK constraints)
+    await prisma.cicloColaborador.deleteMany({ where: { cicloId: Number(id) } });
     await prisma.cicloICP.delete({ where: { id: Number(id) } });
     return NextResponse.json({ data: { success: true } });
   } catch (err) {
