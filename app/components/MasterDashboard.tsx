@@ -33,6 +33,7 @@ export default function MasterDashboard({ cicloId }: { cicloId: number | null })
 
   const load = useCallback(() => {
     if (!cicloId) return;
+    setData(null);
     setLoading(true);
     fetch(`/api/dashboard?cicloId=${cicloId}`)
       .then((r) => r.json())

@@ -356,14 +356,7 @@ export default function Home() {
       if (!cicloEditId && resData.data?.id) {
         const newCiclo = resData.data as CicloICP;
         userCicloIdRef.current = newCiclo.id;
-        setCicloAtivo(newCiclo);
-        await Promise.all([
-          loadMetas(newCiclo.id),
-          loadDashboard(newCiclo.id),
-          loadIndicadores(newCiclo.id),
-          loadAgrupamentos(newCiclo.id),
-          loadRealizacoes(newCiclo.id),
-        ]);
+        setCicloAtivo(newCiclo); // triggers useEffect that loads cycle data
       }
       addToast(cicloEditId ? "Ciclo atualizado" : "Ciclo criado", "ok");
     } catch (err) {
@@ -466,27 +459,37 @@ export default function Home() {
   useEffect(() => {
     (async () => {
       setLoading(true);
-      const ativo = await loadCiclos();
+      await loadCiclos();
       await Promise.all([
-        loadColaboradores(), loadMetas(ativo?.id),
-        loadIndicadores(ativo?.id), loadCentrosCusto(),
-        loadDashboard(ativo?.id),
+        loadColaboradores(), loadCentrosCusto(),
         loadCargos(), loadEmpresas(),
-        loadAgrupamentos(ativo?.id),
-        loadRealizacoes(ativo?.id),
       ]);
       setLoading(false);
     })();
-  }, [loadCiclos, loadColaboradores, loadMetas, loadDashboard, loadIndicadores, loadCentrosCusto, loadCargos, loadEmpresas, loadAgrupamentos, loadRealizacoes]);
+  }, [loadCiclos, loadColaboradores, loadCentrosCusto, loadCargos, loadEmpresas]);
+
+  // Reload cycle-specific data whenever the active cycle changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!cicloAtivo?.id) return;
+    const id = cicloAtivo.id;
+    setMetas([]);
+    setIndicadores([]);
+    setAgrupamentos([]);
+    setRealizacoes([]);
+    setDashboardData(null);
+    loadMetas(id);
+    loadDashboard(id);
+    loadIndicadores(id);
+    loadAgrupamentos(id);
+    loadRealizacoes(id);
+  }, [cicloAtivo?.id]); // intentionally omit callbacks — they're stable useCallbacks
 
   async function handleSeed() {
     setSeedLoading(true);
     await fetch("/api/seed", { method: "POST" });
-    const ativo = await loadCiclos();
-    await Promise.all([
-      loadColaboradores(), loadMetas(ativo?.id), loadDashboard(ativo?.id),
-      loadIndicadores(ativo?.id), loadAgrupamentos(ativo?.id),
-    ]);
+    await Promise.all([loadCiclos(), loadColaboradores()]);
+    // cycle-specific data loaded by useEffect when cicloAtivo changes
     setSeeded(true);
     setSeedLoading(false);
   }
@@ -1149,17 +1152,7 @@ export default function Home() {
                 const c = ciclos.find((x) => x.id === Number(e.target.value));
                 if (c) {
                   userCicloIdRef.current = c.id;
-                  setCicloAtivo(c);
-                  setMetas([]);
-                  setIndicadores([]);
-                  setAgrupamentos([]);
-                  setRealizacoes([]);
-                  setDashboardData(null);
-                  loadMetas(c.id);
-                  loadDashboard(c.id);
-                  loadIndicadores(c.id);
-                  loadAgrupamentos(c.id);
-                  loadRealizacoes(c.id);
+                  setCicloAtivo(c); // triggers useEffect that reloads cycle data
                 }
               }}
               className="text-xs rounded-md px-2 py-1 focus:outline-none"
