@@ -10,10 +10,14 @@ export async function POST() {
     await prisma.workflowItem.deleteMany();
     await prisma.realizacao.deleteMany();
     await prisma.metaColaborador.deleteMany();
+    await prisma.agrupamentoMeta.deleteMany();
+    await prisma.agrupamentoAtribuicao.deleteMany();
+    await prisma.agrupamento.deleteMany();
     await prisma.meta.deleteMany();
     await prisma.janelaApuracao.deleteMany();
     await prisma.movimentacaoRH.deleteMany();
     await prisma.colaborador.deleteMany();
+    await prisma.faixaAtingimento.deleteMany();
     await prisma.indicador.deleteMany();
     await prisma.cicloICP.deleteMany();
     await prisma.centroCusto.deleteMany();
