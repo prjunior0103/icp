@@ -358,28 +358,11 @@ export default function Home() {
       setShowCicloForm(false);
       setCicloEditId(null);
       setCicloForm({ anoFiscal: "", mesInicio: "1", mesFim: "12", bonusPool: "", status: "SETUP", importarDeCicloId: "" });
-      // Set preference BEFORE loadCiclos so it auto-selects the right ciclo
       if (!cicloEditId && resData.data?.id) {
         userCicloIdRef.current = resData.data.id;
       }
       const newAtivo = await loadCiclos();
-      // Explicitly clear + reload cycle data (don't rely solely on useEffect timing)
-      if (newAtivo?.id) {
-        setMetas([]);
-        setIndicadores([]);
-        setAgrupamentos([]);
-        setRealizacoes([]);
-        setDashboardData(null);
-        setCicloColabs([]);
-        await Promise.all([
-          loadMetas(newAtivo.id),
-          loadDashboard(newAtivo.id),
-          loadIndicadores(newAtivo.id),
-          loadAgrupamentos(newAtivo.id),
-          loadRealizacoes(newAtivo.id),
-          loadCicloColabs(newAtivo.id),
-        ]);
-      }
+      if (newAtivo) await switchCiclo(newAtivo);
       addToast(cicloEditId ? "Ciclo atualizado" : "Ciclo criado", "ok");
     } catch (err) {
       addToast(`Erro inesperado: ${String(err)}`, "err");
@@ -418,10 +401,9 @@ export default function Home() {
     const res = await fetch("/api/ciclos").then((r) => r.json()).catch(() => ({ data: [] }));
     const list: CicloICP[] = res.data ?? [];
     setCiclos(list);
+    // Return preferred ciclo without setting state (caller decides via switchCiclo)
     const preferred = userCicloIdRef.current ? list.find((c) => c.id === userCicloIdRef.current) : null;
-    const ativo = preferred ?? list.find((c) => c.status === "ATIVO") ?? list[0] ?? null;
-    setCicloAtivo(ativo);
-    return ativo;
+    return preferred ?? list.find((c) => c.status === "ATIVO") ?? list[0] ?? null;
   }, []);
 
   const loadCicloColabs = useCallback(async (cicloId?: number) => {
@@ -491,32 +473,41 @@ export default function Home() {
   useEffect(() => {
     (async () => {
       setLoading(true);
-      await loadCiclos();
-      await Promise.all([
-        loadColaboradores(), loadCentrosCusto(),
-        loadCargos(), loadEmpresas(),
+      const [ativo] = await Promise.all([
+        loadCiclos(),
+        loadColaboradores(),
+        loadCentrosCusto(),
+        loadCargos(),
+        loadEmpresas(),
       ]);
+      if (ativo) await switchCiclo(ativo);
       setLoading(false);
     })();
-  }, [loadCiclos, loadColaboradores, loadCentrosCusto, loadCargos, loadEmpresas]);
-
-  // Reload cycle-specific data whenever the active cycle changes
-  const cicloAtivoId = cicloAtivo?.id ?? null;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (!cicloAtivoId) return;
+  }, []); // run once on mount
+
+  const cicloAtivoId = cicloAtivo?.id ?? null;
+
+  // Central function: switch active ciclo and reload all cycle-specific data
+  const switchCiclo = useCallback(async (ciclo: CicloICP) => {
+    userCicloIdRef.current = ciclo.id;
+    setCicloAtivo(ciclo);
     setMetas([]);
     setIndicadores([]);
     setAgrupamentos([]);
     setRealizacoes([]);
     setDashboardData(null);
-    loadMetas(cicloAtivoId);
-    loadDashboard(cicloAtivoId);
-    loadIndicadores(cicloAtivoId);
-    loadAgrupamentos(cicloAtivoId);
-    loadRealizacoes(cicloAtivoId);
-    loadCicloColabs(cicloAtivoId);
-  }, [cicloAtivoId]); // stable callbacks intentionally omitted
+    setCicloColabs([]);
+    await Promise.all([
+      loadMetas(ciclo.id),
+      loadDashboard(ciclo.id),
+      loadIndicadores(ciclo.id),
+      loadAgrupamentos(ciclo.id),
+      loadRealizacoes(ciclo.id),
+      loadCicloColabs(ciclo.id),
+    ]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // stable load callbacks
 
   async function handleSeed() {
     setSeedLoading(true);
@@ -1211,24 +1202,7 @@ export default function Home() {
               onChange={async (e) => {
                 const c = ciclos.find((x) => x.id === Number(e.target.value));
                 if (!c) return;
-                userCicloIdRef.current = c.id;
-                // Clear all cycle-specific state immediately
-                setMetas([]);
-                setIndicadores([]);
-                setAgrupamentos([]);
-                setRealizacoes([]);
-                setDashboardData(null);
-                setCicloColabs([]);
-                setCicloAtivo(c);
-                // Reload all cycle-specific data directly (not via useEffect)
-                await Promise.all([
-                  loadMetas(c.id),
-                  loadDashboard(c.id),
-                  loadIndicadores(c.id),
-                  loadAgrupamentos(c.id),
-                  loadRealizacoes(c.id),
-                  loadCicloColabs(c.id),
-                ]);
+                await switchCiclo(c);
               }}
               className="text-xs rounded-md px-2 py-1 focus:outline-none"
               style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.82)" }}
