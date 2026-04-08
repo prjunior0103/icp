@@ -284,6 +284,9 @@ export default function Home() {
   const [trocandoAgrupTargetId, setTrocandoAgrupTargetId] = useState<string>("");
   const [agrupamentosViewMode, setAgrupamentosViewMode] = useState<"agrupamentos" | "colaboradores">("agrupamentos");
   const [colabAgrupSearch, setColabAgrupSearch] = useState("");
+  const [colabAgrupIndicadorId, setColabAgrupIndicadorId] = useState("");
+  const [colabAgrupGestorId, setColabAgrupGestorId] = useState("");
+  const [apenasGestores, setApenasGestores] = useState(false);
 
   // Cadastros state (Empresa / Cargo / CC / Ciclos)
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
@@ -560,6 +563,34 @@ export default function Home() {
     });
     loadMetas(cicloAtivo?.id);
     addToast(`Meta #${metaId} cancelada`, "info");
+  }
+
+  async function handleReativarMeta(metaId: number) {
+    await fetch("/api/metas", {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: metaId, status: "DRAFT", usuario: "sistema" }),
+    });
+    loadMetas(cicloAtivo?.id);
+    addToast(`Meta #${metaId} reativada`, "ok");
+  }
+
+  async function handleExcluirMeta(metaId: number) {
+    if (!confirm(`Excluir Meta #${metaId} permanentemente? Esta ação não pode ser desfeita.`)) return;
+    await fetch(`/api/metas?id=${metaId}`, { method: "DELETE" });
+    loadMetas(cicloAtivo?.id);
+    addToast(`Meta #${metaId} excluída`, "info");
+  }
+
+  async function handleExcluirIndicador(indicadorId: number, nome: string) {
+    if (!confirm(`Excluir indicador "${nome}"? Metas vinculadas a ele também serão removidas.`)) return;
+    const res = await fetch(`/api/indicadores?id=${indicadorId}`, { method: "DELETE" });
+    if (res.ok) {
+      loadIndicadores(cicloAtivo?.id);
+      addToast(`Indicador "${nome}" excluído`, "info");
+    } else {
+      const err = await res.json().catch(() => ({}));
+      addToast(err.error ?? "Erro ao excluir indicador", "err");
+    }
   }
 
   async function handleMetasImport(e: React.FormEvent) {
@@ -1401,6 +1432,12 @@ export default function Home() {
                               {m.status !== "CANCELADO" && role === "GUARDIAO" && (
                                 <button onClick={() => { if (confirm(`Cancelar Meta #${m.id}?`)) handleCancelarMeta(m.id); }} className="text-xs bg-red-100 hover:bg-red-200 text-red-700 px-2 py-0.5 rounded">Cancelar</button>
                               )}
+                              {m.status === "CANCELADO" && role === "GUARDIAO" && (
+                                <>
+                                  <button onClick={() => handleReativarMeta(m.id)} className="text-xs bg-green-100 hover:bg-green-200 text-green-700 px-2 py-0.5 rounded">Reativar</button>
+                                  <button onClick={() => handleExcluirMeta(m.id)} className="text-xs bg-red-100 hover:bg-red-200 text-red-700 px-2 py-0.5 rounded">Excluir</button>
+                                </>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -1510,18 +1547,48 @@ export default function Home() {
                   !agrupamentos.some((a) => a.metas.some((m) => metas.find((meta) => meta.id === m.metaId)?.colaboradorIds.includes(c.id)))
                 );
                 const search = colabAgrupSearch.toLowerCase();
-                const filtered = [...colabsComAgrup, ...semAgrup].filter((c) =>
+                const gestoresIds = new Set(colaboradores.map((c) => c.gestorId).filter(Boolean));
+                let filtered = [...colabsComAgrup, ...semAgrup].filter((c) =>
                   search === "" || c.nomeCompleto.toLowerCase().includes(search) || c.matricula.toLowerCase().includes(search)
                 );
+                // Filtro por indicador
+                if (colabAgrupIndicadorId) {
+                  const metasDoInd = metas.filter((m) => m.indicador.id === Number(colabAgrupIndicadorId));
+                  const colabsDoInd = new Set(metasDoInd.flatMap((m) => m.colaboradorIds));
+                  filtered = filtered.filter((c) => colabsDoInd.has(c.id));
+                }
+                // Filtro por gestor (gestor + subordinados)
+                if (colabAgrupGestorId) {
+                  const gestorNum = Number(colabAgrupGestorId);
+                  filtered = filtered.filter((c) => c.id === gestorNum || c.gestorId === gestorNum);
+                }
                 return (
                   <div className="bg-white rounded-lg overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-                    <div className="px-5 py-3 flex items-center gap-3" style={{ borderBottom: "1px solid var(--border)" }}>
+                    <div className="px-5 py-3 flex flex-wrap items-center gap-3" style={{ borderBottom: "1px solid var(--border)" }}>
                       <input
-                        className="icp-input flex-1 text-xs"
+                        className="icp-input flex-1 min-w-[160px] text-xs"
                         placeholder="Buscar colaborador..."
                         value={colabAgrupSearch}
                         onChange={(e) => setColabAgrupSearch(e.target.value)}
                       />
+                      <select
+                        className="icp-input text-xs"
+                        value={colabAgrupIndicadorId}
+                        onChange={(e) => setColabAgrupIndicadorId(e.target.value)}
+                      >
+                        <option value="">Todos os indicadores</option>
+                        {indicadores.map((i) => <option key={i.id} value={i.id}>{i.nome}</option>)}
+                      </select>
+                      <select
+                        className="icp-input text-xs"
+                        value={colabAgrupGestorId}
+                        onChange={(e) => setColabAgrupGestorId(e.target.value)}
+                      >
+                        <option value="">Todos os gestores</option>
+                        {colaboradores.filter((c) => gestoresIds.has(c.id)).map((c) => (
+                          <option key={c.id} value={c.id}>{c.nomeCompleto}</option>
+                        ))}
+                      </select>
                       <span className="text-xs" style={{ color: "var(--ink-muted)", whiteSpace: "nowrap" }}>
                         {filtered.length} colaborador{filtered.length !== 1 ? "es" : ""}
                       </span>
@@ -1899,35 +1966,52 @@ export default function Home() {
                                 </p>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                   <div>
-                                    <label className="text-xs font-medium block mb-1" style={{ color: "var(--ink-secondary)" }}>Gestor raiz *</label>
+                                    <label className="text-xs font-medium block mb-1" style={{ color: "var(--ink-secondary)" }}>
+                                      Gestor raiz *
+                                      <label className="ml-3 font-normal cursor-pointer inline-flex items-center gap-1">
+                                        <input type="checkbox" checked={apenasGestores} onChange={(e) => { setApenasGestores(e.target.checked); setAgrupamentoGestorId(""); }} className="rounded" />
+                                        <span>Somente gestores</span>
+                                      </label>
+                                    </label>
                                     <select
                                       className="icp-input w-full"
                                       value={agrupamentoGestorId}
-                                      onChange={(e) => setAgrupamentoGestorId(e.target.value)}
+                                      onChange={(e) => { setAgrupamentoGestorId(e.target.value); setAgrupamentoCascatear(false); }}
                                     >
                                       <option value="">Selecionar gestor...</option>
-                                      {colaboradores.map((c) => (
-                                        <option key={c.id} value={c.id}>{c.nomeCompleto} — {c.cargo.nome}</option>
-                                      ))}
+                                      {colaboradores
+                                        .filter((c) => !apenasGestores || colaboradores.some((s) => s.gestorId === c.id))
+                                        .map((c) => (
+                                          <option key={c.id} value={c.id}>{c.nomeCompleto} — {c.cargo.nome}</option>
+                                        ))}
                                     </select>
                                   </div>
                                   <div className="flex items-end">
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                      <input
-                                        type="checkbox"
-                                        checked={agrupamentoCascatear}
-                                        onChange={(e) => setAgrupamentoCascatear(e.target.checked)}
-                                        className="rounded"
-                                      />
-                                      <span className="text-xs" style={{ color: "var(--ink-secondary)" }}>
-                                        Cascatear para subordinados
-                                        {agrupamentoGestorId && (
-                                          <span className="ml-1" style={{ color: "var(--ink-muted)" }}>
-                                            ({colaboradores.filter((c) => c.gestorId === Number(agrupamentoGestorId)).length} diretos)
+                                    {(() => {
+                                      const temSubordinados = agrupamentoGestorId && colaboradores.some((c) => c.gestorId === Number(agrupamentoGestorId));
+                                      return (
+                                        <label className={`flex items-center gap-2 ${temSubordinados ? "cursor-pointer" : "opacity-40 cursor-not-allowed"}`}>
+                                          <input
+                                            type="checkbox"
+                                            checked={agrupamentoCascatear}
+                                            onChange={(e) => setAgrupamentoCascatear(e.target.checked)}
+                                            disabled={!temSubordinados}
+                                            className="rounded"
+                                          />
+                                          <span className="text-xs" style={{ color: "var(--ink-secondary)" }}>
+                                            Cascatear para subordinados
+                                            {agrupamentoGestorId && (
+                                              <span className="ml-1" style={{ color: "var(--ink-muted)" }}>
+                                                ({colaboradores.filter((c) => c.gestorId === Number(agrupamentoGestorId)).length} diretos)
+                                              </span>
+                                            )}
+                                            {!temSubordinados && agrupamentoGestorId && (
+                                              <span className="ml-1 text-orange-500">(sem subordinados)</span>
+                                            )}
                                           </span>
-                                        )}
-                                      </span>
-                                    </label>
+                                        </label>
+                                      );
+                                    })()}
                                   </div>
                                 </div>
                                 <button
@@ -1947,35 +2031,52 @@ export default function Home() {
                             </p>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                               <div>
-                                <label className="text-xs font-medium block mb-1" style={{ color: "var(--ink-secondary)" }}>Gestor *</label>
+                                <label className="text-xs font-medium block mb-1" style={{ color: "var(--ink-secondary)" }}>
+                                  Gestor *
+                                  <label className="ml-3 font-normal cursor-pointer inline-flex items-center gap-1">
+                                    <input type="checkbox" checked={apenasGestores} onChange={(e) => { setApenasGestores(e.target.checked); setAgrupamentoGestorId(""); }} className="rounded" />
+                                    <span>Somente gestores</span>
+                                  </label>
+                                </label>
                                 <select
                                   className="icp-input w-full"
                                   value={agrupamentoGestorId}
-                                  onChange={(e) => setAgrupamentoGestorId(e.target.value)}
+                                  onChange={(e) => { setAgrupamentoGestorId(e.target.value); setAgrupamentoCascatear(false); }}
                                 >
                                   <option value="">Selecionar gestor...</option>
-                                  {colaboradores.map((c) => (
-                                    <option key={c.id} value={c.id}>{c.nomeCompleto} — {c.cargo.nome}</option>
-                                  ))}
+                                  {colaboradores
+                                    .filter((c) => !apenasGestores || colaboradores.some((s) => s.gestorId === c.id))
+                                    .map((c) => (
+                                      <option key={c.id} value={c.id}>{c.nomeCompleto} — {c.cargo.nome}</option>
+                                    ))}
                                 </select>
                               </div>
                               <div className="flex items-end">
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={agrupamentoCascatear}
-                                    onChange={(e) => setAgrupamentoCascatear(e.target.checked)}
-                                    className="rounded"
-                                  />
-                                  <span className="text-xs" style={{ color: "var(--ink-secondary)" }}>
-                                    Cascatear para subordinados
-                                    {agrupamentoGestorId && (
-                                      <span className="ml-1" style={{ color: "var(--ink-muted)" }}>
-                                        ({colaboradores.filter((c) => c.gestorId === Number(agrupamentoGestorId)).length} diretos)
+                                {(() => {
+                                  const temSubordinados = agrupamentoGestorId && colaboradores.some((c) => c.gestorId === Number(agrupamentoGestorId));
+                                  return (
+                                    <label className={`flex items-center gap-2 ${temSubordinados ? "cursor-pointer" : "opacity-40 cursor-not-allowed"}`}>
+                                      <input
+                                        type="checkbox"
+                                        checked={agrupamentoCascatear}
+                                        onChange={(e) => setAgrupamentoCascatear(e.target.checked)}
+                                        disabled={!temSubordinados}
+                                        className="rounded"
+                                      />
+                                      <span className="text-xs" style={{ color: "var(--ink-secondary)" }}>
+                                        Cascatear para subordinados
+                                        {agrupamentoGestorId && (
+                                          <span className="ml-1" style={{ color: "var(--ink-muted)" }}>
+                                            ({colaboradores.filter((c) => c.gestorId === Number(agrupamentoGestorId)).length} diretos)
+                                          </span>
+                                        )}
+                                        {!temSubordinados && agrupamentoGestorId && (
+                                          <span className="ml-1 text-orange-500">(sem subordinados)</span>
+                                        )}
                                       </span>
-                                    )}
-                                  </span>
-                                </label>
+                                    </label>
+                                  );
+                                })()}
                               </div>
                             </div>
                             <button
@@ -2543,18 +2644,33 @@ export default function Home() {
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">Unidade</label>
-                      <input value={indicadorForm.unidade} onChange={(e) => setIndicadorForm((f) => ({ ...f, unidade: e.target.value }))}
-                        placeholder="%" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                      <select value={indicadorForm.unidade} onChange={(e) => setIndicadorForm((f) => ({ ...f, unidade: e.target.value }))}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+                        <option value="%">% (percentual)</option>
+                        <option value="R$">R$ (reais)</option>
+                        <option value="un">un (unidades)</option>
+                        <option value="pts">pts (pontos)</option>
+                        <option value="dias">dias</option>
+                        <option value="horas">horas</option>
+                        <option value="NPS">NPS</option>
+                        <option value="índice">índice</option>
+                      </select>
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">Diretivo</label>
-                      <input value={indicadorForm.diretivo} onChange={(e) => setIndicadorForm((f) => ({ ...f, diretivo: e.target.value }))}
-                        placeholder="Diretivo responsável" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                      <select value={indicadorForm.diretivo} onChange={(e) => setIndicadorForm((f) => ({ ...f, diretivo: e.target.value }))}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+                        <option value="">Selecionar diretivo...</option>
+                        {colaboradores.map((c) => <option key={c.id} value={c.nomeCompleto}>{c.nomeCompleto} — {c.cargo.nome}</option>)}
+                      </select>
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">Analista Resp.</label>
-                      <input value={indicadorForm.analistaResp} onChange={(e) => setIndicadorForm((f) => ({ ...f, analistaResp: e.target.value }))}
-                        placeholder="Analista responsável" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                      <select value={indicadorForm.analistaResp} onChange={(e) => setIndicadorForm((f) => ({ ...f, analistaResp: e.target.value }))}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+                        <option value="">Selecionar analista...</option>
+                        {colaboradores.map((c) => <option key={c.id} value={c.nomeCompleto}>{c.nomeCompleto} — {c.cargo.nome}</option>)}
+                      </select>
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">Origem do Dado</label>
@@ -2626,7 +2742,7 @@ export default function Home() {
                 <div className="bg-white icp-card overflow-hidden">
                   <table className="w-full text-sm">
                     <thead><tr>
-                      {["Código","Nome","Tipo","Polaridade","Abrangência","Unidade"].map((h) => (
+                      {["Código","Nome","Tipo","Polaridade","Abrangência","Unidade","Ações"].map((h) => (
                         <th key={h} className="text-left px-4 py-2.5">{h}</th>
                       ))}
                     </tr></thead>
@@ -2639,10 +2755,20 @@ export default function Home() {
                           <td className="px-4 py-3 text-gray-500">{ind.polaridade}</td>
                           <td className="px-4 py-3 text-gray-500">{ind.abrangencia}</td>
                           <td className="px-4 py-3 text-gray-500">{ind.unidade}</td>
+                          <td className="px-4 py-3">
+                            {role === "GUARDIAO" && (
+                              <button
+                                onClick={() => handleExcluirIndicador(ind.id, ind.nome)}
+                                className="text-xs bg-red-100 hover:bg-red-200 text-red-700 px-2 py-0.5 rounded"
+                              >
+                                Excluir
+                              </button>
+                            )}
+                          </td>
                         </tr>
                       ))}
                       {indicadores.length === 0 && (
-                        <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">Nenhum indicador cadastrado</td></tr>
+                        <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">Nenhum indicador cadastrado</td></tr>
                       )}
                     </tbody>
                   </table>
