@@ -410,8 +410,8 @@ export default function Home() {
   }, []);
 
   const loadMetas = useCallback(async (cicloId?: number) => {
-    const url = cicloId ? `/api/metas?cicloId=${cicloId}` : "/api/metas";
-    const res = await fetch(url).then((r) => r.json()).catch(() => ({ data: [] }));
+    const url = cicloId ? `/api/metas?cicloId=${cicloId}&_t=${Date.now()}` : `/api/metas?_t=${Date.now()}`;
+    const res = await fetch(url, { cache: "no-store" }).then((r) => r.json()).catch(() => ({ data: [] }));
     setMetas(res.data ?? []);
   }, []);
 
@@ -469,21 +469,21 @@ export default function Home() {
   }, [loadCiclos, loadColaboradores, loadCentrosCusto, loadCargos, loadEmpresas]);
 
   // Reload cycle-specific data whenever the active cycle changes
+  const cicloAtivoId = cicloAtivo?.id ?? null;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (!cicloAtivo?.id) return;
-    const id = cicloAtivo.id;
+    if (!cicloAtivoId) return;
     setMetas([]);
     setIndicadores([]);
     setAgrupamentos([]);
     setRealizacoes([]);
     setDashboardData(null);
-    loadMetas(id);
-    loadDashboard(id);
-    loadIndicadores(id);
-    loadAgrupamentos(id);
-    loadRealizacoes(id);
-  }, [cicloAtivo?.id]); // intentionally omit callbacks — they're stable useCallbacks
+    loadMetas(cicloAtivoId);
+    loadDashboard(cicloAtivoId);
+    loadIndicadores(cicloAtivoId);
+    loadAgrupamentos(cicloAtivoId);
+    loadRealizacoes(cicloAtivoId);
+  }, [cicloAtivoId]); // stable callbacks intentionally omitted
 
   async function handleSeed() {
     setSeedLoading(true);
