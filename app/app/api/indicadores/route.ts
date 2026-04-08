@@ -90,7 +90,25 @@ export async function DELETE(req: NextRequest) {
     const id = searchParams.get("id");
     if (!id) return NextResponse.json({ error: "id obrigatorio" }, { status: 400 });
 
-    await prisma.indicador.delete({ where: { id: Number(id) } });
+    const indId = Number(id);
+
+    // Excluir dependências das metas vinculadas ao indicador
+    const metas = await prisma.meta.findMany({ where: { indicadorId: indId }, select: { id: true } });
+    for (const meta of metas) {
+      await prisma.meta.updateMany({ where: { parentMetaId: meta.id }, data: { parentMetaId: null } });
+      await prisma.metaHistorico.deleteMany({ where: { metaId: meta.id } });
+      await prisma.metaColaborador.deleteMany({ where: { metaId: meta.id } });
+      await prisma.realizacao.deleteMany({ where: { metaId: meta.id } });
+      await prisma.workflowItem.deleteMany({ where: { metaId: meta.id } });
+      await prisma.planoAcao.deleteMany({ where: { metaId: meta.id } });
+      await prisma.agrupamentoMeta.deleteMany({ where: { metaId: meta.id } });
+    }
+    await prisma.meta.deleteMany({ where: { indicadorId: indId } });
+
+    // Desvincula indicadores que usam este como divisor
+    await prisma.indicador.updateMany({ where: { divisorId: indId }, data: { divisorId: null } });
+
+    await prisma.indicador.delete({ where: { id: indId } });
     return NextResponse.json({ data: { success: true } });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });

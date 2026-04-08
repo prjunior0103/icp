@@ -166,13 +166,26 @@ export async function PUT(req: NextRequest) {
   }
 }
 
+async function deleteMeta(id: number) {
+  // Desvincula metas filhas antes de excluir a pai
+  await prisma.meta.updateMany({ where: { parentMetaId: id }, data: { parentMetaId: null } });
+  // Exclui dependências em cascata
+  await prisma.metaHistorico.deleteMany({ where: { metaId: id } });
+  await prisma.metaColaborador.deleteMany({ where: { metaId: id } });
+  await prisma.realizacao.deleteMany({ where: { metaId: id } });
+  await prisma.workflowItem.deleteMany({ where: { metaId: id } });
+  await prisma.planoAcao.deleteMany({ where: { metaId: id } });
+  await prisma.agrupamentoMeta.deleteMany({ where: { metaId: id } });
+  await prisma.meta.delete({ where: { id } });
+}
+
 export async function DELETE(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
     if (!id) return NextResponse.json({ error: "id obrigatorio" }, { status: 400 });
 
-    await prisma.meta.delete({ where: { id: Number(id) } });
+    await deleteMeta(Number(id));
     return NextResponse.json({ data: { success: true } });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });

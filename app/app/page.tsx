@@ -576,9 +576,14 @@ export default function Home() {
 
   async function handleExcluirMeta(metaId: number) {
     if (!confirm(`Excluir Meta #${metaId} permanentemente? Esta ação não pode ser desfeita.`)) return;
-    await fetch(`/api/metas?id=${metaId}`, { method: "DELETE" });
-    loadMetas(cicloAtivo?.id);
-    addToast(`Meta #${metaId} excluída`, "info");
+    const res = await fetch(`/api/metas?id=${metaId}`, { method: "DELETE" });
+    if (res.ok) {
+      await loadMetas(cicloAtivo?.id);
+      addToast(`Meta #${metaId} excluída`, "info");
+    } else {
+      const err = await res.json().catch(() => ({}));
+      addToast(err.error ?? "Erro ao excluir meta", "err");
+    }
   }
 
   async function handleExcluirIndicador(indicadorId: number, nome: string) {
