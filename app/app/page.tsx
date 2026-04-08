@@ -47,7 +47,8 @@ interface PlanoAcao { id: number; metaId: number; descricao: string; responsavel
 interface BibliotecaMeta { id: number; nome: string; descricao: string | null; indicadorNome: string; unidade: string; tipo: string; polaridade: string; abrangencia: string; metaMinima: number | null; metaAlvo: number | null; metaMaxima: number | null; pesoSugerido: number; }
 interface Realizacao {
   id: number; mesReferencia: number; anoReferencia: number;
-  valorRealizado: number; notaCalculada: number | null;
+  valorRealizado: number; orcadoMensal: number | null; dataRealizada: string | null;
+  notaCalculada: number | null;
   premioProjetado: number | null; status: string;
   meta: Meta & { indicador: Indicador };
   colaborador: Colaborador | null;
@@ -291,7 +292,7 @@ export default function Home() {
 
   // Apuração state
   const [apuracaoSub, setApuracaoSub] = useState<"preenchimento" | "acompanhamento" | "relatorio">("preenchimento");
-  const [apuracaoForm, setApuracaoForm] = useState({ metaId: "", colabId: "", mes: String(new Date().getMonth() + 1), ano: String(new Date().getFullYear()), valor: "" });
+  const [apuracaoForm, setApuracaoForm] = useState({ metaId: "", colabId: "", mes: String(new Date().getMonth() + 1), ano: String(new Date().getFullYear()), valor: "", orcado: "", dataRealizada: "" });
   const [apuracaoViewMode, setApuracaoViewMode] = useState<"colaborador" | "agrupamento">("colaborador");
 
   // Cadastros state (Empresa / Cargo / CC / Ciclos)
@@ -601,7 +602,10 @@ export default function Home() {
 
   async function handleSubmitRealizacao(e: React.FormEvent) {
     e.preventDefault();
-    if (!apuracaoForm.metaId || !apuracaoForm.mes || !apuracaoForm.ano || apuracaoForm.valor === "") return;
+    if (!apuracaoForm.metaId || !apuracaoForm.mes || !apuracaoForm.ano) return;
+    const metaSel = metas.find((m) => m.id === Number(apuracaoForm.metaId));
+    const isMarco = (metaSel?.tipo ?? metaSel?.indicador?.tipo) === "PROJETO_MARCO";
+    if (!isMarco && apuracaoForm.valor === "") return;
     const res = await fetch("/api/realizacoes", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -609,12 +613,14 @@ export default function Home() {
         colaboradorId: apuracaoForm.colabId ? Number(apuracaoForm.colabId) : undefined,
         mesReferencia: Number(apuracaoForm.mes),
         anoReferencia: Number(apuracaoForm.ano),
-        valorRealizado: Number(apuracaoForm.valor),
+        valorRealizado: isMarco ? (apuracaoForm.dataRealizada ? 1 : 0) : Number(apuracaoForm.valor),
+        orcadoMensal: apuracaoForm.orcado ? Number(apuracaoForm.orcado) : undefined,
+        dataRealizada: isMarco ? apuracaoForm.dataRealizada || undefined : undefined,
       }),
     });
     if (res.ok) {
       await loadRealizacoes(cicloAtivo?.id);
-      setApuracaoForm((f) => ({ ...f, valor: "" }));
+      setApuracaoForm((f) => ({ ...f, valor: "", orcado: "", dataRealizada: "" }));
       addToast("Realização registrada", "ok");
     } else {
       const err = await res.json().catch(() => ({}));
@@ -2718,6 +2724,15 @@ export default function Home() {
                       <input value={indicadorForm.origemDado} onChange={(e) => setIndicadorForm((f) => ({ ...f, origemDado: e.target.value }))}
                         placeholder="Sistema de origem" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
                     </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Critério de Apuração</label>
+                      <select value={(indicadorForm as unknown as Record<string,string>).criterioApuracao ?? "ULTIMA_POSICAO"} onChange={(e) => setIndicadorForm((f) => ({ ...f, criterioApuracao: e.target.value }))}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+                        <option value="ULTIMA_POSICAO">Última Posição</option>
+                        <option value="SOMA">Soma dos meses</option>
+                        <option value="MEDIA">Média dos meses</option>
+                      </select>
+                    </div>
                     <div className="col-span-2 md:col-span-3">
                       <label className="block text-xs font-medium text-gray-600 mb-1">Descrição</label>
                       <input value={indicadorForm.descricao} onChange={(e) => setIndicadorForm((f) => ({ ...f, descricao: e.target.value }))}
@@ -2906,22 +2921,31 @@ export default function Home() {
             const colabMetas = metas.filter((m) => m.colaboradorIds.includes(colabId));
             const colab = colaboradores.find((c) => c.id === colabId);
             const items: { nome: string; peso: number; nota: number; real: number | null; alvo: number }[] = [];
-            let pesoTotal = 0;
-            let notaPonderada = 0;
+            // MID = Σ(atingimento% × peso) / 100 — usa peso do agrupamento ao qual o colab pertence
+            let midSum = 0;
             for (const m of colabMetas) {
-              // find peso from agrupamento
+              // Busca peso no agrupamento que contém esse colaborador
               let peso = 0;
               for (const ag of agrupamentos) {
                 const agMeta = ag.metas.find((am) => am.metaId === m.id);
-                if (agMeta) { peso = agMeta.pesoNaCesta; break; }
+                const colabNessaAg = ag.atribuicoes.some((a) => {
+                  if (a.cascatear) {
+                    // cascateado: qualquer subordinado do gestor
+                    const gestorId = a.gestorId;
+                    return colab?.id === gestorId || colab?.gestorId === gestorId;
+                  }
+                  return a.gestorId === colabId || ag.tipo === "CORPORATIVO";
+                });
+                if (agMeta && (colabNessaAg || ag.tipo === "CORPORATIVO")) { peso = agMeta.pesoNaCesta; break; }
               }
               const nota = getUltimaNota(m.id) ?? 0;
               const latestReal = realizacoes.filter((r) => r.meta?.id === m.id).sort((a, b) => b.anoReferencia * 100 + b.mesReferencia - (a.anoReferencia * 100 + a.mesReferencia))[0]?.valorRealizado ?? null;
               items.push({ nome: m.indicador?.nome ?? `Meta #${m.id}`, peso, nota, real: latestReal, alvo: m.metaAlvo });
-              notaPonderada += nota * peso;
-              pesoTotal += peso;
+              midSum += (nota / 100) * peso; // atingimento(0-1.2) × peso(0-100) → contribuição
             }
-            const notaFinal = pesoTotal > 0 ? notaPonderada / pesoTotal : 0;
+            // midSum agora está em escala 0-120 (se todos pesos somam 100 e nota máx = 120)
+            // Para apresentar como %, basta usar midSum diretamente (já é %)
+            const notaFinal = midSum;
             const premio = colab ? colab.salarioBase * (colab.cargo?.targetMultiploSalarial ?? 0) * (notaFinal / 100) : 0;
             return { nota: notaFinal, premio, metas: items };
           }
@@ -2985,13 +3009,37 @@ export default function Home() {
                           onChange={(e) => setApuracaoForm((f) => ({ ...f, ano: e.target.value }))} />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium mb-1" style={{ color: "var(--ink-secondary)" }}>Valor Realizado *</label>
-                        <div className="flex gap-2 items-end">
-                          <input required type="number" step="any" className="icp-input w-full" placeholder="0"
-                            value={apuracaoForm.valor}
-                            onChange={(e) => setApuracaoForm((f) => ({ ...f, valor: e.target.value }))} />
-                          <button type="submit" className="btn-primary text-xs whitespace-nowrap">Salvar</button>
-                        </div>
+                        <label className="block text-xs font-medium mb-1" style={{ color: "var(--ink-secondary)" }}>Orçado Mês</label>
+                        <input type="number" step="any" className="icp-input w-full" placeholder="Opcional"
+                          value={apuracaoForm.orcado}
+                          onChange={(e) => setApuracaoForm((f) => ({ ...f, orcado: e.target.value }))} />
+                      </div>
+                      <div>
+                        {(() => {
+                          const metaSel = metas.find((m) => m.id === Number(apuracaoForm.metaId));
+                          const isMarco = (metaSel?.tipo ?? metaSel?.indicador?.tipo) === "PROJETO_MARCO";
+                          return isMarco ? (
+                            <>
+                              <label className="block text-xs font-medium mb-1" style={{ color: "var(--ink-secondary)" }}>Data Realizada (Marco)</label>
+                              <div className="flex gap-2 items-end">
+                                <input type="date" className="icp-input w-full"
+                                  value={apuracaoForm.dataRealizada}
+                                  onChange={(e) => setApuracaoForm((f) => ({ ...f, dataRealizada: e.target.value }))} />
+                                <button type="submit" className="btn-primary text-xs whitespace-nowrap">Salvar</button>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <label className="block text-xs font-medium mb-1" style={{ color: "var(--ink-secondary)" }}>Valor Realizado *</label>
+                              <div className="flex gap-2 items-end">
+                                <input required type="number" step="any" className="icp-input w-full" placeholder="0"
+                                  value={apuracaoForm.valor}
+                                  onChange={(e) => setApuracaoForm((f) => ({ ...f, valor: e.target.value }))} />
+                                <button type="submit" className="btn-primary text-xs whitespace-nowrap">Salvar</button>
+                              </div>
+                            </>
+                          );
+                        })()}
                       </div>
                     </form>
                   </div>

@@ -128,10 +128,23 @@ model Indicador {
   perspectiva       String?   // BSC: FINANCEIRA | CLIENTE | PROCESSOS | APRENDIZADO
   tipoIndicador     String?   // LEADING (processo) | LAGGING (resultado)
   auditorDados      String?   // Quem valida os dados enviados
+  criterioApuracao  String?   @default("ULTIMA_POSICAO") // SOMA | MEDIA | ULTIMA_POSICAO
+  faixas            FaixaAtingimento[]
   criadoEm          DateTime  @default(now())
 
   @@index([cicloId])
   @@index([status])
+}
+
+model FaixaAtingimento {
+  id           Int       @id @default(autoincrement())
+  indicador    Indicador @relation(fields: [indicadorId], references: [id], onDelete: Cascade)
+  indicadorId  Int
+  de           Float     // valor realizado >= de
+  ate          Float     // valor realizado <= ate
+  nota         Float     // % de atingimento (0-120)
+
+  @@index([indicadorId])
 }
 
 // ─── Metas ───────────────────────────────────────────────────────────────────
@@ -278,6 +291,8 @@ model Realizacao {
   mesReferencia    Int
   anoReferencia    Int
   valorRealizado   Float
+  orcadoMensal     Float?    // orçado distribuído para este mês
+  dataRealizada    String?   // para tipo Marco (ISO date YYYY-MM-DD)
   notaCalculada    Float?
   premioProjetado  Float?
   evidenciaUrl     String?
