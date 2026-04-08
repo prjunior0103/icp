@@ -9,7 +9,7 @@ import MasterDashboard from "@/components/MasterDashboard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type TabId = "dashboard" | "metas" | "agrupamentos" | "colaboradores" | "cadastros";
+type TabId = "dashboard" | "metas" | "agrupamentos" | "colaboradores" | "cadastros" | "apuracao";
 
 type CheckResult = {
   id: string;
@@ -176,6 +176,7 @@ const TAB_GROUPS: NavGroup[] = [
       { id: "colaboradores", label: "Colaboradores" },
       { id: "metas",         label: "Metas" },
       { id: "agrupamentos",  label: "Agrupamentos" },
+      { id: "apuracao",      label: "Apuração" },
     ],
   },
   {
@@ -287,6 +288,11 @@ export default function Home() {
   const [colabAgrupIndicadorId, setColabAgrupIndicadorId] = useState("");
   const [colabAgrupGestorId, setColabAgrupGestorId] = useState("");
   const [apenasGestores, setApenasGestores] = useState(false);
+
+  // Apuração state
+  const [apuracaoSub, setApuracaoSub] = useState<"preenchimento" | "acompanhamento" | "relatorio">("preenchimento");
+  const [apuracaoForm, setApuracaoForm] = useState({ metaId: "", colabId: "", mes: String(new Date().getMonth() + 1), ano: String(new Date().getFullYear()), valor: "" });
+  const [apuracaoViewMode, setApuracaoViewMode] = useState<"colaborador" | "agrupamento">("colaborador");
 
   // Cadastros state (Empresa / Cargo / CC / Ciclos)
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
@@ -412,6 +418,12 @@ export default function Home() {
     if (res.data) setDashboardData(res.data);
   }, []);
 
+  const loadRealizacoes = useCallback(async (cicloId?: number) => {
+    if (!cicloId) return;
+    const res = await fetch(`/api/realizacoes?cicloId=${cicloId}`).then((r) => r.json()).catch(() => ({ data: [] }));
+    setRealizacoes(res.data ?? []);
+  }, []);
+
   useEffect(() => {
     (async () => {
       setLoading(true);
@@ -422,10 +434,11 @@ export default function Home() {
         loadDashboard(ativo?.id),
         loadCargos(), loadEmpresas(),
         loadAgrupamentos(ativo?.id),
+        loadRealizacoes(ativo?.id),
       ]);
       setLoading(false);
     })();
-  }, [loadCiclos, loadColaboradores, loadMetas, loadDashboard, loadIndicadores, loadCentrosCusto, loadCargos, loadEmpresas, loadAgrupamentos]);
+  }, [loadCiclos, loadColaboradores, loadMetas, loadDashboard, loadIndicadores, loadCentrosCusto, loadCargos, loadEmpresas, loadAgrupamentos, loadRealizacoes]);
 
   async function handleSeed() {
     setSeedLoading(true);
@@ -583,6 +596,29 @@ export default function Home() {
     } else {
       const err = await res.json().catch(() => ({}));
       addToast(err.error ?? "Erro ao excluir meta", "err");
+    }
+  }
+
+  async function handleSubmitRealizacao(e: React.FormEvent) {
+    e.preventDefault();
+    if (!apuracaoForm.metaId || !apuracaoForm.mes || !apuracaoForm.ano || apuracaoForm.valor === "") return;
+    const res = await fetch("/api/realizacoes", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        metaId: Number(apuracaoForm.metaId),
+        colaboradorId: apuracaoForm.colabId ? Number(apuracaoForm.colabId) : undefined,
+        mesReferencia: Number(apuracaoForm.mes),
+        anoReferencia: Number(apuracaoForm.ano),
+        valorRealizado: Number(apuracaoForm.valor),
+      }),
+    });
+    if (res.ok) {
+      await loadRealizacoes(cicloAtivo?.id);
+      setApuracaoForm((f) => ({ ...f, valor: "" }));
+      addToast("Realização registrada", "ok");
+    } else {
+      const err = await res.json().catch(() => ({}));
+      addToast(err.error ?? "Erro ao registrar realização", "err");
     }
   }
 
@@ -2850,6 +2886,359 @@ export default function Home() {
             )}
           </div>
         )}
+
+        {/* ── APURAÇÃO ── */}
+        {activeTab === "apuracao" && (() => {
+          const MESES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+          const fmt = (v: number) => v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          const fmtPct = (v: number) => v.toFixed(1) + "%";
+
+          // Latest nota per meta (any collaborator)
+          function getUltimaNota(metaId: number): number | null {
+            const rs = realizacoes
+              .filter((r) => r.meta?.id === metaId)
+              .sort((a, b) => b.anoReferencia * 100 + b.mesReferencia - (a.anoReferencia * 100 + a.mesReferencia));
+            return rs[0]?.notaCalculada ?? null;
+          }
+
+          // MID for a collaborator: weighted avg of notas across their metas
+          function getMID(colabId: number): { nota: number; premio: number; metas: { nome: string; peso: number; nota: number; real: number | null; alvo: number }[] } {
+            const colabMetas = metas.filter((m) => m.colaboradorIds.includes(colabId));
+            const colab = colaboradores.find((c) => c.id === colabId);
+            const items: { nome: string; peso: number; nota: number; real: number | null; alvo: number }[] = [];
+            let pesoTotal = 0;
+            let notaPonderada = 0;
+            for (const m of colabMetas) {
+              // find peso from agrupamento
+              let peso = 0;
+              for (const ag of agrupamentos) {
+                const agMeta = ag.metas.find((am) => am.metaId === m.id);
+                if (agMeta) { peso = agMeta.pesoNaCesta; break; }
+              }
+              const nota = getUltimaNota(m.id) ?? 0;
+              const latestReal = realizacoes.filter((r) => r.meta?.id === m.id).sort((a, b) => b.anoReferencia * 100 + b.mesReferencia - (a.anoReferencia * 100 + a.mesReferencia))[0]?.valorRealizado ?? null;
+              items.push({ nome: m.indicador?.nome ?? `Meta #${m.id}`, peso, nota, real: latestReal, alvo: m.metaAlvo });
+              notaPonderada += nota * peso;
+              pesoTotal += peso;
+            }
+            const notaFinal = pesoTotal > 0 ? notaPonderada / pesoTotal : 0;
+            const premio = colab ? colab.salarioBase * (colab.cargo?.targetMultiploSalarial ?? 0) * (notaFinal / 100) : 0;
+            return { nota: notaFinal, premio, metas: items };
+          }
+
+          return (
+            <div className="flex-1 overflow-y-auto p-6 space-y-5" style={{ minHeight: 0 }}>
+              {/* Sub-tab toggle */}
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold" style={{ color: "var(--ink)" }}>Apuração</h2>
+                <div className="flex rounded-lg overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+                  {(["preenchimento", "acompanhamento", "relatorio"] as const).map((sub) => (
+                    <button key={sub} onClick={() => setApuracaoSub(sub)}
+                      className={`px-4 py-1.5 text-xs font-medium capitalize ${apuracaoSub === sub ? "bg-blue-600 text-white" : "bg-white"}`}
+                      style={apuracaoSub !== sub ? { color: "var(--ink-secondary)", borderLeft: "1px solid var(--border)" } : { borderLeft: "1px solid var(--border)" }}>
+                      {sub === "preenchimento" ? "Preenchimento" : sub === "acompanhamento" ? "Acompanhamento" : "Relatório"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── PREENCHIMENTO ── */}
+              {apuracaoSub === "preenchimento" && (
+                <div className="space-y-5">
+                  <div className="bg-white rounded-xl p-5" style={{ border: "1px solid var(--border)" }}>
+                    <h3 className="text-sm font-semibold mb-4" style={{ color: "var(--ink)" }}>Lançar valor realizado</h3>
+                    <form onSubmit={handleSubmitRealizacao} className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 items-end">
+                      <div className="col-span-2">
+                        <label className="block text-xs font-medium mb-1" style={{ color: "var(--ink-secondary)" }}>Meta / Indicador *</label>
+                        <select required className="icp-input w-full" value={apuracaoForm.metaId}
+                          onChange={(e) => setApuracaoForm((f) => ({ ...f, metaId: e.target.value }))}>
+                          <option value="">Selecionar meta...</option>
+                          {metas.filter((m) => m.status !== "CANCELADO").map((m) => (
+                            <option key={m.id} value={m.id}>
+                              #{m.id} — {m.nome || m.indicador?.nome} {m.centroCusto ? `(${m.centroCusto.nome})` : ""}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1" style={{ color: "var(--ink-secondary)" }}>Colaborador</label>
+                        <select className="icp-input w-full" value={apuracaoForm.colabId}
+                          onChange={(e) => setApuracaoForm((f) => ({ ...f, colabId: e.target.value }))}>
+                          <option value="">Geral (sem colaborador)</option>
+                          {apuracaoForm.metaId
+                            ? colaboradores.filter((c) => metas.find((m) => m.id === Number(apuracaoForm.metaId))?.colaboradorIds.includes(c.id))
+                                .map((c) => <option key={c.id} value={c.id}>{c.nomeCompleto}</option>)
+                            : colaboradores.map((c) => <option key={c.id} value={c.id}>{c.nomeCompleto}</option>)
+                          }
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1" style={{ color: "var(--ink-secondary)" }}>Mês *</label>
+                        <select required className="icp-input w-full" value={apuracaoForm.mes}
+                          onChange={(e) => setApuracaoForm((f) => ({ ...f, mes: e.target.value }))}>
+                          {MESES.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1" style={{ color: "var(--ink-secondary)" }}>Ano *</label>
+                        <input required type="number" className="icp-input w-full" value={apuracaoForm.ano}
+                          onChange={(e) => setApuracaoForm((f) => ({ ...f, ano: e.target.value }))} />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1" style={{ color: "var(--ink-secondary)" }}>Valor Realizado *</label>
+                        <div className="flex gap-2 items-end">
+                          <input required type="number" step="any" className="icp-input w-full" placeholder="0"
+                            value={apuracaoForm.valor}
+                            onChange={(e) => setApuracaoForm((f) => ({ ...f, valor: e.target.value }))} />
+                          <button type="submit" className="btn-primary text-xs whitespace-nowrap">Salvar</button>
+                        </div>
+                      </div>
+                    </form>
+                  </div>
+
+                  {/* Realizações lançadas */}
+                  <div className="bg-white rounded-xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+                    <div className="px-5 py-3" style={{ borderBottom: "1px solid var(--border)" }}>
+                      <h3 className="text-sm font-semibold" style={{ color: "var(--ink)" }}>
+                        Realizações lançadas — {realizacoes.length} registros
+                      </h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr style={{ background: "var(--surface-raised)", borderBottom: "1px solid var(--border)" }}>
+                            {["Meta/Indicador","Colaborador","Período","Orçado","Realizado","Nota","Status"].map((h) => (
+                              <th key={h} className="px-4 py-2 text-left font-medium" style={{ color: "var(--ink-secondary)" }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y" style={{ borderColor: "var(--border)" }}>
+                          {realizacoes.length === 0 && (
+                            <tr><td colSpan={7} className="px-4 py-8 text-center" style={{ color: "var(--ink-muted)" }}>Nenhuma realização lançada</td></tr>
+                          )}
+                          {[...realizacoes].sort((a, b) => b.anoReferencia * 100 + b.mesReferencia - (a.anoReferencia * 100 + a.mesReferencia)).map((r) => (
+                            <tr key={r.id} className="hover:bg-gray-50">
+                              <td className="px-4 py-2.5" style={{ color: "var(--ink)" }}>
+                                <div className="font-medium">{r.meta?.nome || r.meta?.indicador?.nome}</div>
+                                <div style={{ color: "var(--ink-muted)" }}>Meta #{r.meta?.id}</div>
+                              </td>
+                              <td className="px-4 py-2.5" style={{ color: "var(--ink-secondary)" }}>
+                                {r.colaborador?.nomeCompleto ?? <span style={{ color: "var(--ink-muted)" }}>Geral</span>}
+                              </td>
+                              <td className="px-4 py-2.5 font-medium" style={{ color: "var(--ink)" }}>
+                                {MESES[(r.mesReferencia - 1)]}/{r.anoReferencia}
+                              </td>
+                              <td className="px-4 py-2.5 tabular-nums" style={{ color: "var(--ink-secondary)" }}>
+                                {fmt(r.meta?.metaAlvo ?? 0)}
+                              </td>
+                              <td className="px-4 py-2.5 tabular-nums font-medium" style={{ color: "var(--ink)" }}>
+                                {fmt(r.valorRealizado)}
+                              </td>
+                              <td className="px-4 py-2.5">
+                                {r.notaCalculada != null ? (
+                                  <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${r.notaCalculada >= 100 ? "bg-green-50 text-green-700" : r.notaCalculada >= 70 ? "bg-yellow-50 text-yellow-700" : "bg-red-50 text-red-700"}`}>
+                                    {fmtPct(r.notaCalculada)}
+                                  </span>
+                                ) : "—"}
+                              </td>
+                              <td className="px-4 py-2.5">
+                                <span className={`px-2 py-0.5 rounded text-[10px] ${r.status === "SUBMETIDO" ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-500"}`}>
+                                  {r.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ── ACOMPANHAMENTO ── */}
+              {apuracaoSub === "acompanhamento" && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex rounded-lg overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+                      {(["colaborador", "agrupamento"] as const).map((mode) => (
+                        <button key={mode} onClick={() => setApuracaoViewMode(mode)}
+                          className={`px-3 py-1 text-xs font-medium ${apuracaoViewMode === mode ? "bg-blue-600 text-white" : "bg-white"}`}
+                          style={apuracaoViewMode !== mode ? { color: "var(--ink-secondary)", borderLeft: "1px solid var(--border)" } : { borderLeft: "1px solid var(--border)" }}>
+                          {mode === "colaborador" ? "Por Colaborador" : "Por Agrupamento"}
+                        </button>
+                      ))}
+                    </div>
+                    <span className="text-xs" style={{ color: "var(--ink-muted)" }}>
+                      Baseado nas últimas realizações lançadas por meta
+                    </span>
+                  </div>
+
+                  {apuracaoViewMode === "colaborador" && (
+                    <div className="space-y-3">
+                      {colaboradores.filter((c) => metas.some((m) => m.colaboradorIds.includes(c.id))).map((c) => {
+                        const mid = getMID(c.id);
+                        return (
+                          <div key={c.id} className="bg-white rounded-xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+                            <div className="px-5 py-3 flex items-center justify-between" style={{ borderBottom: "1px solid var(--border)", background: "var(--surface-raised)" }}>
+                              <div>
+                                <span className="font-semibold text-sm" style={{ color: "var(--ink)" }}>{c.nomeCompleto}</span>
+                                <span className="ml-2 text-xs" style={{ color: "var(--ink-muted)" }}>{c.cargo?.nome}</span>
+                              </div>
+                              <div className="flex items-center gap-4">
+                                <div className="text-right">
+                                  <div className="text-xs" style={{ color: "var(--ink-muted)" }}>Atingimento</div>
+                                  <div className={`text-sm font-bold ${mid.nota >= 100 ? "text-green-600" : mid.nota >= 70 ? "text-yellow-600" : "text-red-600"}`}>
+                                    {fmtPct(mid.nota)}
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <div className="text-xs" style={{ color: "var(--ink-muted)" }}>Prêmio Projetado</div>
+                                  <div className="text-sm font-bold" style={{ color: "var(--ink)" }}>R$ {fmt(mid.premio)}</div>
+                                </div>
+                              </div>
+                            </div>
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                                  {["Indicador","Peso","Meta Alvo","Realizado","Nota"].map((h) => (
+                                    <th key={h} className="px-4 py-2 text-left font-medium" style={{ color: "var(--ink-secondary)" }}>{h}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y" style={{ borderColor: "var(--border)" }}>
+                                {mid.metas.map((item, i) => (
+                                  <tr key={i} className="hover:bg-gray-50">
+                                    <td className="px-4 py-2" style={{ color: "var(--ink)" }}>{item.nome}</td>
+                                    <td className="px-4 py-2 tabular-nums" style={{ color: "var(--ink-secondary)" }}>{item.peso.toFixed(0)}%</td>
+                                    <td className="px-4 py-2 tabular-nums" style={{ color: "var(--ink-secondary)" }}>{fmt(item.alvo)}</td>
+                                    <td className="px-4 py-2 tabular-nums" style={{ color: "var(--ink)" }}>
+                                      {item.real != null ? fmt(item.real) : <span style={{ color: "var(--ink-muted)" }}>Não lançado</span>}
+                                    </td>
+                                    <td className="px-4 py-2">
+                                      <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${item.nota >= 100 ? "bg-green-50 text-green-700" : item.nota >= 70 ? "bg-yellow-50 text-yellow-700" : "bg-red-50 text-red-700"}`}>
+                                        {fmtPct(item.nota)}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        );
+                      })}
+                      {colaboradores.filter((c) => metas.some((m) => m.colaboradorIds.includes(c.id))).length === 0 && (
+                        <div className="bg-white rounded-xl p-10 text-center" style={{ border: "1px solid var(--border)", color: "var(--ink-muted)" }}>
+                          Nenhum colaborador com metas atribuídas
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {apuracaoViewMode === "agrupamento" && (
+                    <div className="space-y-3">
+                      {agrupamentos.map((ag) => {
+                        const totalPeso = ag.metas.reduce((s, m) => s + m.pesoNaCesta, 0);
+                        const notaAgrupamento = totalPeso > 0
+                          ? ag.metas.reduce((s, m) => s + (getUltimaNota(m.metaId) ?? 0) * m.pesoNaCesta, 0) / totalPeso
+                          : 0;
+                        return (
+                          <div key={ag.id} className="bg-white rounded-xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+                            <div className="px-5 py-3 flex items-center justify-between" style={{ borderBottom: "1px solid var(--border)", background: "var(--surface-raised)" }}>
+                              <div>
+                                <span className="font-semibold text-sm" style={{ color: "var(--ink)" }}>{ag.nome}</span>
+                                <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-gray-100" style={{ color: "var(--ink-muted)" }}>{ag.tipo}</span>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-xs" style={{ color: "var(--ink-muted)" }}>Atingimento do agrupamento</div>
+                                <div className={`text-sm font-bold ${notaAgrupamento >= 100 ? "text-green-600" : notaAgrupamento >= 70 ? "text-yellow-600" : "text-red-600"}`}>
+                                  {fmtPct(notaAgrupamento)}
+                                </div>
+                              </div>
+                            </div>
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                                  {["Indicador","Peso","Meta Alvo","Realizado","Nota"].map((h) => (
+                                    <th key={h} className="px-4 py-2 text-left font-medium" style={{ color: "var(--ink-secondary)" }}>{h}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y" style={{ borderColor: "var(--border)" }}>
+                                {ag.metas.map((am) => {
+                                  const metaDef = metas.find((m) => m.id === am.metaId);
+                                  const nota = getUltimaNota(am.metaId) ?? 0;
+                                  const latestReal = realizacoes.filter((r) => r.meta?.id === am.metaId).sort((a, b) => b.anoReferencia * 100 + b.mesReferencia - (a.anoReferencia * 100 + a.mesReferencia))[0]?.valorRealizado ?? null;
+                                  return (
+                                    <tr key={am.id} className="hover:bg-gray-50">
+                                      <td className="px-4 py-2" style={{ color: "var(--ink)" }}>{am.meta?.indicador?.nome ?? `Meta #${am.metaId}`}</td>
+                                      <td className="px-4 py-2 tabular-nums" style={{ color: "var(--ink-secondary)" }}>{am.pesoNaCesta.toFixed(0)}%</td>
+                                      <td className="px-4 py-2 tabular-nums" style={{ color: "var(--ink-secondary)" }}>{fmt(metaDef?.metaAlvo ?? 0)}</td>
+                                      <td className="px-4 py-2 tabular-nums" style={{ color: "var(--ink)" }}>
+                                        {latestReal != null ? fmt(latestReal) : <span style={{ color: "var(--ink-muted)" }}>Não lançado</span>}
+                                      </td>
+                                      <td className="px-4 py-2">
+                                        <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${nota >= 100 ? "bg-green-50 text-green-700" : nota >= 70 ? "bg-yellow-50 text-yellow-700" : "bg-red-50 text-red-700"}`}>
+                                          {fmtPct(nota)}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── RELATÓRIO ── */}
+              {apuracaoSub === "relatorio" && (
+                <div className="space-y-4">
+                  <div className="flex justify-end">
+                    <button onClick={() => window.print()} className="btn-primary text-xs">Imprimir / Salvar PDF</button>
+                  </div>
+                  <div className="bg-white rounded-xl p-6 print:shadow-none" style={{ border: "1px solid var(--border)" }}>
+                    <div className="mb-6">
+                      <h2 className="text-xl font-bold" style={{ color: "var(--ink)" }}>Relatório de Apuração — ICP</h2>
+                      <p className="text-sm" style={{ color: "var(--ink-secondary)" }}>
+                        Ciclo: {cicloAtivo?.anoFiscal ?? "—"} | Gerado em: {new Date().toLocaleDateString("pt-BR")}
+                      </p>
+                    </div>
+                    <table className="w-full text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-gray-100">
+                          {["Colaborador","Cargo","Indicador","Peso","Alvo","Realizado","Nota","Prêmio Projetado"].map((h) => (
+                            <th key={h} className="border border-gray-300 px-3 py-2 text-left font-semibold">{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {colaboradores.filter((c) => metas.some((m) => m.colaboradorIds.includes(c.id))).map((c) => {
+                          const mid = getMID(c.id);
+                          return mid.metas.map((item, i) => (
+                            <tr key={`${c.id}-${i}`} className="border-b border-gray-200">
+                              {i === 0 && <td className="border border-gray-300 px-3 py-1.5 font-medium" rowSpan={mid.metas.length}>{c.nomeCompleto}</td>}
+                              {i === 0 && <td className="border border-gray-300 px-3 py-1.5" rowSpan={mid.metas.length} style={{ color: "var(--ink-secondary)" }}>{c.cargo?.nome}</td>}
+                              <td className="border border-gray-300 px-3 py-1.5">{item.nome}</td>
+                              <td className="border border-gray-300 px-3 py-1.5 tabular-nums">{item.peso.toFixed(0)}%</td>
+                              <td className="border border-gray-300 px-3 py-1.5 tabular-nums">{fmt(item.alvo)}</td>
+                              <td className="border border-gray-300 px-3 py-1.5 tabular-nums">{item.real != null ? fmt(item.real) : "—"}</td>
+                              <td className="border border-gray-300 px-3 py-1.5 tabular-nums font-semibold">{fmtPct(item.nota)}</td>
+                              {i === 0 && <td className="border border-gray-300 px-3 py-1.5 tabular-nums font-bold" rowSpan={mid.metas.length}>R$ {fmt(mid.premio)}</td>}
+                            </tr>
+                          ));
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
       </main>
       </div>
