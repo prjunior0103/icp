@@ -1,6 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 
+async function syncSnapshotColaboradores(cicloId: number) {
+  const colaboradores = await prisma.colaborador.findMany({
+    where: { ativo: true },
+    include: { cargo: true },
+  });
+  for (const col of colaboradores) {
+    await prisma.cicloColaborador.upsert({
+      where: { cicloId_colaboradorId: { cicloId, colaboradorId: col.id } },
+      update: {
+        salarioBase: col.salarioBase,
+        cargoId: col.cargoId,
+        targetMultiploSalarial: col.cargo.targetMultiploSalarial,
+        centroCustoId: col.centroCustoId,
+        empresaId: col.empresaId,
+        ativo: true,
+      },
+      create: {
+        cicloId,
+        colaboradorId: col.id,
+        salarioBase: col.salarioBase,
+        cargoId: col.cargoId,
+        targetMultiploSalarial: col.cargo.targetMultiploSalarial,
+        centroCustoId: col.centroCustoId,
+        empresaId: col.empresaId,
+        ativo: true,
+      },
+    });
+  }
+}
+
 export async function GET() {
   try {
     const ciclos = await prisma.cicloICP.findMany({
@@ -80,6 +110,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Snapshot colaboradores on ciclo creation
+    await syncSnapshotColaboradores(ciclo.id);
+
     return NextResponse.json({ data: ciclo }, { status: 201 });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
@@ -107,35 +140,9 @@ export async function PUT(req: NextRequest) {
       },
     });
 
-    // Auto-snapshot colaboradores when activating a ciclo
+    // Re-sync snapshot when activating (picks up any changes since creation)
     if (data.status === "ATIVO") {
-      const colaboradores = await prisma.colaborador.findMany({
-        where: { ativo: true },
-        include: { cargo: true },
-      });
-      for (const col of colaboradores) {
-        await prisma.cicloColaborador.upsert({
-          where: { cicloId_colaboradorId: { cicloId: Number(id), colaboradorId: col.id } },
-          update: {
-            salarioBase: col.salarioBase,
-            cargoId: col.cargoId,
-            targetMultiploSalarial: col.cargo.targetMultiploSalarial,
-            centroCustoId: col.centroCustoId,
-            empresaId: col.empresaId,
-            ativo: true,
-          },
-          create: {
-            cicloId: Number(id),
-            colaboradorId: col.id,
-            salarioBase: col.salarioBase,
-            cargoId: col.cargoId,
-            targetMultiploSalarial: col.cargo.targetMultiploSalarial,
-            centroCustoId: col.centroCustoId,
-            empresaId: col.empresaId,
-            ativo: true,
-          },
-        });
-      }
+      await syncSnapshotColaboradores(Number(id));
     }
 
     return NextResponse.json({ data: ciclo });
