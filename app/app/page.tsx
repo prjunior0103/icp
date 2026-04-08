@@ -30,7 +30,7 @@ interface Colaborador {
   cargo: Cargo; centroCusto: CentroCusto; empresa: Empresa;
 }
 interface CicloICP { id: number; anoFiscal: number; status: string; bonusPool: number | null; mesInicio: number; mesFim: number; }
-interface Indicador { id: number; codigo: string; nome: string; tipo: string; polaridade: string; abrangencia: string; unidade: string; status: string; diretivo?: string; analistaResp?: string; origemDado?: string; divisorId?: number | null; divisor?: { id: number; nome: string } | null; }
+interface Indicador { id: number; codigo: string; nome: string; tipo: string; polaridade: string; abrangencia: string; unidade: string; status: string; diretivo?: string; analistaResp?: string; origemDado?: string; divisorId?: number | null; divisor?: { id: number; nome: string } | null; periodicidade?: string | null; perspectiva?: string | null; tipoIndicador?: string | null; auditorDados?: string | null; metaAlvo?: number | null; metaMinima?: number | null; }
 interface Meta {
   id: number; metaAlvo: number; metaMinima: number | null;
   metaMaxima: number | null; status: string; smart?: string | null;
@@ -196,6 +196,7 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<TabId>("dashboard");
   const [ciclos, setCiclos] = useState<CicloICP[]>([]);
   const [cicloAtivo, setCicloAtivo] = useState<CicloICP | null>(null);
+  const userCicloIdRef = React.useRef<number | null>(null);
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
   const [metas, setMetas] = useState<Meta[]>([]);
   const [realizacoes, setRealizacoes] = useState<Realizacao[]>([]);
@@ -214,13 +215,23 @@ export default function Home() {
 
   // Novo Indicador form state
   const [showIndicadorForm, setShowIndicadorForm] = useState(false);
+  const [indicadorEditId, setIndicadorEditId] = useState<number | null>(null);
   const [indicadorForm, setIndicadorForm] = useState({
     codigo: "", nome: "", tipo: "VOLUME_FINANCEIRO", polaridade: "MAIOR_MELHOR",
     abrangencia: "CORPORATIVO", unidade: "%", descricao: "",
     diretivo: "", analistaResp: "", origemDado: "",
     isDivisivel: false, divisorId: "",
     metrica: "", baseline: "", periodicidade: "", perspectiva: "", tipoIndicador: "", auditorDados: "",
+    metaAlvo: "", metaMinima: "",
   });
+  // Import indicadores XLSX
+  const [showIndicadoresImport, setShowIndicadoresImport] = useState(false);
+  const [indicadoresXlsxFile, setIndicadoresXlsxFile] = useState<File | null>(null);
+  const [indicadoresImportResult, setIndicadoresImportResult] = useState<{ processed: number; updated?: number; erros: { linha: number; motivo: string }[] } | null>(null);
+  const [indicadoresImportLoading, setIndicadoresImportLoading] = useState(false);
+  // Atribuir meta por grade (TASK-032)
+  const [atribuirGradeMetaId, setAtribuirGradeMetaId] = useState<number | null>(null);
+  const [atribuirGradeNivel, setAtribuirGradeNivel] = useState("");
 
   // MetaColaborador assignment
   const [assigningMetaId, setAssigningMetaId] = useState<number | null>(null);
@@ -295,7 +306,7 @@ export default function Home() {
   const [colabAgrupSearch, setColabAgrupSearch] = useState("");
   const [colabAgrupIndicadorId, setColabAgrupIndicadorId] = useState("");
   const [colabAgrupGestorId, setColabAgrupGestorId] = useState("");
-  const [apenasGestores, setApenasGestores] = useState(false);
+  const [apenasGestores, setApenasGestores] = useState(true);
 
   // Apuração state
   const [apuracaoSub, setApuracaoSub] = useState<"preenchimento" | "acompanhamento" | "relatorio">("preenchimento");
@@ -343,6 +354,7 @@ export default function Home() {
       await loadCiclos();
       if (!cicloEditId && resData.data?.id) {
         const newCiclo = resData.data as CicloICP;
+        userCicloIdRef.current = newCiclo.id;
         setCicloAtivo(newCiclo);
         await Promise.all([
           loadMetas(newCiclo.id),
@@ -389,7 +401,8 @@ export default function Home() {
     const res = await fetch("/api/ciclos").then((r) => r.json()).catch(() => ({ data: [] }));
     const list: CicloICP[] = res.data ?? [];
     setCiclos(list);
-    const ativo = list.find((c) => c.status === "ATIVO") ?? list[0] ?? null;
+    const preferred = userCicloIdRef.current ? list.find((c) => c.id === userCicloIdRef.current) : null;
+    const ativo = preferred ?? list.find((c) => c.status === "ATIVO") ?? list[0] ?? null;
     setCicloAtivo(ativo);
     return ativo;
   }, []);
@@ -555,43 +568,85 @@ export default function Home() {
     e.preventDefault();
     if (!cicloAtivo) { addToast("Nenhum ciclo ativo. Vá em Cadastros → Ciclos para criar um ciclo.", "err"); setActiveTab("cadastros"); setCadastroSub("ciclos"); return; }
     const autoCode = `IND-${Date.now()}`;
+    const payload = {
+      codigo: indicadorForm.codigo || autoCode,
+      nome: indicadorForm.nome,
+      tipo: indicadorForm.tipo,
+      polaridade: indicadorForm.polaridade,
+      abrangencia: indicadorForm.abrangencia,
+      unidade: indicadorForm.unidade || "%",
+      descricao: indicadorForm.descricao || undefined,
+      diretivo: indicadorForm.diretivo || undefined,
+      analistaResp: indicadorForm.analistaResp || undefined,
+      origemDado: indicadorForm.origemDado || undefined,
+      divisorId: indicadorForm.isDivisivel && indicadorForm.divisorId ? Number(indicadorForm.divisorId) : null,
+      metrica: indicadorForm.metrica || undefined,
+      baseline: indicadorForm.baseline ? Number(indicadorForm.baseline) : undefined,
+      periodicidade: indicadorForm.periodicidade || undefined,
+      perspectiva: indicadorForm.perspectiva || undefined,
+      tipoIndicador: indicadorForm.tipoIndicador || undefined,
+      auditorDados: indicadorForm.auditorDados || undefined,
+      metaAlvo: indicadorForm.metaAlvo ? Number(indicadorForm.metaAlvo) : undefined,
+      metaMinima: indicadorForm.metaMinima ? Number(indicadorForm.metaMinima) : undefined,
+      cicloId: cicloAtivo.id,
+      status: "ATIVO",
+    };
     try {
       const res = await fetch("/api/indicadores", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          codigo: indicadorForm.codigo || autoCode,
-          nome: indicadorForm.nome,
-          tipo: indicadorForm.tipo,
-          polaridade: indicadorForm.polaridade,
-          abrangencia: indicadorForm.abrangencia,
-          unidade: indicadorForm.unidade || "%",
-          descricao: indicadorForm.descricao || undefined,
-          diretivo: indicadorForm.diretivo || undefined,
-          analistaResp: indicadorForm.analistaResp || undefined,
-          origemDado: indicadorForm.origemDado || undefined,
-          divisorId: indicadorForm.isDivisivel && indicadorForm.divisorId ? Number(indicadorForm.divisorId) : null,
-          metrica: indicadorForm.metrica || undefined,
-          baseline: indicadorForm.baseline ? Number(indicadorForm.baseline) : undefined,
-          periodicidade: indicadorForm.periodicidade || undefined,
-          perspectiva: indicadorForm.perspectiva || undefined,
-          tipoIndicador: indicadorForm.tipoIndicador || undefined,
-          auditorDados: indicadorForm.auditorDados || undefined,
-          cicloId: cicloAtivo.id,
-          status: "ATIVO",
-        }),
+        method: indicadorEditId ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(indicadorEditId ? { id: indicadorEditId, ...payload } : payload),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        addToast(`Erro ao criar indicador: ${err.error ?? res.status}`, "err");
+        addToast(`Erro ao salvar indicador: ${err.error ?? res.status}`, "err");
         return;
       }
-      setIndicadorForm({ codigo: "", nome: "", tipo: "VOLUME_FINANCEIRO", polaridade: "MAIOR_MELHOR", abrangencia: "CORPORATIVO", unidade: "%", descricao: "", diretivo: "", analistaResp: "", origemDado: "", isDivisivel: false, divisorId: "", metrica: "", baseline: "", periodicidade: "", perspectiva: "", tipoIndicador: "", auditorDados: "" });
+      setIndicadorForm({ codigo: "", nome: "", tipo: "VOLUME_FINANCEIRO", polaridade: "MAIOR_MELHOR", abrangencia: "CORPORATIVO", unidade: "%", descricao: "", diretivo: "", analistaResp: "", origemDado: "", isDivisivel: false, divisorId: "", metrica: "", baseline: "", periodicidade: "", perspectiva: "", tipoIndicador: "", auditorDados: "", metaAlvo: "", metaMinima: "" });
+      setIndicadorEditId(null);
       setShowIndicadorForm(false);
       loadIndicadores(cicloAtivo.id);
-      addToast("Indicador criado com sucesso", "ok");
+      addToast(indicadorEditId ? "Indicador atualizado" : "Indicador criado com sucesso", "ok");
     } catch (err) {
       addToast(`Erro inesperado: ${String(err)}`, "err");
     }
+  }
+
+  async function handleImportIndicadores() {
+    if (!indicadoresXlsxFile || !cicloAtivo) return;
+    setIndicadoresImportLoading(true);
+    const XLSX = await import("xlsx");
+    const buf = await indicadoresXlsxFile.arrayBuffer();
+    const wb = XLSX.read(buf, { type: "array" });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json<Record<string, string>>(ws, { defval: "" });
+    const res = await fetch("/api/import-indicadores", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cicloId: cicloAtivo.id, rows }),
+    }).then((r) => r.json()).catch(() => null);
+    if (res?.data) {
+      setIndicadoresImportResult(res.data);
+      loadIndicadores(cicloAtivo.id);
+    } else {
+      addToast("Erro ao importar indicadores", "err");
+    }
+    setIndicadoresImportLoading(false);
+  }
+
+  async function handleAtribuirMetaPorGrade(metaId: number, nivelHierarquico: string) {
+    const elegíveis = colaboradores.filter((c) => c.ativo && c.cargo.nivelHierarquico === nivelHierarquico);
+    let count = 0;
+    for (const c of elegíveis) {
+      const res = await fetch("/api/metas", {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: metaId, atribuirColaboradorId: c.id }),
+      });
+      if (res.ok) count++;
+    }
+    loadMetas(cicloAtivo?.id);
+    addToast(`${count} colaborador(es) do grade ${nivelHierarquico} atribuídos`, "ok");
+    setAtribuirGradeMetaId(null);
+    setAtribuirGradeNivel("");
   }
 
   async function handleCancelarMeta(metaId: number) {
@@ -1090,6 +1145,7 @@ export default function Home() {
               onChange={(e) => {
                 const c = ciclos.find((x) => x.id === Number(e.target.value));
                 if (c) {
+                  userCicloIdRef.current = c.id;
                   setCicloAtivo(c);
                   loadMetas(c.id);
                   loadDashboard(c.id);
@@ -1511,6 +1567,7 @@ export default function Home() {
                                   setShowMetaForm(true);
                                 }} className="text-xs bg-purple-100 hover:bg-purple-200 text-purple-700 px-2 py-0.5 rounded">Cascatear</button>
                               <button onClick={() => handleClonarMeta(m)} className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-0.5 rounded">Clonar</button>
+                              <button onClick={() => { setAtribuirGradeMetaId(atribuirGradeMetaId === m.id ? null : m.id); setAtribuirGradeNivel(""); }} className="text-xs bg-purple-100 hover:bg-purple-200 text-purple-700 px-2 py-0.5 rounded">Por Grade</button>
                               {m.status !== "CANCELADO" && role === "GUARDIAO" && (
                                 <button onClick={() => { if (confirm(`Cancelar Meta #${m.id}?`)) handleCancelarMeta(m.id); }} className="text-xs bg-red-100 hover:bg-red-200 text-red-700 px-2 py-0.5 rounded">Cancelar</button>
                               )}
@@ -1535,6 +1592,21 @@ export default function Home() {
                             </form>
                           </td></tr>
                         )}
+                        {atribuirGradeMetaId === m.id && (
+                          <tr className="bg-purple-50"><td colSpan={8} className="px-4 py-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-purple-700 font-medium">Atribuir por Grade:</span>
+                              <select value={atribuirGradeNivel} onChange={(e) => setAtribuirGradeNivel(e.target.value)} className="border border-gray-300 rounded px-2 py-1 text-xs">
+                                <option value="">Selecionar grade...</option>
+                                {[...new Set(colaboradores.map((c) => c.cargo.nivelHierarquico))].sort().map((n) => (
+                                  <option key={n} value={n}>{n} — {colaboradores.find((c) => c.cargo.nivelHierarquico === n)?.cargo.nome}</option>
+                                ))}
+                              </select>
+                              <button onClick={() => atribuirGradeNivel && handleAtribuirMetaPorGrade(m.id, atribuirGradeNivel)} disabled={!atribuirGradeNivel} className="text-xs bg-purple-700 text-white px-3 py-1 rounded disabled:opacity-40">Atribuir</button>
+                              <button onClick={() => { setAtribuirGradeMetaId(null); setAtribuirGradeNivel(""); }} className="text-xs text-gray-500 px-2 py-1">✕</button>
+                            </div>
+                          </td></tr>
+                        )}
                       </React.Fragment>
                     ))}
                     {metas.length === 0 && (
@@ -1557,6 +1629,7 @@ export default function Home() {
           const metasNoAgrupamento = new Set((selectedAgrupamento?.metas ?? []).map((m) => m.metaId));
           const metasDisponiveis = metas.filter((m) =>
             !metasNoAgrupamento.has(m.id) &&
+            m.indicador.status !== "CANCELADO" &&
             (agrupamentoMetaSearch === "" ||
               m.indicador.nome.toLowerCase().includes(agrupamentoMetaSearch.toLowerCase()))
           );
@@ -2690,14 +2763,39 @@ export default function Home() {
             {/* CENTRO DE CUSTO */}
             {cadastroSub === "indicadores" && (
               <div className="space-y-4">
-                <div className="flex justify-end">
-                  <button onClick={() => setShowIndicadorForm((v) => !v)}
+                <div className="flex justify-end gap-2">
+                  <button onClick={() => setShowIndicadoresImport((v) => !v)} className="btn-ghost text-xs">
+                    ↑ Importar XLSX
+                  </button>
+                  <button onClick={() => { setShowIndicadorForm((v) => !v); setIndicadorEditId(null); }}
                     className="btn-primary">
                     + Novo Indicador
                   </button>
                 </div>
+                {showIndicadoresImport && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
+                    <h3 className="font-semibold text-blue-800 text-sm">Importar Indicadores via XLSX</h3>
+                    <p className="text-xs text-gray-500">Colunas: codigo, nome, tipo, polaridade, abrangencia, unidade, metaMinima, metaAlvo, metaMaxima, diretivo, analistaResp, origemDado</p>
+                    <input type="file" accept=".xlsx,.csv" onChange={(e) => setIndicadoresXlsxFile(e.target.files?.[0] ?? null)} className="text-xs" />
+                    <div className="flex gap-2">
+                      <button type="button" onClick={handleImportIndicadores} disabled={!indicadoresXlsxFile || indicadoresImportLoading} className="btn-primary text-xs">
+                        {indicadoresImportLoading ? "Importando..." : "Importar"}
+                      </button>
+                      <button type="button" onClick={() => { setShowIndicadoresImport(false); setIndicadoresImportResult(null); }} className="text-xs text-gray-500 px-3">Fechar</button>
+                    </div>
+                    {indicadoresImportResult && (
+                      <div className="text-xs">
+                        <p className="text-green-700">Criados: {indicadoresImportResult.processed} | Atualizados: {indicadoresImportResult.updated ?? 0}</p>
+                        {indicadoresImportResult.erros.length > 0 && (
+                          <ul className="text-red-600 mt-1">{indicadoresImportResult.erros.map((e, i) => <li key={i}>Linha {e.linha}: {e.motivo}</li>)}</ul>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
                 {showIndicadorForm && (
                   <form onSubmit={handleCriarIndicador} className="bg-blue-50 border border-blue-200 rounded-xl p-5 grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <h3 className="col-span-2 md:col-span-3 font-semibold text-blue-800">{indicadorEditId ? "Editar Indicador" : "Novo Indicador"}</h3>
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">Código</label>
                       <input value={indicadorForm.codigo} onChange={(e) => setIndicadorForm((f) => ({ ...f, codigo: e.target.value }))}
@@ -2784,6 +2882,16 @@ export default function Home() {
                       <input value={indicadorForm.descricao} onChange={(e) => setIndicadorForm((f) => ({ ...f, descricao: e.target.value }))}
                         placeholder="Descrição do indicador" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
                     </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Meta Mínima</label>
+                      <input type="number" step="any" value={indicadorForm.metaMinima} onChange={(e) => setIndicadorForm((f) => ({ ...f, metaMinima: e.target.value }))}
+                        placeholder="0" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Meta Alvo</label>
+                      <input type="number" step="any" value={indicadorForm.metaAlvo} onChange={(e) => setIndicadorForm((f) => ({ ...f, metaAlvo: e.target.value }))}
+                        placeholder="100" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                    </div>
                     <div className="col-span-2 md:col-span-3 border-t border-blue-200 pt-3">
                       <p className="text-xs font-semibold text-blue-700 mb-2">Governança (opcional)</p>
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -2822,6 +2930,7 @@ export default function Home() {
                             <option value="CLIENTE">Cliente</option>
                             <option value="PROCESSOS">Processos Internos</option>
                             <option value="APRENDIZADO">Aprendizado e Crescimento</option>
+                            <option value="SUSTENTABILIDADE">Sustentabilidade</option>
                           </select>
                         </div>
                         <div>
@@ -2836,8 +2945,8 @@ export default function Home() {
                       </div>
                     </div>
                     <div className="col-span-2 md:col-span-3 flex gap-3">
-                      <button type="submit" className="btn-primary">Salvar Indicador</button>
-                      <button type="button" onClick={() => setShowIndicadorForm(false)} className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2">Cancelar</button>
+                      <button type="submit" className="btn-primary">{indicadorEditId ? "Atualizar Indicador" : "Salvar Indicador"}</button>
+                      <button type="button" onClick={() => { setShowIndicadorForm(false); setIndicadorEditId(null); setIndicadorForm({ codigo: "", nome: "", tipo: "VOLUME_FINANCEIRO", polaridade: "MAIOR_MELHOR", abrangencia: "CORPORATIVO", unidade: "%", descricao: "", diretivo: "", analistaResp: "", origemDado: "", isDivisivel: false, divisorId: "", metrica: "", baseline: "", periodicidade: "", perspectiva: "", tipoIndicador: "", auditorDados: "", metaAlvo: "", metaMinima: "" }); }} className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2">Cancelar</button>
                     </div>
                   </form>
                 )}
@@ -2877,14 +2986,34 @@ export default function Home() {
                             </button>
                           </td>
                           <td className="px-4 py-3">
-                            {role === "GUARDIAO" && (
+                            <div className="flex gap-1">
                               <button
-                                onClick={() => handleExcluirIndicador(ind.id, ind.nome)}
-                                className="text-xs bg-red-100 hover:bg-red-200 text-red-700 px-2 py-0.5 rounded"
-                              >
-                                Excluir
-                              </button>
-                            )}
+                                onClick={() => {
+                                  setIndicadorEditId(ind.id);
+                                  setIndicadorForm({
+                                    codigo: ind.codigo, nome: ind.nome, tipo: ind.tipo,
+                                    polaridade: ind.polaridade, abrangencia: ind.abrangencia,
+                                    unidade: ind.unidade, descricao: "",
+                                    diretivo: ind.diretivo ?? "", analistaResp: ind.analistaResp ?? "",
+                                    origemDado: ind.origemDado ?? "", isDivisivel: !!ind.divisorId,
+                                    divisorId: ind.divisorId ? String(ind.divisorId) : "",
+                                    metrica: "", baseline: "", periodicidade: ind.periodicidade ?? "",
+                                    perspectiva: ind.perspectiva ?? "", tipoIndicador: ind.tipoIndicador ?? "",
+                                    auditorDados: ind.auditorDados ?? "",
+                                    metaAlvo: ind.metaAlvo != null ? String(ind.metaAlvo) : "",
+                                    metaMinima: ind.metaMinima != null ? String(ind.metaMinima) : "",
+                                  });
+                                  setShowIndicadorForm(true);
+                                }}
+                                className="text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 px-2 py-0.5 rounded"
+                              >Editar</button>
+                              {role === "GUARDIAO" && (
+                                <button
+                                  onClick={() => handleExcluirIndicador(ind.id, ind.nome)}
+                                  className="text-xs bg-red-100 hover:bg-red-200 text-red-700 px-2 py-0.5 rounded"
+                                >Excluir</button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}
