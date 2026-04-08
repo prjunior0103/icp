@@ -306,6 +306,7 @@ export default function Home() {
   const [colabAgrupSearch, setColabAgrupSearch] = useState("");
   const [colabAgrupIndicadorId, setColabAgrupIndicadorId] = useState("");
   const [colabAgrupGestorId, setColabAgrupGestorId] = useState("");
+  const [colabAgrupNivelCC, setColabAgrupNivelCC] = useState("");
   const [apenasGestores, setApenasGestores] = useState(true);
 
   // Apuração state
@@ -634,7 +635,9 @@ export default function Home() {
   }
 
   async function handleAtribuirMetaPorGrade(metaId: number, nivelHierarquico: string) {
-    const elegíveis = colaboradores.filter((c) => c.ativo && c.cargo.nivelHierarquico === nivelHierarquico);
+    const elegíveis = nivelHierarquico === "__TODOS__"
+      ? colaboradores.filter((c) => c.ativo)
+      : colaboradores.filter((c) => c.ativo && c.cargo.nivelHierarquico === nivelHierarquico);
     let count = 0;
     for (const c of elegíveis) {
       const res = await fetch("/api/metas", {
@@ -644,7 +647,7 @@ export default function Home() {
       if (res.ok) count++;
     }
     loadMetas(cicloAtivo?.id);
-    addToast(`${count} colaborador(es) do grade ${nivelHierarquico} atribuídos`, "ok");
+    addToast(`${count} colaborador(es) atribuídos`, "ok");
     setAtribuirGradeMetaId(null);
     setAtribuirGradeNivel("");
   }
@@ -1598,6 +1601,7 @@ export default function Home() {
                               <span className="text-xs text-purple-700 font-medium">Atribuir por Grade:</span>
                               <select value={atribuirGradeNivel} onChange={(e) => setAtribuirGradeNivel(e.target.value)} className="border border-gray-300 rounded px-2 py-1 text-xs">
                                 <option value="">Selecionar grade...</option>
+                                <option value="__TODOS__">Todos os grades elegíveis</option>
                                 {[...new Set(colaboradores.map((c) => c.cargo.nivelHierarquico))].sort().map((n) => (
                                   <option key={n} value={n}>{n} — {colaboradores.find((c) => c.cargo.nivelHierarquico === n)?.cargo.nome}</option>
                                 ))}
@@ -1717,6 +1721,10 @@ export default function Home() {
                   const gestorNum = Number(colabAgrupGestorId);
                   filtered = filtered.filter((c) => c.id === gestorNum || c.gestorId === gestorNum);
                 }
+                // Filtro por nível CC
+                if (colabAgrupNivelCC) {
+                  filtered = filtered.filter((c) => String(c.centroCusto?.nivel ?? 1) === colabAgrupNivelCC);
+                }
                 return (
                   <div className="bg-white rounded-lg overflow-hidden" style={{ border: "1px solid var(--border)" }}>
                     <div className="px-5 py-3 flex flex-wrap items-center gap-3" style={{ borderBottom: "1px solid var(--border)" }}>
@@ -1743,6 +1751,10 @@ export default function Home() {
                         {colaboradores.filter((c) => gestoresIds.has(c.id)).map((c) => (
                           <option key={c.id} value={c.id}>{c.nomeCompleto}</option>
                         ))}
+                      </select>
+                      <select className="icp-input text-xs" value={colabAgrupNivelCC} onChange={(e) => setColabAgrupNivelCC(e.target.value)}>
+                        <option value="">Todos os níveis CC</option>
+                        {["1","2","3","4","5"].map((n) => <option key={n} value={n}>Nível CC {n}</option>)}
                       </select>
                       <span className="text-xs" style={{ color: "var(--ink-muted)", whiteSpace: "nowrap" }}>
                         {filtered.length} colaborador{filtered.length !== 1 ? "es" : ""}
@@ -3127,7 +3139,7 @@ export default function Home() {
                       <label className="block text-xs font-medium text-gray-600 mb-1">Nível</label>
                       <select value={ccForm.nivel} onChange={(e) => setCcForm((f) => ({ ...f, nivel: e.target.value }))}
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
-                        {["1","2","3","4"].map((n) => <option key={n} value={n}>Nível {n}</option>)}
+                        {["1","2","3","4","5"].map((n) => <option key={n} value={n}>Nível {n}</option>)}
                       </select>
                     </div>
                     <div className="col-span-2 flex gap-3">
