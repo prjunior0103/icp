@@ -23,9 +23,10 @@ export async function POST(req: NextRequest) {
     if (bonusPool !== undefined && bonusPool < 0)
       return NextResponse.json({ error: "bonusPool não pode ser negativo" }, { status: 400 });
 
+    const newAno = Number(body.anoFiscal);
     const ciclo = await prisma.cicloICP.create({
       data: {
-        anoFiscal: Number(body.anoFiscal),
+        anoFiscal: newAno,
         status: body.status ?? "SETUP",
         mesInicio: body.mesInicio ? Number(body.mesInicio) : 1,
         mesFim: body.mesFim ? Number(body.mesFim) : 12,
@@ -33,6 +34,52 @@ export async function POST(req: NextRequest) {
         bonusPool,
       },
     });
+
+    // Importar indicadores de outro ciclo (opcional)
+    if (body.importFromCicloId) {
+      const sourceCicloId = Number(body.importFromCicloId);
+      const sourceIndicadores = await prisma.indicador.findMany({
+        where: { cicloId: sourceCicloId },
+        include: { faixas: true },
+      });
+
+      for (const ind of sourceIndicadores) {
+        const newCodigo = `${ind.codigo}_${newAno}`;
+        const existing = await prisma.indicador.findFirst({ where: { codigo: newCodigo } });
+        const finalCodigo = existing ? `${ind.codigo}_${newAno}_${Date.now()}` : newCodigo;
+
+        await prisma.indicador.create({
+          data: {
+            codigo: finalCodigo,
+            nome: ind.nome,
+            descricao: ind.descricao,
+            tipo: ind.tipo,
+            polaridade: ind.polaridade,
+            abrangencia: ind.abrangencia,
+            unidade: ind.unidade,
+            metaMinima: ind.metaMinima,
+            metaAlvo: ind.metaAlvo,
+            metaMaxima: ind.metaMaxima,
+            diretivo: ind.diretivo,
+            analistaResp: ind.analistaResp,
+            origemDado: ind.origemDado,
+            cicloId: ciclo.id,
+            status: "DRAFT",
+            baseline: ind.baseline,
+            metrica: ind.metrica,
+            periodicidade: ind.periodicidade,
+            perspectiva: ind.perspectiva,
+            tipoIndicador: ind.tipoIndicador,
+            auditorDados: ind.auditorDados,
+            criterioApuracao: ind.criterioApuracao,
+            faixas: {
+              create: ind.faixas.map((f) => ({ de: f.de, ate: f.ate, nota: f.nota })),
+            },
+          },
+        });
+      }
+    }
+
     return NextResponse.json({ data: ciclo }, { status: 201 });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });

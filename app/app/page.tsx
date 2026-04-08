@@ -301,6 +301,10 @@ export default function Home() {
   const [apuracaoSub, setApuracaoSub] = useState<"preenchimento" | "acompanhamento" | "relatorio">("preenchimento");
   const [apuracaoForm, setApuracaoForm] = useState({ metaId: "", colabId: "", mes: String(new Date().getMonth() + 1), ano: String(new Date().getFullYear()), valor: "", orcado: "", dataRealizada: "", valorDividendo: "", valorDivisor: "" });
   const [apuracaoViewMode, setApuracaoViewMode] = useState<"colaborador" | "agrupamento">("colaborador");
+  const [apuracaoFiltroColab, setApuracaoFiltroColab] = useState("");
+  const [apuracaoFiltroGestor, setApuracaoFiltroGestor] = useState("");
+  const [apuracaoFiltroAgrupamento, setApuracaoFiltroAgrupamento] = useState("");
+  const [apuracaoFiltroIndicador, setApuracaoFiltroIndicador] = useState("");
 
   // Cadastros state (Empresa / Cargo / CC / Ciclos)
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
@@ -308,7 +312,7 @@ export default function Home() {
 
   // Ciclo form
   const [showCicloForm, setShowCicloForm] = useState(false);
-  const [cicloForm, setCicloForm] = useState({ anoFiscal: "", mesInicio: "1", mesFim: "12", bonusPool: "", status: "SETUP" });
+  const [cicloForm, setCicloForm] = useState({ anoFiscal: "", mesInicio: "1", mesFim: "12", bonusPool: "", status: "SETUP", importarDeCicloId: "" });
   const [cicloEditId, setCicloEditId] = useState<number | null>(null);
 
   async function handleSalvarCiclo(e: React.FormEvent) {
@@ -319,6 +323,7 @@ export default function Home() {
       mesFim: Number(cicloForm.mesFim),
       bonusPool: cicloForm.bonusPool ? Number(cicloForm.bonusPool) : undefined,
       status: cicloForm.status,
+      importFromCicloId: (!cicloEditId && cicloForm.importarDeCicloId) ? Number(cicloForm.importarDeCicloId) : undefined,
     };
     try {
       const res = await fetch("/api/ciclos", {
@@ -331,10 +336,22 @@ export default function Home() {
         addToast(`Erro ao salvar ciclo: ${err.error ?? res.status}`, "err");
         return;
       }
+      const resData = await res.json().catch(() => ({}));
       setShowCicloForm(false);
       setCicloEditId(null);
-      setCicloForm({ anoFiscal: "", mesInicio: "1", mesFim: "12", bonusPool: "", status: "SETUP" });
+      setCicloForm({ anoFiscal: "", mesInicio: "1", mesFim: "12", bonusPool: "", status: "SETUP", importarDeCicloId: "" });
       await loadCiclos();
+      if (!cicloEditId && resData.data?.id) {
+        const newCiclo = resData.data as CicloICP;
+        setCicloAtivo(newCiclo);
+        await Promise.all([
+          loadMetas(newCiclo.id),
+          loadDashboard(newCiclo.id),
+          loadIndicadores(newCiclo.id),
+          loadAgrupamentos(newCiclo.id),
+          loadRealizacoes(newCiclo.id),
+        ]);
+      }
       addToast(cicloEditId ? "Ciclo atualizado" : "Ciclo criado", "ok");
     } catch (err) {
       addToast(`Erro inesperado: ${String(err)}`, "err");
@@ -1072,7 +1089,14 @@ export default function Home() {
               value={cicloAtivo?.id ?? ""}
               onChange={(e) => {
                 const c = ciclos.find((x) => x.id === Number(e.target.value));
-                if (c) { setCicloAtivo(c); loadMetas(c.id); loadDashboard(c.id); }
+                if (c) {
+                  setCicloAtivo(c);
+                  loadMetas(c.id);
+                  loadDashboard(c.id);
+                  loadIndicadores(c.id);
+                  loadAgrupamentos(c.id);
+                  loadRealizacoes(c.id);
+                }
               }}
               className="text-xs rounded-md px-2 py-1 focus:outline-none"
               style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.82)" }}
@@ -2434,7 +2458,7 @@ export default function Home() {
             {cadastroSub === "ciclos" && (
               <div className="space-y-4">
                 <div className="flex justify-end">
-                  <button onClick={() => { setShowCicloForm((v) => !v); setCicloEditId(null); setCicloForm({ anoFiscal: "", mesInicio: "1", mesFim: "12", bonusPool: "", status: "SETUP" }); }}
+                  <button onClick={() => { setShowCicloForm((v) => !v); setCicloEditId(null); setCicloForm({ anoFiscal: "", mesInicio: "1", mesFim: "12", bonusPool: "", status: "SETUP", importarDeCicloId: "" }); }}
                     className="btn-primary">+ Novo Ciclo</button>
                 </div>
                 {showCicloForm && (
@@ -2475,6 +2499,16 @@ export default function Home() {
                         onChange={(e) => setCicloForm((f) => ({ ...f, bonusPool: e.target.value }))}
                         placeholder="500000.00" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
                     </div>
+                    {!cicloEditId && ciclos.length > 0 && (
+                      <div className="col-span-2">
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Importar indicadores de outro ciclo (opcional)</label>
+                        <select value={cicloForm.importarDeCicloId} onChange={(e) => setCicloForm((f) => ({ ...f, importarDeCicloId: e.target.value }))}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+                          <option value="">— Criar em branco —</option>
+                          {ciclos.map((c) => <option key={c.id} value={c.id}>{c.anoFiscal} ({c.status})</option>)}
+                        </select>
+                      </div>
+                    )}
                     <div className="col-span-2 flex gap-3">
                       <button type="submit" className="btn-primary">Salvar</button>
                       <button type="button" onClick={() => setShowCicloForm(false)} className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2">Cancelar</button>
@@ -2510,6 +2544,7 @@ export default function Home() {
                                   mesFim: String(c.mesFim ?? 12),
                                   bonusPool: c.bonusPool != null ? String(c.bonusPool) : "",
                                   status: c.status,
+                                  importarDeCicloId: "",
                                 });
                                 setShowCicloForm(true);
                               }}>Editar</button>
@@ -3230,6 +3265,41 @@ export default function Home() {
               {/* ── ACOMPANHAMENTO ── */}
               {apuracaoSub === "acompanhamento" && (
                 <div className="space-y-4">
+                  {/* Filtros */}
+                  <div className="bg-white rounded-xl p-4 grid grid-cols-2 gap-3" style={{ border: "1px solid var(--border)" }}>
+                    <div>
+                      <label className="block text-xs font-medium mb-1" style={{ color: "var(--ink-secondary)" }}>Colaborador</label>
+                      <input value={apuracaoFiltroColab} onChange={(e) => setApuracaoFiltroColab(e.target.value)}
+                        placeholder="Buscar nome..." className="w-full border rounded-lg px-3 py-1.5 text-xs" style={{ borderColor: "var(--border)" }} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1" style={{ color: "var(--ink-secondary)" }}>Gestor</label>
+                      <select value={apuracaoFiltroGestor} onChange={(e) => setApuracaoFiltroGestor(e.target.value)}
+                        className="w-full border rounded-lg px-3 py-1.5 text-xs bg-white" style={{ borderColor: "var(--border)" }}>
+                        <option value="">Todos</option>
+                        {colaboradores.filter((c) => colaboradores.some((s) => s.gestorId === c.id)).map((g) => (
+                          <option key={g.id} value={g.id}>{g.nomeCompleto}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1" style={{ color: "var(--ink-secondary)" }}>Agrupamento</label>
+                      <select value={apuracaoFiltroAgrupamento} onChange={(e) => setApuracaoFiltroAgrupamento(e.target.value)}
+                        className="w-full border rounded-lg px-3 py-1.5 text-xs bg-white" style={{ borderColor: "var(--border)" }}>
+                        <option value="">Todos</option>
+                        {agrupamentos.map((ag) => <option key={ag.id} value={ag.id}>{ag.nome}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1" style={{ color: "var(--ink-secondary)" }}>Indicador</label>
+                      <select value={apuracaoFiltroIndicador} onChange={(e) => setApuracaoFiltroIndicador(e.target.value)}
+                        className="w-full border rounded-lg px-3 py-1.5 text-xs bg-white" style={{ borderColor: "var(--border)" }}>
+                        <option value="">Todos</option>
+                        {indicadores.map((ind) => <option key={ind.id} value={ind.id}>{ind.nome}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
                   <div className="flex items-center gap-3">
                     <div className="flex rounded-lg overflow-hidden" style={{ border: "1px solid var(--border)" }}>
                       {(["colaborador", "agrupamento"] as const).map((mode) => (
@@ -3247,7 +3317,19 @@ export default function Home() {
 
                   {apuracaoViewMode === "colaborador" && (
                     <div className="space-y-3">
-                      {colaboradores.filter((c) => metas.some((m) => m.colaboradorIds.includes(c.id))).map((c) => {
+                      {colaboradores.filter((c) => {
+                        if (!metas.some((m) => m.colaboradorIds.includes(c.id))) return false;
+                        if (apuracaoFiltroColab && !c.nomeCompleto.toLowerCase().includes(apuracaoFiltroColab.toLowerCase())) return false;
+                        if (apuracaoFiltroGestor && c.gestorId !== Number(apuracaoFiltroGestor)) return false;
+                        if (apuracaoFiltroAgrupamento) {
+                          const ag = agrupamentos.find((a) => a.id === Number(apuracaoFiltroAgrupamento));
+                          if (!ag || !ag.metas.some((am) => metas.find((m) => m.id === am.metaId && m.colaboradorIds.includes(c.id)))) return false;
+                        }
+                        if (apuracaoFiltroIndicador) {
+                          if (!metas.some((m) => m.colaboradorIds.includes(c.id) && m.indicador?.id === Number(apuracaoFiltroIndicador))) return false;
+                        }
+                        return true;
+                      }).map((c) => {
                         const mid = getMID(c.id);
                         return (
                           <div key={c.id} className="bg-white rounded-xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
@@ -3308,7 +3390,21 @@ export default function Home() {
 
                   {apuracaoViewMode === "agrupamento" && (
                     <div className="space-y-3">
-                      {agrupamentos.map((ag) => {
+                      {agrupamentos.filter((ag) => {
+                        if (apuracaoFiltroAgrupamento && ag.id !== Number(apuracaoFiltroAgrupamento)) return false;
+                        if (apuracaoFiltroColab) {
+                          const colabIds = colaboradores.filter((c) => c.nomeCompleto.toLowerCase().includes(apuracaoFiltroColab.toLowerCase())).map((c) => c.id);
+                          if (!ag.metas.some((am) => metas.find((m) => m.id === am.metaId && m.colaboradorIds.some((cid) => colabIds.includes(cid))))) return false;
+                        }
+                        if (apuracaoFiltroGestor) {
+                          const gestorSubIds = colaboradores.filter((c) => c.gestorId === Number(apuracaoFiltroGestor)).map((c) => c.id);
+                          if (!ag.metas.some((am) => metas.find((m) => m.id === am.metaId && m.colaboradorIds.some((cid) => gestorSubIds.includes(cid))))) return false;
+                        }
+                        if (apuracaoFiltroIndicador) {
+                          if (!ag.metas.some((am) => metas.find((m) => m.id === am.metaId && m.indicador?.id === Number(apuracaoFiltroIndicador)))) return false;
+                        }
+                        return true;
+                      }).map((ag) => {
                         const totalPeso = ag.metas.reduce((s, m) => s + m.pesoNaCesta, 0);
                         const notaAgrupamento = totalPeso > 0
                           ? ag.metas.reduce((s, m) => s + (getUltimaNota(m.metaId) ?? 0) * m.pesoNaCesta, 0) / totalPeso
