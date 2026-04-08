@@ -3,6 +3,8 @@ import { prisma } from "@/app/lib/prisma";
 import { isJanelaAberta } from "@/app/lib/janelas";
 import { calcularNota, calcularPremio } from "@/app/lib/calc";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);

@@ -416,8 +416,9 @@ export default function Home() {
   }, []);
 
   const loadIndicadores = useCallback(async (cicloId?: number) => {
-    const url = cicloId ? `/api/indicadores?cicloId=${cicloId}` : "/api/indicadores";
-    const res = await fetch(url).then((r) => r.json()).catch(() => ({ data: [] }));
+    const t = Date.now();
+    const url = cicloId ? `/api/indicadores?cicloId=${cicloId}&_t=${t}` : `/api/indicadores?_t=${t}`;
+    const res = await fetch(url, { cache: "no-store" }).then((r) => r.json()).catch(() => ({ data: [] }));
     setIndicadores(res.data ?? []);
   }, []);
 
@@ -427,8 +428,9 @@ export default function Home() {
   }, []);
 
   const loadAgrupamentos = useCallback(async (cicloId?: number) => {
-    const url = cicloId ? `/api/agrupamentos?cicloId=${cicloId}` : "/api/agrupamentos";
-    const res = await fetch(url).then((r) => r.json()).catch(() => ({ data: [] }));
+    const t = Date.now();
+    const url = cicloId ? `/api/agrupamentos?cicloId=${cicloId}&_t=${t}` : `/api/agrupamentos?_t=${t}`;
+    const res = await fetch(url, { cache: "no-store" }).then((r) => r.json()).catch(() => ({ data: [] }));
     setAgrupamentos(res.data ?? []);
   }, []);
 
@@ -446,13 +448,13 @@ export default function Home() {
 
   const loadDashboard = useCallback(async (cicloId?: number) => {
     if (!cicloId) return;
-    const res = await fetch(`/api/dashboard?cicloId=${cicloId}`).then((r) => r.json()).catch(() => ({ data: null }));
+    const res = await fetch(`/api/dashboard?cicloId=${cicloId}&_t=${Date.now()}`, { cache: "no-store" }).then((r) => r.json()).catch(() => ({ data: null }));
     if (res.data) setDashboardData(res.data);
   }, []);
 
   const loadRealizacoes = useCallback(async (cicloId?: number) => {
     if (!cicloId) return;
-    const res = await fetch(`/api/realizacoes?cicloId=${cicloId}`).then((r) => r.json()).catch(() => ({ data: [] }));
+    const res = await fetch(`/api/realizacoes?cicloId=${cicloId}&_t=${Date.now()}`, { cache: "no-store" }).then((r) => r.json()).catch(() => ({ data: [] }));
     setRealizacoes(res.data ?? []);
   }, []);
 
