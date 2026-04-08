@@ -30,6 +30,7 @@ model Empresa {
   nome          String
   colaboradores Colaborador[]
   centrosCusto  CentroCusto[]
+  ciclosSnapshot CicloColaborador[]
 }
 
 model CentroCusto {
@@ -41,6 +42,7 @@ model CentroCusto {
   empresaId     Int
   colaboradores Colaborador[]
   metas         Meta[]
+  ciclosSnapshot CicloColaborador[]
 }
 
 model Cargo {
@@ -51,6 +53,7 @@ model Cargo {
   targetMultiploSalarial  Float  @default(0)
   salarioTeto      Float?
   colaboradores    Colaborador[]
+  ciclosSnapshot   CicloColaborador[]
 }
 
 model Colaborador {
@@ -78,6 +81,7 @@ model Colaborador {
   realizacoes      Realizacao[]
   movimentacoes    MovimentacaoRH[]
   atribuicoesAgrupamento AgrupamentoAtribuicao[] @relation("GestorAgrupamento")
+  ciclosSnapshot         CicloColaborador[]
 }
 
 // ─── Ciclo ICP ───────────────────────────────────────────────────────────────
@@ -95,6 +99,30 @@ model CicloICP {
   metas          Meta[]
   janelas        JanelaApuracao[]
   agrupamentos   Agrupamento[]
+  colaboradores  CicloColaborador[]
+}
+
+// ─── Snapshot histórico de colaboradores por ciclo ────────────────────────────
+
+model CicloColaborador {
+  id                     Int         @id @default(autoincrement())
+  cicloId                Int
+  ciclo                  CicloICP    @relation(fields: [cicloId], references: [id])
+  colaboradorId          Int
+  colaborador            Colaborador @relation(fields: [colaboradorId], references: [id])
+  salarioBase            Float
+  cargoId                Int
+  cargo                  Cargo       @relation(fields: [cargoId], references: [id])
+  targetMultiploSalarial Float
+  centroCustoId          Int
+  centroCusto            CentroCusto @relation(fields: [centroCustoId], references: [id])
+  empresaId              Int
+  empresa                Empresa     @relation(fields: [empresaId], references: [id])
+  ativo                  Boolean     @default(true)
+  criadoEm               DateTime    @default(now())
+
+  @@unique([cicloId, colaboradorId])
+  @@index([cicloId])
 }
 
 // ─── Indicadores ─────────────────────────────────────────────────────────────

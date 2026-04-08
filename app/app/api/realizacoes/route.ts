@@ -145,18 +145,19 @@ export async function POST(req: NextRequest) {
 
     let premioProjetado: number | undefined;
     if (colaboradorId) {
-      const [colaborador, metaColab] = await Promise.all([
+      const [snapshot, colaborador, metaColab] = await Promise.all([
+        // Prefer ciclo snapshot for historical accuracy
+        prisma.cicloColaborador.findUnique({
+          where: { cicloId_colaboradorId: { cicloId: meta.cicloId, colaboradorId: Number(colaboradorId) } },
+        }),
         prisma.colaborador.findUnique({ where: { id: Number(colaboradorId) }, include: { cargo: true } }),
         prisma.metaColaborador.findFirst({ where: { metaId: Number(metaId), colaboradorId: Number(colaboradorId), ativo: true } }),
       ]);
-      if (colaborador) {
+      const salarioBase = snapshot?.salarioBase ?? colaborador?.salarioBase;
+      const multiplo = snapshot?.targetMultiploSalarial ?? colaborador?.cargo?.targetMultiploSalarial;
+      if (salarioBase !== undefined && multiplo !== undefined) {
         const pesoEfetivo = metaColab?.pesoPersonalizado ?? 0;
-        premioProjetado = calcularPremio(
-          colaborador.salarioBase,
-          colaborador.cargo.targetMultiploSalarial,
-          nota,
-          pesoEfetivo
-        );
+        premioProjetado = calcularPremio(salarioBase, multiplo, nota, pesoEfetivo);
       }
     }
 

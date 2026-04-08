@@ -106,6 +106,38 @@ export async function PUT(req: NextRequest) {
         bonusPool,
       },
     });
+
+    // Auto-snapshot colaboradores when activating a ciclo
+    if (data.status === "ATIVO") {
+      const colaboradores = await prisma.colaborador.findMany({
+        where: { ativo: true },
+        include: { cargo: true },
+      });
+      for (const col of colaboradores) {
+        await prisma.cicloColaborador.upsert({
+          where: { cicloId_colaboradorId: { cicloId: Number(id), colaboradorId: col.id } },
+          update: {
+            salarioBase: col.salarioBase,
+            cargoId: col.cargoId,
+            targetMultiploSalarial: col.cargo.targetMultiploSalarial,
+            centroCustoId: col.centroCustoId,
+            empresaId: col.empresaId,
+            ativo: true,
+          },
+          create: {
+            cicloId: Number(id),
+            colaboradorId: col.id,
+            salarioBase: col.salarioBase,
+            cargoId: col.cargoId,
+            targetMultiploSalarial: col.cargo.targetMultiploSalarial,
+            centroCustoId: col.centroCustoId,
+            empresaId: col.empresaId,
+            ativo: true,
+          },
+        });
+      }
+    }
+
     return NextResponse.json({ data: ciclo });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });

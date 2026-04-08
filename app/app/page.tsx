@@ -386,6 +386,7 @@ export default function Home() {
   const [colabCsvFile, setColabCsvFile] = useState<File | null>(null);
   const [colabImportResult, setColabImportResult] = useState<{ processed: number; updated: number; erros: { linha: number; motivo: string }[] } | null>(null);
   const [colabImportLoading, setColabImportLoading] = useState(false);
+  const [snapshotSyncing, setSnapshotSyncing] = useState(false);
 
   const role: string = "GUARDIAO";
 
@@ -1007,6 +1008,25 @@ export default function Home() {
       setTrocandoAgrupTargetId("");
       addToast("Agrupamento atualizado para o colaborador", "ok");
     } catch { addToast("Erro ao trocar agrupamento", "err"); }
+  }
+
+  async function handleSyncSnapshot() {
+    if (!cicloAtivo) { addToast("Nenhum ciclo ativo selecionado.", "err"); return; }
+    setSnapshotSyncing(true);
+    try {
+      const res = await fetch("/api/ciclo-colaboradores", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cicloId: cicloAtivo.id }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Erro ao sincronizar");
+      addToast(`✅ ${json.data.synced} colaboradores sincronizados no snapshot do ciclo ${cicloAtivo.anoFiscal}.`, "ok");
+    } catch (err) {
+      addToast(String(err), "err");
+    } finally {
+      setSnapshotSyncing(false);
+    }
   }
 
   async function handleColabImport(e: React.FormEvent) {
@@ -2426,6 +2446,16 @@ export default function Home() {
                 >
                   Importar XLSX
                 </button>
+                {cicloAtivo && (
+                  <button
+                    onClick={handleSyncSnapshot}
+                    disabled={snapshotSyncing}
+                    className="btn-ghost text-xs"
+                    title={`Captura os dados atuais de salário/cargo/CC de todos os colaboradores no ciclo ${cicloAtivo.anoFiscal}`}
+                  >
+                    {snapshotSyncing ? "Sincronizando..." : "📸 Snapshot do Ciclo"}
+                  </button>
+                )}
               </div>
             </div>
 
