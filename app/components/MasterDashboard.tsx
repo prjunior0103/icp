@@ -35,7 +35,7 @@ export default function MasterDashboard({ cicloId }: { cicloId: number | null })
     if (!cicloId) return;
     setData(null);
     setLoading(true);
-    fetch(`/api/dashboard?cicloId=${cicloId}`)
+    fetch(`/api/dashboard?cicloId=${cicloId}&_t=${Date.now()}`, { cache: "no-store" })
       .then((r) => r.json())
       .then((r) => { if (r.data) setData(r.data); })
       .catch(console.error)

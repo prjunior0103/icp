@@ -1150,12 +1150,25 @@ export default function Home() {
             <span className="text-xs" style={{ color: "rgba(255,255,255,0.38)" }}>Ciclo</span>
             <select
               value={cicloAtivo?.id ?? ""}
-              onChange={(e) => {
+              onChange={async (e) => {
                 const c = ciclos.find((x) => x.id === Number(e.target.value));
-                if (c) {
-                  userCicloIdRef.current = c.id;
-                  setCicloAtivo(c); // triggers useEffect that reloads cycle data
-                }
+                if (!c) return;
+                userCicloIdRef.current = c.id;
+                // Clear all cycle-specific state immediately
+                setMetas([]);
+                setIndicadores([]);
+                setAgrupamentos([]);
+                setRealizacoes([]);
+                setDashboardData(null);
+                setCicloAtivo(c);
+                // Reload all cycle-specific data directly (not via useEffect)
+                await Promise.all([
+                  loadMetas(c.id),
+                  loadDashboard(c.id),
+                  loadIndicadores(c.id),
+                  loadAgrupamentos(c.id),
+                  loadRealizacoes(c.id),
+                ]);
               }}
               className="text-xs rounded-md px-2 py-1 focus:outline-none"
               style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.82)" }}
