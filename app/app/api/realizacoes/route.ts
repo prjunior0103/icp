@@ -37,21 +37,41 @@ export async function POST(req: NextRequest) {
       colaboradorId,
       mesReferencia,
       anoReferencia,
-      valorRealizado,
+      valorRealizado: valorRealizadoRaw,
+      valorDividendo: valorDividendoRaw,
+      valorDivisor: valorDivisorRaw,
       evidenciaUrl,
       observacao,
     } = body;
 
-    if (!metaId || !mesReferencia || !anoReferencia || valorRealizado === undefined) {
+    if (!metaId || !mesReferencia || !anoReferencia) {
       return NextResponse.json({ error: "Campos obrigatorios faltando" }, { status: 400 });
     }
 
-    // Fetch meta + indicador + colaborador
+    // Fetch meta + indicador (with divisor and faixas)
     const meta = await prisma.meta.findUnique({
       where: { id: Number(metaId) },
-      include: { indicador: true },
+      include: { indicador: { include: { faixas: true } } },
     });
     if (!meta) return NextResponse.json({ error: "Meta nao encontrada" }, { status: 404 });
+
+    // TASK-028: resolve valorRealizado for divisor indicators
+    let valorRealizado: number;
+    let valorDividendo: number | undefined;
+    let valorDivisorComp: number | undefined;
+
+    if (meta.indicador.divisorId && valorDividendoRaw !== undefined && valorDivisorRaw !== undefined) {
+      valorDividendo = Number(valorDividendoRaw);
+      valorDivisorComp = Number(valorDivisorRaw);
+      if (valorDivisorComp === 0) {
+        return NextResponse.json({ error: "Valor do divisor não pode ser zero." }, { status: 400 });
+      }
+      valorRealizado = valorDividendo / valorDivisorComp;
+    } else if (valorRealizadoRaw !== undefined) {
+      valorRealizado = Number(valorRealizadoRaw);
+    } else {
+      return NextResponse.json({ error: "Campos obrigatorios faltando" }, { status: 400 });
+    }
 
     // Validate cycle phase — SETUP/ENCERRADO block new realizações
     const ciclo = await prisma.cicloICP.findUnique({ where: { id: meta.cicloId } });
@@ -95,26 +115,30 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    const valorChanged = !existing || existing.valorRealizado !== Number(valorRealizado);
+    const valorChanged = !existing || existing.valorRealizado !== valorRealizado;
 
     const tipoEfetivo = meta.tipo ?? meta.indicador.tipo;
     const polaridadeEfetiva = meta.polaridade ?? meta.indicador.polaridade ?? "MAIOR_MELHOR";
+    // TASK-027: pass faixas to calcularNota
+    const faixas = meta.indicador.faixas ?? [];
     const nota = valorChanged
       ? calcularNota(
           tipoEfetivo,
           polaridadeEfetiva,
-          Number(valorRealizado),
+          valorRealizado,
           meta.metaAlvo,
           meta.metaMinima,
-          meta.metaMaxima
+          meta.metaMaxima,
+          faixas
         )
       : (existing.notaCalculada ?? calcularNota(
           tipoEfetivo,
           polaridadeEfetiva,
-          Number(valorRealizado),
+          valorRealizado,
           meta.metaAlvo,
           meta.metaMinima,
-          meta.metaMaxima
+          meta.metaMaxima,
+          faixas
         ));
 
     let premioProjetado: number | undefined;
@@ -145,7 +169,9 @@ export async function POST(req: NextRequest) {
         },
       },
       update: {
-        valorRealizado: Number(valorRealizado),
+        valorRealizado,
+        valorDividendo: valorDividendo ?? null,
+        valorDivisor: valorDivisorComp ?? null,
         notaCalculada: nota,
         premioProjetado,
         evidenciaUrl: evidenciaUrl ?? null,
@@ -158,7 +184,9 @@ export async function POST(req: NextRequest) {
         colaboradorId: colaboradorId ? Number(colaboradorId) : undefined,
         mesReferencia: Number(mesReferencia),
         anoReferencia: Number(anoReferencia),
-        valorRealizado: Number(valorRealizado),
+        valorRealizado,
+        valorDividendo: valorDividendo ?? null,
+        valorDivisor: valorDivisorComp ?? null,
         notaCalculada: nota,
         premioProjetado,
         evidenciaUrl: evidenciaUrl ?? null,

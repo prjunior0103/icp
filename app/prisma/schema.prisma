@@ -297,6 +297,8 @@ model Realizacao {
   premioProjetado  Float?
   evidenciaUrl     String?
   observacao       String?
+  valorDividendo   Float?    // componente numerador (quando indicador tem divisorId)
+  valorDivisor     Float?    // componente denominador (quando indicador tem divisorId)
   status           String       @default("RASCUNHO") // RASCUNHO, SUBMETIDO, APROVADO, REJEITADO
   submissao        DateTime?
   aprovacao        DateTime?

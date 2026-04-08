@@ -5,14 +5,38 @@
 
 // ── Nota calculation ─────────────────────────────────────────────────────────
 
+export type FaixaAtingimento = { de: number; ate: number; nota: number };
+
+/**
+ * Resolve nota using faixas (step table) if provided.
+ * Faixas take precedence over proportional calculation.
+ */
+function calcularNotaPorFaixas(
+  valorRealizado: number,
+  faixas: FaixaAtingimento[]
+): number | null {
+  const sorted = [...faixas].sort((a, b) => a.de - b.de);
+  for (const f of sorted) {
+    if (valorRealizado >= f.de && valorRealizado <= f.ate) return f.nota;
+  }
+  return null; // not in any range → fall back to proportional
+}
+
 export function calcularNota(
   tipo: string,
   polaridade: string,
   valorRealizado: number,
   metaAlvo: number,
   metaMinima: number | null,
-  metaMaxima: number | null
+  metaMaxima: number | null,
+  faixas?: FaixaAtingimento[]
 ): number {
+  // TASK-027: use faixas table if defined and a match is found
+  if (faixas && faixas.length > 0) {
+    const notaFaixa = calcularNotaPorFaixas(valorRealizado, faixas);
+    if (notaFaixa !== null) return Math.max(0, Math.min(120, notaFaixa));
+  }
+
   if (metaAlvo === 0) return 0;
   let nota = 0;
 

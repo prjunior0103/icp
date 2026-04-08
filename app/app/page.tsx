@@ -50,9 +50,11 @@ interface Realizacao {
   valorRealizado: number; orcadoMensal: number | null; dataRealizada: string | null;
   notaCalculada: number | null;
   premioProjetado: number | null; status: string;
+  valorDividendo: number | null; valorDivisor: number | null;
   meta: Meta & { indicador: Indicador };
   colaborador: Colaborador | null;
 }
+interface FaixaAtingimento { de: number; ate: number; nota: number; }
 interface WorkflowItem {
   id: number; tipo: string; status: string; descricao: string;
   criadoEm: string; comentario: string | null;
@@ -205,6 +207,11 @@ export default function Home() {
   const [indicadores, setIndicadores] = useState<Indicador[]>([]);
   const [centrosCusto, setCentrosCusto] = useState<CentroCusto[]>([]);
 
+  // Faixas management state (TASK-027)
+  const [faixasIndicadorId, setFaixasIndicadorId] = useState<number | null>(null);
+  const [faixasEdit, setFaixasEdit] = useState<FaixaAtingimento[]>([]);
+  const [faixasLoading, setFaixasLoading] = useState(false);
+
   // Novo Indicador form state
   const [showIndicadorForm, setShowIndicadorForm] = useState(false);
   const [indicadorForm, setIndicadorForm] = useState({
@@ -292,7 +299,7 @@ export default function Home() {
 
   // Apuração state
   const [apuracaoSub, setApuracaoSub] = useState<"preenchimento" | "acompanhamento" | "relatorio">("preenchimento");
-  const [apuracaoForm, setApuracaoForm] = useState({ metaId: "", colabId: "", mes: String(new Date().getMonth() + 1), ano: String(new Date().getFullYear()), valor: "", orcado: "", dataRealizada: "" });
+  const [apuracaoForm, setApuracaoForm] = useState({ metaId: "", colabId: "", mes: String(new Date().getMonth() + 1), ano: String(new Date().getFullYear()), valor: "", orcado: "", dataRealizada: "", valorDividendo: "", valorDivisor: "" });
   const [apuracaoViewMode, setApuracaoViewMode] = useState<"colaborador" | "agrupamento">("colaborador");
 
   // Cadastros state (Empresa / Cargo / CC / Ciclos)
@@ -605,7 +612,9 @@ export default function Home() {
     if (!apuracaoForm.metaId || !apuracaoForm.mes || !apuracaoForm.ano) return;
     const metaSel = metas.find((m) => m.id === Number(apuracaoForm.metaId));
     const isMarco = (metaSel?.tipo ?? metaSel?.indicador?.tipo) === "PROJETO_MARCO";
-    if (!isMarco && apuracaoForm.valor === "") return;
+    const isDivisor = !!metaSel?.indicador?.divisorId;
+    if (!isMarco && !isDivisor && apuracaoForm.valor === "") return;
+    if (isDivisor && (!apuracaoForm.valorDividendo || !apuracaoForm.valorDivisor)) return;
     const res = await fetch("/api/realizacoes", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -613,14 +622,16 @@ export default function Home() {
         colaboradorId: apuracaoForm.colabId ? Number(apuracaoForm.colabId) : undefined,
         mesReferencia: Number(apuracaoForm.mes),
         anoReferencia: Number(apuracaoForm.ano),
-        valorRealizado: isMarco ? (apuracaoForm.dataRealizada ? 1 : 0) : Number(apuracaoForm.valor),
+        ...(isDivisor
+          ? { valorDividendo: Number(apuracaoForm.valorDividendo), valorDivisor: Number(apuracaoForm.valorDivisor) }
+          : { valorRealizado: isMarco ? (apuracaoForm.dataRealizada ? 1 : 0) : Number(apuracaoForm.valor) }),
         orcadoMensal: apuracaoForm.orcado ? Number(apuracaoForm.orcado) : undefined,
         dataRealizada: isMarco ? apuracaoForm.dataRealizada || undefined : undefined,
       }),
     });
     if (res.ok) {
       await loadRealizacoes(cicloAtivo?.id);
-      setApuracaoForm((f) => ({ ...f, valor: "", orcado: "", dataRealizada: "" }));
+      setApuracaoForm((f) => ({ ...f, valor: "", orcado: "", dataRealizada: "", valorDividendo: "", valorDivisor: "" }));
       addToast("Realização registrada", "ok");
     } else {
       const err = await res.json().catch(() => ({}));
@@ -2798,7 +2809,7 @@ export default function Home() {
                 <div className="bg-white icp-card overflow-hidden">
                   <table className="w-full text-sm">
                     <thead><tr>
-                      {["Código","Nome","Tipo","Polaridade","Abrangência","Unidade","Ações"].map((h) => (
+                      {["Código","Nome","Tipo","Polaridade","Abrangência","Unidade","Faixas","Ações"].map((h) => (
                         <th key={h} className="text-left px-4 py-2.5">{h}</th>
                       ))}
                     </tr></thead>
@@ -2806,11 +2817,30 @@ export default function Home() {
                       {indicadores.map((ind) => (
                         <tr key={ind.id}>
                           <td className="px-4 py-3 font-mono text-gray-500 text-xs">{ind.codigo}</td>
-                          <td className="px-4 py-3 font-medium">{ind.nome}</td>
+                          <td className="px-4 py-3 font-medium">
+                            {ind.nome}
+                            {ind.divisorId && <span className="ml-1 text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded">÷ divisor</span>}
+                          </td>
                           <td className="px-4 py-3 text-gray-500">{ind.tipo}</td>
                           <td className="px-4 py-3 text-gray-500">{ind.polaridade}</td>
                           <td className="px-4 py-3 text-gray-500">{ind.abrangencia}</td>
                           <td className="px-4 py-3 text-gray-500">{ind.unidade}</td>
+                          <td className="px-4 py-3">
+                            <button
+                              onClick={async () => {
+                                if (faixasIndicadorId === ind.id) { setFaixasIndicadorId(null); return; }
+                                setFaixasLoading(true);
+                                setFaixasIndicadorId(ind.id);
+                                const res = await fetch(`/api/indicadores/faixas?indicadorId=${ind.id}`);
+                                const json = await res.json();
+                                setFaixasEdit(json.data ?? []);
+                                setFaixasLoading(false);
+                              }}
+                              className={`text-xs px-2 py-0.5 rounded ${faixasIndicadorId === ind.id ? "bg-blue-600 text-white" : "bg-blue-50 text-blue-700 hover:bg-blue-100"}`}
+                            >
+                              {faixasIndicadorId === ind.id ? "Fechar" : "Faixas"}
+                            </button>
+                          </td>
                           <td className="px-4 py-3">
                             {role === "GUARDIAO" && (
                               <button
@@ -2824,11 +2854,80 @@ export default function Home() {
                         </tr>
                       ))}
                       {indicadores.length === 0 && (
-                        <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">Nenhum indicador cadastrado</td></tr>
+                        <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">Nenhum indicador cadastrado</td></tr>
                       )}
                     </tbody>
                   </table>
                 </div>
+
+                {/* Faixas de Atingimento editor (TASK-027) */}
+                {faixasIndicadorId !== null && (
+                  <div className="bg-white rounded-xl p-5" style={{ border: "1px solid var(--border)" }}>
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-sm font-semibold" style={{ color: "var(--ink)" }}>
+                        Faixas de Atingimento — {indicadores.find((i) => i.id === faixasIndicadorId)?.nome}
+                      </h4>
+                      <button
+                        onClick={() => setFaixasEdit((f) => [...f, { de: 0, ate: 0, nota: 0 }])}
+                        className="text-xs btn-primary py-1 px-3"
+                      >+ Linha</button>
+                    </div>
+                    {faixasLoading ? (
+                      <p className="text-xs text-gray-400">Carregando...</p>
+                    ) : (
+                      <>
+                        <table className="w-full text-xs mb-3">
+                          <thead>
+                            <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                              {["De (≥)","Até (≤)","Nota (%)",""].map((h) => (
+                                <th key={h} className="text-left pb-2 pr-4 font-medium" style={{ color: "var(--ink-secondary)" }}>{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {faixasEdit.map((f, i) => (
+                              <tr key={i}>
+                                <td className="pr-3 py-1">
+                                  <input type="number" step="any" className="icp-input w-full"
+                                    value={f.de} onChange={(e) => setFaixasEdit((arr) => arr.map((x, j) => j === i ? { ...x, de: Number(e.target.value) } : x))} />
+                                </td>
+                                <td className="pr-3 py-1">
+                                  <input type="number" step="any" className="icp-input w-full"
+                                    value={f.ate} onChange={(e) => setFaixasEdit((arr) => arr.map((x, j) => j === i ? { ...x, ate: Number(e.target.value) } : x))} />
+                                </td>
+                                <td className="pr-3 py-1">
+                                  <input type="number" step="any" min="0" max="120" className="icp-input w-full"
+                                    value={f.nota} onChange={(e) => setFaixasEdit((arr) => arr.map((x, j) => j === i ? { ...x, nota: Number(e.target.value) } : x))} />
+                                </td>
+                                <td className="py-1">
+                                  <button onClick={() => setFaixasEdit((arr) => arr.filter((_, j) => j !== i))}
+                                    className="text-red-500 hover:text-red-700 px-1">✕</button>
+                                </td>
+                              </tr>
+                            ))}
+                            {faixasEdit.length === 0 && (
+                              <tr><td colSpan={4} className="py-3 text-gray-400 text-center">Sem faixas — cálculo proporcional padrão</td></tr>
+                            )}
+                          </tbody>
+                        </table>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={async () => {
+                              const res = await fetch("/api/indicadores/faixas", {
+                                method: "PUT", headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ indicadorId: faixasIndicadorId, faixas: faixasEdit }),
+                              });
+                              if (res.ok) { addToast("Faixas salvas", "ok"); }
+                              else { const err = await res.json().catch(() => ({})); addToast(err.error ?? "Erro ao salvar faixas", "err"); }
+                            }}
+                            className="btn-primary text-xs py-1 px-4"
+                          >Salvar Faixas</button>
+                          <button onClick={() => setFaixasIndicadorId(null)} className="text-xs text-gray-500 hover:text-gray-700 px-3 py-1">Cancelar</button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -3014,10 +3113,30 @@ export default function Home() {
                           value={apuracaoForm.orcado}
                           onChange={(e) => setApuracaoForm((f) => ({ ...f, orcado: e.target.value }))} />
                       </div>
-                      <div>
+                      <div className={(() => { const metaSel = metas.find((m) => m.id === Number(apuracaoForm.metaId)); return metaSel?.indicador?.divisorId ? "col-span-2 md:col-span-3 lg:col-span-2" : ""; })()}>
                         {(() => {
                           const metaSel = metas.find((m) => m.id === Number(apuracaoForm.metaId));
                           const isMarco = (metaSel?.tipo ?? metaSel?.indicador?.tipo) === "PROJETO_MARCO";
+                          const isDivisor = !!metaSel?.indicador?.divisorId;
+                          if (isDivisor) {
+                            return (
+                              <div className="flex gap-2 items-end">
+                                <div className="flex-1">
+                                  <label className="block text-xs font-medium mb-1" style={{ color: "var(--ink-secondary)" }}>Dividendo *</label>
+                                  <input required type="number" step="any" className="icp-input w-full" placeholder="ex: 1000"
+                                    value={apuracaoForm.valorDividendo}
+                                    onChange={(e) => setApuracaoForm((f) => ({ ...f, valorDividendo: e.target.value }))} />
+                                </div>
+                                <div className="flex-1">
+                                  <label className="block text-xs font-medium mb-1" style={{ color: "var(--ink-secondary)" }}>Divisor *</label>
+                                  <input required type="number" step="any" className="icp-input w-full" placeholder="ex: 500"
+                                    value={apuracaoForm.valorDivisor}
+                                    onChange={(e) => setApuracaoForm((f) => ({ ...f, valorDivisor: e.target.value }))} />
+                                </div>
+                                <button type="submit" className="btn-primary text-xs whitespace-nowrap">Salvar</button>
+                              </div>
+                            );
+                          }
                           return isMarco ? (
                             <>
                               <label className="block text-xs font-medium mb-1" style={{ color: "var(--ink-secondary)" }}>Data Realizada (Marco)</label>
@@ -3055,14 +3174,14 @@ export default function Home() {
                       <table className="w-full text-xs">
                         <thead>
                           <tr style={{ background: "var(--surface-raised)", borderBottom: "1px solid var(--border)" }}>
-                            {["Meta/Indicador","Colaborador","Período","Orçado","Realizado","Nota","Status"].map((h) => (
+                            {["Meta/Indicador","Colaborador","Período","Orçado","Realizado","Componentes","Nota","Status"].map((h) => (
                               <th key={h} className="px-4 py-2 text-left font-medium" style={{ color: "var(--ink-secondary)" }}>{h}</th>
                             ))}
                           </tr>
                         </thead>
                         <tbody className="divide-y" style={{ borderColor: "var(--border)" }}>
                           {realizacoes.length === 0 && (
-                            <tr><td colSpan={7} className="px-4 py-8 text-center" style={{ color: "var(--ink-muted)" }}>Nenhuma realização lançada</td></tr>
+                            <tr><td colSpan={8} className="px-4 py-8 text-center" style={{ color: "var(--ink-muted)" }}>Nenhuma realização lançada</td></tr>
                           )}
                           {[...realizacoes].sort((a, b) => b.anoReferencia * 100 + b.mesReferencia - (a.anoReferencia * 100 + a.mesReferencia)).map((r) => (
                             <tr key={r.id} className="hover:bg-gray-50">
@@ -3081,6 +3200,11 @@ export default function Home() {
                               </td>
                               <td className="px-4 py-2.5 tabular-nums font-medium" style={{ color: "var(--ink)" }}>
                                 {fmt(r.valorRealizado)}
+                              </td>
+                              <td className="px-4 py-2.5 text-xs" style={{ color: "var(--ink-muted)" }}>
+                                {r.valorDividendo != null && r.valorDivisor != null
+                                  ? <span title="dividendo ÷ divisor">{fmt(r.valorDividendo)} ÷ {fmt(r.valorDivisor)}</span>
+                                  : "—"}
                               </td>
                               <td className="px-4 py-2.5">
                                 {r.notaCalculada != null ? (
