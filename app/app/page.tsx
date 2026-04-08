@@ -1150,6 +1150,11 @@ export default function Home() {
                 if (c) {
                   userCicloIdRef.current = c.id;
                   setCicloAtivo(c);
+                  setMetas([]);
+                  setIndicadores([]);
+                  setAgrupamentos([]);
+                  setRealizacoes([]);
+                  setDashboardData(null);
                   loadMetas(c.id);
                   loadDashboard(c.id);
                   loadIndicadores(c.id);
