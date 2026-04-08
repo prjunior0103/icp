@@ -489,7 +489,7 @@ export default function Home() {
   const cicloAtivoId = cicloAtivo?.id ?? null;
 
   // Central function: switch active ciclo and reload all cycle-specific data
-  const switchCiclo = useCallback(async (ciclo: CicloICP) => {
+  async function switchCiclo(ciclo: CicloICP) {
     userCicloIdRef.current = ciclo.id;
     setCicloAtivo(ciclo);
     setMetas([]);
@@ -506,8 +506,7 @@ export default function Home() {
       loadRealizacoes(ciclo.id),
       loadCicloColabs(ciclo.id),
     ]);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // stable load callbacks
+  }
 
   async function handleSeed() {
     setSeedLoading(true);
@@ -1300,7 +1299,7 @@ export default function Home() {
         {activeTab === "dashboard" && (
           <div className="space-y-5">
             <h2 className="text-lg font-semibold" style={{ color: "var(--ink)" }}>Dashboard</h2>
-            <MasterDashboard cicloId={cicloAtivo?.id ?? null} />
+            <MasterDashboard key={cicloAtivo?.id ?? "none"} cicloId={cicloAtivo?.id ?? null} />
 
             {/* KPI Cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
