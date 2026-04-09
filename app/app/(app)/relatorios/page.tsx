@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useCiclo } from "@/app/lib/ciclo-context";
 import { calcNota, calcMID, gerarPeriodos, agregarRealizacoes } from "@/app/lib/calc";
-import { FileText, Search, Download, Users, BarChart3, GitBranch, UserCheck, ChevronDown, ChevronUp } from "lucide-react";
+import { FileText, Search, Download, Users, BarChart3, GitBranch, UserCheck, ChevronDown, ChevronUp, UserCog, LayoutGrid } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────
 interface Indicador { id: number; codigo: string; nome: string; tipo: string; unidade: string; metaMinima?: number | null; metaAlvo?: number | null; metaMaxima?: number | null; periodicidade: string; criterioApuracao: string; numeradorId?: number | null; divisorId?: number | null; faixas?: { de: number; ate: number; nota: number }[]; analistaResp?: string | null; responsavelEnvio?: { id: number; nome: string } | null; }
@@ -14,13 +14,15 @@ interface Agrupamento { id: number; nome: string; tipo: string; indicadores: Ind
 interface Colaborador { id: number; nome: string; matricula: string; cargo: string; salarioBase: number; target: number; gestorId?: number | null; area?: { nivel1: string; nivel2?: string | null } | null; }
 interface Atribuicao { colaboradorId: number; agrupamentoId: number; pesoNaCesta: number; colaborador: Colaborador; agrupamento: Agrupamento; }
 
-type AbaId = "colaborador" | "indicador" | "contratacao" | "responsavel";
+type AbaId = "colaborador" | "indicador" | "contratacao" | "responsavel" | "gestor" | "calibracao";
 
 const ABAS: { id: AbaId; label: string; icon: React.ReactNode }[] = [
   { id: "colaborador", label: "Por Colaborador", icon: <Users size={14}/> },
   { id: "indicador",   label: "Por Indicador",   icon: <BarChart3 size={14}/> },
   { id: "contratacao", label: "Contratação",      icon: <GitBranch size={14}/> },
   { id: "responsavel", label: "Por Responsável",  icon: <UserCheck size={14}/> },
+  { id: "gestor",      label: "Painel do Gestor", icon: <UserCog size={14}/> },
+  { id: "calibracao",  label: "Calibração",       icon: <LayoutGrid size={14}/> },
 ];
 
 // ─── Utilitários ─────────────────────────────────────────
@@ -311,6 +313,142 @@ function RelatResponsavel({ indicadores, notasMap, realizacoes, anoFiscal, mesIn
   );
 }
 
+// ─── R5: Painel do Gestor ────────────────────────────────
+function RelatGestor({ atribuicoes, notasMap }: { atribuicoes: Atribuicao[]; notasMap: Map<number, number>; }) {
+  const colabsMap = new Map<number, Colaborador>();
+  for (const a of atribuicoes) colabsMap.set(a.colaboradorId, a.colaborador);
+  const colaboradores = Array.from(colabsMap.values());
+  const gestoresIds = Array.from(new Set(colaboradores.map(c => c.gestorId).filter(Boolean))) as number[];
+  const gestores = colaboradores.filter(c => gestoresIds.includes(c.id));
+  const [filtroGestor, setFiltroGestor] = useState(gestores[0]?.id ? String(gestores[0].id) : "");
+
+  function calcResultado(id: number) {
+    let r = 0;
+    for (const at of atribuicoes.filter(a => a.colaboradorId === id))
+      for (const ig of at.agrupamento.indicadores)
+        r += calcMID(notasMap.get(ig.indicadorId) ?? 0, ig.peso);
+    return r;
+  }
+
+  const subordinados = colaboradores.filter(c => filtroGestor ? String(c.gestorId) === filtroGestor : false);
+
+  return (
+    <div className="space-y-3">
+      <select value={filtroGestor} onChange={e => setFiltroGestor(e.target.value)}
+        className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 max-w-xs">
+        <option value="">Selecionar gestor</option>
+        {gestores.map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
+      </select>
+      {subordinados.length === 0 ? (
+        <div className="bg-white rounded-xl border border-gray-200 p-10 text-center text-gray-400">
+          <UserCog size={36} className="mx-auto mb-2 text-gray-300"/>Selecione um gestor para ver o painel da equipe
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>{["Colaborador","Matrícula","Cargo","Área","Resultado","Prêmio Projetado"].map(h => (
+                <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
+              ))}</tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {subordinados.sort((a,b) => calcResultado(b.id) - calcResultado(a.id)).map(c => {
+                const resultado = calcResultado(c.id);
+                const premio = c.salarioBase * (c.target / 100) * (resultado / 100);
+                return (
+                  <tr key={c.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-2.5 font-medium text-gray-800">{c.nome}</td>
+                    <td className="px-4 py-2.5 text-gray-500 text-xs">{c.matricula}</td>
+                    <td className="px-4 py-2.5 text-gray-600 text-xs">{c.cargo}</td>
+                    <td className="px-4 py-2.5 text-gray-500 text-xs">{c.area?.nivel1 ?? "—"}</td>
+                    <td className="px-4 py-2.5"><NotaBadge nota={resultado}/></td>
+                    <td className="px-4 py-2.5 font-semibold text-blue-700">{premio.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── R6: Calibração ──────────────────────────────────────
+function RelatCalibracao({ atribuicoes, notasMap }: { atribuicoes: Atribuicao[]; notasMap: Map<number, number>; }) {
+  const colabsMap = new Map<number, Colaborador>();
+  for (const a of atribuicoes) colabsMap.set(a.colaboradorId, a.colaborador);
+  const colaboradores = Array.from(colabsMap.values());
+  const areas = Array.from(new Set(colaboradores.map(c => c.area?.nivel1).filter(Boolean))) as string[];
+  const [filtroArea, setFiltroArea] = useState("");
+  const [selecionados, setSelecionados] = useState<number[]>([]);
+  const colabsFiltrados = colaboradores.filter(c => !filtroArea || c.area?.nivel1 === filtroArea);
+
+  function calcResultado(id: number) {
+    let r = 0;
+    for (const at of atribuicoes.filter(a => a.colaboradorId === id))
+      for (const ig of at.agrupamento.indicadores)
+        r += calcMID(notasMap.get(ig.indicadorId) ?? 0, ig.peso);
+    return r;
+  }
+
+  const comparar = selecionados.length > 0 ? selecionados : colabsFiltrados.slice(0, 5).map(c => c.id);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-3">
+        <select value={filtroArea} onChange={e => { setFiltroArea(e.target.value); setSelecionados([]); }}
+          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="">Todas as áreas</option>
+          {areas.map(a => <option key={a} value={a}>{a}</option>)}
+        </select>
+        <p className="text-xs text-gray-400">Clique nos nomes para selecionar quem comparar (máx. recomendado: 6)</p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {colabsFiltrados.map(c => (
+          <button key={c.id}
+            onClick={() => setSelecionados(s => s.includes(c.id) ? s.filter(x => x !== c.id) : [...s, c.id])}
+            className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${selecionados.includes(c.id) ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-600 border-gray-300 hover:border-blue-400"}`}>
+            {c.nome}
+          </button>
+        ))}
+      </div>
+      <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 border-b border-gray-200">
+            <tr>
+              <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase w-36">Info</th>
+              {comparar.map(id => (
+                <th key={id} className="text-center px-4 py-2.5 text-xs font-semibold text-gray-700 whitespace-nowrap">{colabsMap.get(id)?.nome ?? id}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {([
+              { label: "Matrícula",        fn: (id: number) => colabsMap.get(id)?.matricula ?? "—" },
+              { label: "Cargo",            fn: (id: number) => colabsMap.get(id)?.cargo ?? "—" },
+              { label: "Área",             fn: (id: number) => colabsMap.get(id)?.area?.nivel1 ?? "—" },
+              { label: "Resultado",        fn: (id: number) => <NotaBadge nota={calcResultado(id)}/> },
+              { label: "Prêmio Projetado", fn: (id: number) => {
+                const c = colabsMap.get(id)!;
+                const r = calcResultado(id);
+                return (c.salarioBase * (c.target / 100) * (r / 100)).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+              }},
+            ] as { label: string; fn: (id: number) => React.ReactNode }[]).map(row => (
+              <tr key={row.label} className="hover:bg-gray-50">
+                <td className="px-4 py-2.5 font-medium text-gray-600 text-xs whitespace-nowrap">{row.label}</td>
+                {comparar.map(id => (
+                  <td key={id} className="px-4 py-2.5 text-center text-xs text-gray-700">{row.fn(id)}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────
 export default function RelatoriosPage() {
   const { cicloAtivo } = useCiclo();
@@ -390,6 +528,8 @@ export default function RelatoriosPage() {
       {aba === "indicador"   && <RelatIndicador indicadores={indicadores} notasMap={notasMap} realMap={realMap} orcMap={orcMap} atribuicoes={atribuicoes}/>}
       {aba === "contratacao" && <RelatContratacao atribuicoes={atribuicoes} indicadores={indicadores} notasMap={notasMap}/>}
       {aba === "responsavel" && <RelatResponsavel indicadores={indicadores} notasMap={notasMap} realizacoes={realizacoes} anoFiscal={cicloAtivo.anoFiscal} mesInicio={cicloAtivo.mesInicio} mesFim={cicloAtivo.mesFim}/>}
+      {aba === "gestor"      && <RelatGestor atribuicoes={atribuicoes} notasMap={notasMap}/>}
+      {aba === "calibracao"  && <RelatCalibracao atribuicoes={atribuicoes} notasMap={notasMap}/>}
     </div>
   );
 }
