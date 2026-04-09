@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter, usePathname } from "next/navigation";
 import {
@@ -13,12 +13,7 @@ import {
   ChevronDown,
   Building2,
 } from "lucide-react";
-
-interface Ciclo {
-  id: number;
-  anoFiscal: number;
-  status: string;
-}
+import { CicloProvider, useCiclo } from "@/app/lib/ciclo-context";
 
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -28,42 +23,34 @@ const NAV_ITEMS = [
   { href: "/configuracoes", label: "Configurações", icon: Settings },
 ];
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+const statusBadge: Record<string, string> = {
+  SETUP: "bg-yellow-100 text-yellow-700",
+  ATIVO: "bg-green-100 text-green-700",
+  ENCERRADO: "bg-gray-100 text-gray-500",
+};
+
+function AppShell({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
   const router = useRouter();
   const pathname = usePathname();
-
-  const [ciclos, setCiclos] = useState<Ciclo[]>([]);
-  const [cicloAtivo, setCicloAtivo] = useState<Ciclo | null>(null);
-  const [cicloOpen, setCicloOpen] = useState(false);
+  const { ciclos, cicloAtivo, setCicloAtivo } = useCiclo();
+  const [dropdownOpen, setDropdownOpen] = useState(false);
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/login");
   }, [status, router]);
 
-  useEffect(() => {
-    fetch("/api/ciclos")
-      .then((r) => r.json())
-      .then((data) => {
-        setCiclos(data.ciclos ?? []);
-        setCicloAtivo(data.ativo ?? null);
-      })
-      .catch(() => {});
-  }, []);
-
   if (status === "loading" || status === "unauthenticated") return null;
 
-  const statusBadge: Record<string, string> = {
-    SETUP: "bg-yellow-100 text-yellow-700",
-    ATIVO: "bg-green-100 text-green-700",
-    ENCERRADO: "bg-gray-100 text-gray-500",
-  };
+  async function handleLogout() {
+    await signOut({ redirect: false });
+    router.push("/login");
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
       {/* Header */}
       <header className="bg-blue-900 text-white h-14 flex items-center px-4 gap-4 shadow-md z-10">
-        {/* Logo */}
         <div className="flex items-center gap-2 min-w-max">
           <div className="w-8 h-8 bg-blue-400 rounded flex items-center justify-center font-bold text-xs">
             ICP
@@ -76,7 +63,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         {/* Seletor de ciclo */}
         <div className="relative">
           <button
-            onClick={() => setCicloOpen((v) => !v)}
+            onClick={() => setDropdownOpen((v) => !v)}
             className="flex items-center gap-2 bg-blue-800 hover:bg-blue-700 rounded-lg px-3 py-1.5 text-sm transition-colors"
           >
             <Building2 size={14} className="text-blue-300" />
@@ -91,7 +78,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <ChevronDown size={14} className="text-blue-300" />
           </button>
 
-          {cicloOpen && (
+          {dropdownOpen && (
             <div className="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 min-w-48 py-1 z-50">
               {ciclos.length === 0 ? (
                 <p className="px-4 py-2 text-sm text-gray-500">Nenhum ciclo cadastrado</p>
@@ -101,7 +88,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     key={c.id}
                     onClick={() => {
                       setCicloAtivo(c);
-                      setCicloOpen(false);
+                      setDropdownOpen(false);
                     }}
                     className={`w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-gray-50 transition-colors ${
                       cicloAtivo?.id === c.id ? "text-blue-700 font-medium" : "text-gray-700"
@@ -120,7 +107,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
         <div className="flex-1" />
 
-        {/* User menu */}
         <div className="flex items-center gap-3">
           <div className="text-right hidden sm:block">
             <p className="text-sm font-medium leading-tight">{session?.user?.name}</p>
@@ -129,7 +115,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </p>
           </div>
           <button
-            onClick={() => signOut({ callbackUrl: "/login" })}
+            onClick={handleLogout}
             className="flex items-center gap-1.5 text-blue-300 hover:text-white transition-colors text-sm"
             title="Sair"
           >
@@ -139,7 +125,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </header>
 
       <div className="flex flex-1">
-        {/* Sidebar */}
         <aside className="w-56 bg-white border-r border-gray-200 flex flex-col py-4">
           <nav className="flex-1 px-2 space-y-0.5">
             {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
@@ -162,11 +147,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </nav>
         </aside>
 
-        {/* Main content */}
         <main className="flex-1 p-6 overflow-auto">
           {children}
         </main>
       </div>
     </div>
+  );
+}
+
+export default function AppLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <CicloProvider>
+      <AppShell>{children}</AppShell>
+    </CicloProvider>
   );
 }
