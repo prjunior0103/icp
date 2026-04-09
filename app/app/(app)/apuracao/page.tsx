@@ -288,9 +288,8 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
         mids.push({ ind: ig.indicador, nota, peso: ig.peso, mid });
         atingAg += mid;
       }
-      const contribuicao = atingAg * (at.pesoNaCesta / 100);
-      resultado += contribuicao;
-      detalhes.push({ agrupamento: ag, atingimento: atingAg, pesoNaCesta: at.pesoNaCesta, contribuicao, mids });
+      resultado += atingAg;
+      detalhes.push({ agrupamento: ag, atingimento: atingAg, pesoNaCesta: at.pesoNaCesta, contribuicao: atingAg, mids });
     }
     return { resultado, detalhes };
   }
