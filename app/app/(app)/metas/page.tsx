@@ -211,7 +211,7 @@ function ModalAgrupamento({ ag, cicloId, indicadores, onSave, onClose }: { ag: A
                   <div key={ind.id} className="flex items-center gap-2">
                     <input type="checkbox" checked={!!sel} onChange={()=>toggleInd(ind.id)} className="rounded"/>
                     <span className="flex-1 text-sm text-gray-700">{ind.codigo} — {ind.nome}</span>
-                    {sel && <input type="number" min="0" max="100" value={sel.peso} onChange={e=>setPeso(ind.id,e.target.value)} className="w-16 border border-gray-300 rounded px-2 py-0.5 text-xs" placeholder="%"/>}
+                    {sel && <input type="number" min="0" max="100" step="0.01" value={sel.peso} onChange={e=>setPeso(ind.id,e.target.value)} className="w-16 border border-gray-300 rounded px-2 py-0.5 text-xs" placeholder="%"/>}
                   </div>
                 );
               })}
