@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Plus, X, Pencil, Trash2, Upload, Download, Search, Target, BarChart3, Users, AlertCircle, CheckCircle2 } from "lucide-react";
 import { useCiclo } from "@/app/lib/ciclo-context";
+import { AreaCCCombobox } from "@/app/components/AreaCCCombobox";
 
 // ─── Types ────────────────────────────────────────────────
 interface Indicador { id: number; cicloId: number; codigo: string; nome: string; tipo: string; abrangencia: string; unidade: string; metaMinima?: number | null; metaAlvo?: number | null; metaMaxima?: number | null; baseline?: number | null; metrica?: string | null; periodicidade: string; criterioApuracao: string; origemDado?: string | null; analistaResp?: string | null; numeradorId?: number | null; divisorId?: number | null; statusJanela: string; status: string; descricao?: string | null; }
@@ -587,10 +588,7 @@ export default function MetasPage() {
       {aba==="atribuicoes" && (
         <div className="space-y-4">
           <div className="flex items-center gap-2">
-            <select value={filtroAreaAtrib} onChange={e=>setFiltroAreaAtrib(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="">Todas as áreas / CC</option>
-              {Array.from(new Set(areas.flatMap(a => [a.nivel1,a.nivel2,a.nivel3,a.nivel4,a.nivel5,a.centroCusto].filter(Boolean)))).sort().map(v => <option key={v} value={v!}>{v}</option>)}
-            </select>
+            <AreaCCCombobox areas={areas} value={filtroAreaAtrib} onChange={setFiltroAreaAtrib} />
             <div className="flex-1"/>
             {selAtribs.size > 0 && (
               <button onClick={excluirAtribsMassa} disabled={excluindoAtribs}
@@ -616,9 +614,8 @@ export default function MetasPage() {
                 <tbody className="divide-y divide-gray-100">
                   {atribuicoes.filter(a => {
                     if (!filtroAreaAtrib) return true;
-                    const t = filtroAreaAtrib.toLowerCase();
                     const c = a.colaborador;
-                    return [c.area?.nivel1,c.area?.nivel2,c.area?.nivel3,c.area?.nivel4,c.area?.nivel5].some(n=>n?.toLowerCase().includes(t)) || c.centroCusto?.toLowerCase().includes(t);
+                    return [c.area?.nivel1,c.area?.nivel2,c.area?.nivel3,c.area?.nivel4,c.area?.nivel5].some(n => n === filtroAreaAtrib) || c.centroCusto === filtroAreaAtrib;
                   }).map(a=>{
                     const soma = somasPorColab[a.colaboradorId]??0;
                     return (

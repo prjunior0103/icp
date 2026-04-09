@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useCiclo } from "@/app/lib/ciclo-context";
 import { calcNota, calcMID, gerarPeriodos, agregarRealizacoes } from "@/app/lib/calc";
 import { FileText, Search, Download, Users, BarChart3, GitBranch, UserCheck, ChevronDown, ChevronUp, UserCog, LayoutGrid } from "lucide-react";
+import { AreaCCCombobox } from "@/app/components/AreaCCCombobox";
 
 // ─── Types ────────────────────────────────────────────────
 interface Indicador { id: number; codigo: string; nome: string; tipo: string; unidade: string; metaMinima?: number | null; metaAlvo?: number | null; metaMaxima?: number | null; periodicidade: string; criterioApuracao: string; numeradorId?: number | null; divisorId?: number | null; faixas?: { de: number; ate: number; nota: number }[]; analistaResp?: string | null; responsavelEnvio?: { id: number; nome: string } | null; }
@@ -73,9 +74,8 @@ function RelatColaborador({ atribuicoes, notasMap, areas }: { atribuicoes: Atrib
   const colabs = Array.from(colabsMap.values()).filter(c => {
     if (busca && !c.nome.toLowerCase().includes(busca.toLowerCase()) && !c.matricula.includes(busca)) return false;
     if (filtroArea) {
-      const t = filtroArea.toLowerCase();
-      const matchArea = [c.area?.nivel1,c.area?.nivel2,c.area?.nivel3,c.area?.nivel4,c.area?.nivel5].some(n=>n?.toLowerCase().includes(t));
-      if (!matchArea && !c.centroCusto?.toLowerCase().includes(t)) return false;
+      const matchArea = [c.area?.nivel1,c.area?.nivel2,c.area?.nivel3,c.area?.nivel4,c.area?.nivel5].some(n => n === filtroArea);
+      if (!matchArea && c.centroCusto !== filtroArea) return false;
     }
     return true;
   });
@@ -107,10 +107,7 @@ function RelatColaborador({ atribuicoes, notasMap, areas }: { atribuicoes: Atrib
           <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar colaborador..."
             className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
         </div>
-        <select value={filtroArea} onChange={e => setFiltroArea(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="">Todas as áreas / CC</option>
-          {Array.from(new Set(areas.flatMap(a => [a.nivel1,a.nivel2,a.nivel3,a.nivel4,a.nivel5,a.centroCusto].filter(Boolean)))).sort().map(v => <option key={v} value={v!}>{v}</option>)}
-        </select>
+        <AreaCCCombobox areas={areas} value={filtroArea} onChange={setFiltroArea} size="md" />
       </div>
 
       {colabs.map(c => {
