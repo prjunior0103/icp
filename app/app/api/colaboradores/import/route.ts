@@ -56,6 +56,7 @@ export async function POST(req: Request) {
   };
 
   // Normaliza os nomes das colunas de cada linha
+  const rawKeys = rawRows.length > 0 ? Object.keys(rawRows[0]) : [];
   const rows = rawRows.map(rawRow => {
     const row: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(rawRow)) {
@@ -73,8 +74,9 @@ export async function POST(req: Request) {
     const row = rows[i];
     const linha = i + 2;
 
-    if (!row.nome || !row.matricula || !row.cargo || !row.salarioBase || !row.target) {
-      erros.push(`Linha ${linha}: nome, matricula, cargo, salarioBase e target são obrigatórios`);
+    const faltando = ["nome","matricula","cargo","salarioBase","target"].filter(f => !row[f] && row[f] !== 0);
+    if (faltando.length > 0) {
+      erros.push(`Linha ${linha}: campos obrigatórios ausentes ou vazios: ${faltando.join(", ")} | Colunas detectadas: ${rawKeys.join(", ")}`);
       continue;
     }
 
