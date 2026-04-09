@@ -18,7 +18,7 @@ export async function POST(req: Request) {
   }
 
   const buf = Buffer.from(await file.arrayBuffer());
-  const wb = XLSX.read(buf, { type: "buffer" });
+  const wb = XLSX.read(buf, { type: "buffer", cellDates: true });
   const ws = wb.Sheets[wb.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: "" });
 
@@ -53,10 +53,14 @@ export async function POST(req: Request) {
     const status = statusValidos.includes(statusRaw) ? statusRaw : "ATIVO";
 
     const matricula = String(row.matricula).trim();
-    const admissao = row.admissao ? new Date(String(row.admissao)) : null;
-    if (admissao && isNaN(admissao.getTime())) {
-      erros.push(`Linha ${linha}: data de admissão inválida "${row.admissao}"`);
-      continue;
+    let admissao: Date | null = null;
+    if (row.admissao && row.admissao !== "") {
+      // XLSX com cellDates:true retorna Date; sem ela, retorna número serial ou string
+      admissao = row.admissao instanceof Date ? row.admissao : new Date(String(row.admissao));
+      if (isNaN(admissao.getTime())) {
+        erros.push(`Linha ${linha}: data de admissão inválida "${row.admissao}"`);
+        continue;
+      }
     }
 
     try {

@@ -450,6 +450,8 @@ function AbaColaboradores({ cicloId }: { cicloId: number }) {
   const [modalColab, setModalColab] = useState<Colaborador | null | "new">(null);
   const [modalImport, setModalImport] = useState(false);
   const [excluindo, setExcluindo] = useState<number | null>(null);
+  const [selecionados, setSelecionados] = useState<Set<number>>(new Set());
+  const [excluindoMassa, setExcluindoMassa] = useState(false);
 
   const carregar = useCallback(() => {
     fetch(`/api/colaboradores?cicloId=${cicloId}&busca=${encodeURIComponent(busca)}`)
@@ -457,7 +459,7 @@ function AbaColaboradores({ cicloId }: { cicloId: number }) {
     fetch(`/api/areas?cicloId=${cicloId}`).then((r) => r.json()).then((d) => setAreas(d.areas ?? []));
   }, [cicloId, busca]);
 
-  useEffect(() => { carregar(); }, [carregar]);
+  useEffect(() => { carregar(); setSelecionados(new Set()); }, [carregar]);
 
   async function excluir(id: number) {
     if (!confirm("Excluir este colaborador?")) return;
@@ -465,6 +467,23 @@ function AbaColaboradores({ cicloId }: { cicloId: number }) {
     await fetch(`/api/colaboradores?id=${id}`, { method: "DELETE" });
     setExcluindo(null);
     carregar();
+  }
+
+  async function excluirSelecionados() {
+    if (!confirm(`Excluir ${selecionados.size} colaborador(es)?`)) return;
+    setExcluindoMassa(true);
+    await Promise.all([...selecionados].map(id => fetch(`/api/colaboradores?id=${id}`, { method: "DELETE" })));
+    setSelecionados(new Set());
+    setExcluindoMassa(false);
+    carregar();
+  }
+
+  function toggleSel(id: number) {
+    setSelecionados(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  }
+
+  function toggleTodos() {
+    setSelecionados(s => s.size === colaboradores.length ? new Set() : new Set(colaboradores.map(c => c.id)));
   }
 
   return (
@@ -479,6 +498,12 @@ function AbaColaboradores({ cicloId }: { cicloId: number }) {
             className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
+        {selecionados.size > 0 && (
+          <button onClick={excluirSelecionados} disabled={excluindoMassa}
+            className="flex items-center gap-2 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white text-sm px-3 py-2 rounded-lg">
+            <Trash2 size={15} /> {excluindoMassa ? "Excluindo..." : `Excluir ${selecionados.size}`}
+          </button>
+        )}
         <button onClick={() => window.location.href = "/api/colaboradores/template"} className="flex items-center gap-2 border border-gray-300 text-gray-700 text-sm px-3 py-2 rounded-lg hover:bg-gray-50">
           <Download size={15} /> Template
         </button>
@@ -500,14 +525,20 @@ function AbaColaboradores({ cicloId }: { cicloId: number }) {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                {["Matrícula", "Nome", "Cargo / Grade", "Área", "Salário Base", "Target", "Status", ""].map((h) => (
+                <th className="px-4 py-2.5">
+                  <input type="checkbox" checked={selecionados.size === colaboradores.length} onChange={toggleTodos} className="rounded" />
+                </th>
+                {["Matrícula", "Nome", "Cargo / Grade", "Área", "Salário Base", "Gestor", "Status", ""].map((h) => (
                   <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {colaboradores.map((c) => (
-                <tr key={c.id} className="hover:bg-gray-50">
+                <tr key={c.id} className={`hover:bg-gray-50 ${selecionados.has(c.id) ? "bg-blue-50" : ""}`}>
+                  <td className="px-4 py-2.5">
+                    <input type="checkbox" checked={selecionados.has(c.id)} onChange={() => toggleSel(c.id)} className="rounded" />
+                  </td>
                   <td className="px-4 py-2.5 font-mono text-xs text-gray-600">{c.matricula}</td>
                   <td className="px-4 py-2.5">
                     <p className="font-medium text-gray-800">{c.nome}</p>
@@ -521,7 +552,7 @@ function AbaColaboradores({ cicloId }: { cicloId: number }) {
                   <td className="px-4 py-2.5 text-gray-700">
                     {c.salarioBase.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                   </td>
-                  <td className="px-4 py-2.5 text-gray-700">{c.target}x</td>
+                  <td className="px-4 py-2.5 text-gray-600 text-xs">{c.nomeGestor ?? "—"}</td>
                   <td className="px-4 py-2.5">
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[c.status] ?? ""}`}>
                       {c.status}
