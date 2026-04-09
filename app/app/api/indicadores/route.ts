@@ -21,13 +21,23 @@ export async function POST(req: Request) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   const body = await req.json();
-  const { cicloId, codigo, nome, tipo, abrangencia, unidade, metaMinima, metaAlvo, metaMaxima,
+  const { cicloId, nome, tipo, abrangencia, unidade, metaMinima, metaAlvo, metaMaxima,
     baseline, metrica, periodicidade, criterioApuracao, origemDado, analistaResp,
     aprovadorId, responsavelEnvioId, divisorId, statusJanela, janelaAbertaEm, janelaFechadaEm,
     status, descricao } = body;
-  if (!cicloId || !codigo || !nome || !tipo) {
-    return NextResponse.json({ error: "cicloId, codigo, nome e tipo são obrigatórios" }, { status: 400 });
+  if (!cicloId || !nome || !tipo) {
+    return NextResponse.json({ error: "cicloId, nome e tipo são obrigatórios" }, { status: 400 });
   }
+  const existentes = await prisma.indicador.findMany({
+    where: { cicloId: Number(cicloId) },
+    select: { codigo: true },
+  });
+  let maxNum = 0;
+  for (const e of existentes) {
+    const m = e.codigo.match(/^IND-(\d+)$/);
+    if (m) maxNum = Math.max(maxNum, parseInt(m[1]));
+  }
+  const codigo = `IND-${String(maxNum + 1).padStart(3, "0")}`;
   const indicador = await prisma.indicador.create({
     data: {
       cicloId: Number(cicloId), codigo, nome, tipo, descricao: descricao || null,

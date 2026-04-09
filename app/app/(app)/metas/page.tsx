@@ -18,7 +18,7 @@ const CRITERIO = ["SOMA","MEDIA","ULTIMA_POSICAO"];
 const STATUS_JANELA_COLOR: Record<string,string> = { ABERTA:"bg-green-100 text-green-700", FECHADA:"bg-gray-100 text-gray-500", PRORROGADA:"bg-yellow-100 text-yellow-700" };
 
 // ─── Modal Indicador ──────────────────────────────────────
-function ModalIndicador({ ind, cicloId, onSave, onClose }: { ind: Indicador | null; cicloId: number; onSave: () => void; onClose: () => void; }) {
+function ModalIndicador({ ind, cicloId, colaboradores, onSave, onClose }: { ind: Indicador | null; cicloId: number; colaboradores: Colaborador[]; onSave: () => void; onClose: () => void; }) {
   const empty = { codigo:"", nome:"", tipo:"MAIOR_MELHOR", abrangencia:"CORPORATIVO", unidade:"%", metaMinima:"", metaAlvo:"", metaMaxima:"", baseline:"", metrica:"", periodicidade:"MENSAL", criterioApuracao:"ULTIMA_POSICAO", origemDado:"", analistaResp:"", statusJanela:"FECHADA", status:"DRAFT", descricao:"" };
   const [form, setForm] = useState(ind ? { ...empty, ...Object.fromEntries(Object.entries(ind).map(([k,v]) => [k, v == null ? "" : String(v)])) } : empty);
   const [salvando, setSalvando] = useState(false);
@@ -52,7 +52,10 @@ function ModalIndicador({ ind, cicloId, onSave, onClose }: { ind: Indicador | nu
         </div>
         <form onSubmit={salvar} className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
-            {input("Código","codigo",undefined,true)}
+            {ind && (
+              <div><label className="block text-xs font-medium text-gray-600 mb-1">Código</label>
+              <input readOnly value={form.codigo} className="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-1.5 text-sm text-gray-500 cursor-default"/></div>
+            )}
             {input("Nome","nome",undefined,true)}
             {sel("Tipo","tipo",TIPOS)}
             {sel("Abrangência","abrangencia",ABRANGENCIA)}
@@ -65,7 +68,19 @@ function ModalIndicador({ ind, cicloId, onSave, onClose }: { ind: Indicador | nu
             {sel("Periodicidade","periodicidade",PERIODICIDADE)}
             {sel("Critério Apuração","criterioApuracao",CRITERIO)}
             {input("Origem do Dado","origemDado")}
-            {input("Analista Resp.","analistaResp")}
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Analista Resp.</label>
+              <input
+                list="analista-list"
+                value={form.analistaResp}
+                onChange={set("analistaResp")}
+                placeholder="Pesquisar colaborador..."
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <datalist id="analista-list">
+                {colaboradores.map(c => <option key={c.id} value={c.nome}>{c.matricula} — {c.nome}</option>)}
+              </datalist>
+            </div>
             {sel("Janela","statusJanela",["ABERTA","FECHADA","PRORROGADA"])}
             {sel("Status","status",["DRAFT","ATIVO"])}
           </div>
@@ -252,6 +267,7 @@ export default function MetasPage() {
   const [indicadores, setIndicadores] = useState<Indicador[]>([]);
   const [agrupamentos, setAgrupamentos] = useState<Agrupamento[]>([]);
   const [atribuicoes, setAtribuicoes] = useState<Atribuicao[]>([]);
+  const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
   const [busca, setBusca] = useState("");
   const [modalInd, setModalInd] = useState<Indicador|null|"new">(null);
   const [modalAg, setModalAg] = useState<Agrupamento|null|"new">(null);
@@ -273,7 +289,12 @@ export default function MetasPage() {
     fetch(`/api/atribuicoes?cicloId=${cicloAtivo.id}`).then(r=>r.json()).then(d=>setAtribuicoes(d.atribuicoes??[]));
   },[cicloAtivo?.id]);
 
-  useEffect(() => { carregarInds(); carregarAgs(); carregarAtribs(); },[carregarInds,carregarAgs,carregarAtribs]);
+  useEffect(() => {
+    carregarInds(); carregarAgs(); carregarAtribs();
+    if (cicloAtivo) {
+      fetch(`/api/colaboradores?cicloId=${cicloAtivo.id}`).then(r=>r.json()).then(d=>setColaboradores(d.colaboradores??[]));
+    }
+  },[carregarInds,carregarAgs,carregarAtribs,cicloAtivo?.id]);
 
   async function excluirInd(id: number) {
     if (!confirm("Excluir indicador?")) return;
@@ -414,7 +435,7 @@ export default function MetasPage() {
         </div>
       )}
 
-      {modalInd!==null && <ModalIndicador ind={modalInd==="new"?null:modalInd} cicloId={cicloAtivo.id} onSave={carregarInds} onClose={()=>setModalInd(null)}/>}
+      {modalInd!==null && <ModalIndicador ind={modalInd==="new"?null:modalInd} cicloId={cicloAtivo.id} colaboradores={colaboradores} onSave={carregarInds} onClose={()=>setModalInd(null)}/>}
       {modalAg!==null && <ModalAgrupamento ag={modalAg==="new"?null:modalAg} cicloId={cicloAtivo.id} indicadores={indicadores} onSave={carregarAgs} onClose={()=>setModalAg(null)}/>}
       {modalAtrib && <ModalAtribuicao cicloId={cicloAtivo.id} agrupamentos={agrupamentos} onSave={carregarAtribs} onClose={()=>setModalAtrib(false)}/>}
       {modalImport && <ModalImport cicloId={cicloAtivo.id} onDone={carregarInds} onClose={()=>setModalImport(false)}/>}
