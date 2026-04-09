@@ -20,13 +20,51 @@ export async function POST(req: Request) {
   const buf = Buffer.from(await file.arrayBuffer());
   const wb = XLSX.read(buf, { type: "buffer", cellDates: true });
   const ws = wb.Sheets[wb.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: "" });
+  const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: "" });
 
   // Converte qualquer valor para string ou null (XLSX pode retornar number/boolean para células numéricas/booleanas)
   const toStr = (v: unknown): string | null => {
     if (v == null || v === "" || v === false) return null;
     return String(v).trim() || null;
   };
+
+  // Normaliza chave: remove acentos, espaços, lowercase — permite colunas com variações de nome
+  const normKey = (k: string) => k.trim().toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[\s_-]+/g, "");
+
+  // Mapa de chave normalizada → campo canônico do banco
+  const KEY_MAP: Record<string, string> = {
+    nome: "nome",
+    matricula: "matricula",
+    cargo: "cargo",
+    grade: "grade",
+    email: "email",
+    salariobase: "salarioBase",
+    salario: "salarioBase",
+    target: "target",
+    multiplo: "target",
+    centrocusto: "centroCusto",
+    codempresa: "codEmpresa",
+    codigoempresa: "codEmpresa",
+    admissao: "admissao",
+    dataadmissao: "admissao",
+    matriculagestor: "matriculaGestor",
+    nomegestor: "nomeGestor",
+    gestor: "nomeGestor",
+    status: "status",
+  };
+
+  // Normaliza os nomes das colunas de cada linha
+  const rows = rawRows.map(rawRow => {
+    const row: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(rawRow)) {
+      const canonical = KEY_MAP[normKey(k)];
+      if (canonical) row[canonical] = v;
+      else row[k] = v; // mantém campos desconhecidos
+    }
+    return row;
+  });
 
   const erros: string[] = [];
   let criados = 0;
