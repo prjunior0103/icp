@@ -27,7 +27,10 @@ export async function GET(req: Request) {
   if (!cicloId) return NextResponse.json({ error: "cicloId obrigatório" }, { status: 400 });
   const atribuicoes = await prisma.atribuicaoAgrupamento.findMany({
     where: { cicloId: Number(cicloId) },
-    include: { colaborador: true, agrupamento: true },
+    include: {
+      colaborador: { include: { area: true } },
+      agrupamento: { include: { indicadores: { include: { indicador: true } } } },
+    },
     orderBy: { colaborador: { nome: "asc" } },
   });
   return NextResponse.json({ atribuicoes });
