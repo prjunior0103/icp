@@ -398,6 +398,7 @@ export default function MetasPage() {
   const [modalImport, setModalImport] = useState(false);
   const [selAtribs, setSelAtribs] = useState<Set<number>>(new Set());
   const [excluindoAtribs, setExcluindoAtribs] = useState(false);
+  const [atribuindoCorp, setAtribuindoCorp] = useState(false);
 
   const carregarInds = useCallback(() => {
     if (!cicloAtivo) return;
@@ -435,6 +436,29 @@ export default function MetasPage() {
     if (!confirm("Remover atribuição?")) return;
     await fetch(`/api/atribuicoes?id=${id}`,{method:"DELETE"}); carregarAtribs();
   }
+  async function atribuirCorpTodos() {
+    const corps = agrupamentos.filter(ag => ag.tipo === "CORPORATIVO");
+    if (corps.length === 0) { alert("Nenhum agrupamento CORPORATIVO cadastrado."); return; }
+    if (colaboradores.length === 0) { alert("Nenhum colaborador neste ciclo."); return; }
+    const peso = Math.round((100 / corps.length) * 100) / 100;
+    if (!confirm(`Atribuir ${corps.length} agrupamento(s) corporativo(s) a ${colaboradores.length} colaborador(es) com ${peso}% cada?\n\nEsta ação só afeta agrupamentos CORPORATIVO.`)) return;
+    setAtribuindoCorp(true);
+    const cid = cicloAtivo!.id;
+    await Promise.all(
+      colaboradores.flatMap(c =>
+        corps.map(ag =>
+          fetch("/api/atribuicoes", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ cicloId: cid, colaboradorId: c.id, agrupamentoId: ag.id, pesoNaCesta: peso, cascata: "NENHUM" }),
+          })
+        )
+      )
+    );
+    setAtribuindoCorp(false);
+    carregarAtribs();
+  }
+
   async function excluirAtribsMassa() {
     if (!confirm(`Excluir ${selAtribs.size} atribuição(ões)?`)) return;
     setExcluindoAtribs(true);
@@ -558,6 +582,10 @@ export default function MetasPage() {
                 <Trash2 size={15}/>{excluindoAtribs ? "Excluindo..." : `Excluir ${selAtribs.size}`}
               </button>
             )}
+            <button onClick={atribuirCorpTodos} disabled={atribuindoCorp}
+              className="flex items-center gap-2 border border-blue-600 text-blue-700 hover:bg-blue-50 disabled:opacity-50 text-sm px-3 py-2 rounded-lg">
+              <Users size={15}/>{atribuindoCorp ? "Atribuindo..." : "Atribuir Corporativos a Todos"}
+            </button>
             <button onClick={()=>setModalAtrib("new")} className="flex items-center gap-2 bg-blue-700 hover:bg-blue-800 text-white text-sm px-3 py-2 rounded-lg"><Plus size={15}/>Nova Atribuição</button>
           </div>
           {atribuicoes.length===0 ? (
