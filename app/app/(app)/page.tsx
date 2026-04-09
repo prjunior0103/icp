@@ -189,7 +189,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Lista de ciclos */}
-      {ciclos.length > 1 && (
+      {ciclos.length > 0 && (
         <div className="bg-white rounded-xl border border-gray-200">
           <div className="px-5 py-3 border-b border-gray-100">
             <h3 className="text-sm font-semibold text-gray-700">Todos os ciclos</h3>
