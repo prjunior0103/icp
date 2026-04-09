@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useCiclo } from "@/app/lib/ciclo-context";
-import { calcNota, calcMID, gerarPeriodos, agregarRealizacoes } from "@/app/lib/calc";
+import { calcNota, calcMID, calcPesoEfetivo, gerarPeriodos, agregarRealizacoes } from "@/app/lib/calc";
 import { ClipboardList, BarChart3, Search, Save, ChevronDown, ChevronUp } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────
@@ -14,6 +14,7 @@ interface Indicador {
   faixas?: { de: number; ate: number; nota: number }[];
 }
 interface Realizacao { id: number; indicadorId: number; periodo: string; valorRealizado: number; }
+interface MetaPeriodo { id: number; indicadorId: number; periodo: string; valorOrcado: number; }
 interface IndicadorNoGrupo { indicadorId: number; peso: number; indicador: Indicador; }
 interface Agrupamento { id: number; nome: string; tipo: string; indicadores: IndicadorNoGrupo[]; }
 interface Colaborador { id: number; nome: string; matricula: string; cargo: string; salarioBase: number; target: number; gestorId?: number | null; area?: { nivel1: string; nivel2?: string | null; nivel3?: string | null; nivel4?: string | null; nivel5?: string | null } | null; }
@@ -28,12 +29,13 @@ function labelPeriodo(p: string): string {
 }
 
 // ─── Aba Preenchimento ────────────────────────────────────
-function AbaPreenchimento({ cicloId, anoFiscal, mesInicio, mesFim, indicadores, realizacoes, onSaved }:
+function AbaPreenchimento({ cicloId, anoFiscal, mesInicio, mesFim, indicadores, realizacoes, metasPeriodo, onSaved }:
   { cicloId: number; anoFiscal: number; mesInicio: number; mesFim: number;
-    indicadores: Indicador[]; realizacoes: Realizacao[]; onSaved: () => void }) {
+    indicadores: Indicador[]; realizacoes: Realizacao[]; metasPeriodo: MetaPeriodo[]; onSaved: () => void }) {
   const [busca, setBusca] = useState("");
   const [salvando, setSalvando] = useState<string|null>(null);
   const [draft, setDraft] = useState<Record<string,string>>({});
+  const [draftOrc, setDraftOrc] = useState<Record<string,string>>({});
 
   // Inicializa draft com valores existentes
   useEffect(() => {
@@ -41,6 +43,12 @@ function AbaPreenchimento({ cicloId, anoFiscal, mesInicio, mesFim, indicadores, 
     for (const r of realizacoes) init[`${r.indicadorId}_${r.periodo}`] = String(r.valorRealizado);
     setDraft(init);
   }, [realizacoes]);
+
+  useEffect(() => {
+    const init: Record<string,string> = {};
+    for (const m of metasPeriodo) init[`${m.indicadorId}_${m.periodo}`] = String(m.valorOrcado);
+    setDraftOrc(init);
+  }, [metasPeriodo]);
 
   async function salvar(indicadorId: number, periodo: string) {
     const key = `${indicadorId}_${periodo}`;
@@ -50,6 +58,15 @@ function AbaPreenchimento({ cicloId, anoFiscal, mesInicio, mesFim, indicadores, 
     await fetch("/api/realizacoes", { method:"POST", headers:{"Content-Type":"application/json"},
       body: JSON.stringify({ cicloId, indicadorId, periodo, valorRealizado: Number(val) }) });
     setSalvando(null);
+    onSaved();
+  }
+
+  async function salvarOrcado(indicadorId: number, periodo: string) {
+    const key = `${indicadorId}_${periodo}`;
+    const val = draftOrc[key];
+    if (val === "" || val == null) return;
+    await fetch("/api/meta-periodos", { method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ cicloId, indicadorId, periodo, valorOrcado: Number(val) }) });
     onSaved();
   }
 
@@ -79,9 +96,15 @@ function AbaPreenchimento({ cicloId, anoFiscal, mesInicio, mesFim, indicadores, 
               <tr>
                 <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">Indicador</th>
                 <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">Tipo</th>
-                <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">Alvo</th>
+                <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">Nota</th>
                 {gerarPeriodos(anoFiscal, mesInicio, mesFim, "MENSAL").map(p => (
-                  <th key={p} className="text-center px-2 py-2.5 text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{labelPeriodo(p)}</th>
+                  <th key={p} className="text-center px-2 py-2.5 text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">
+                    {labelPeriodo(p)}
+                    <div className="flex gap-1 justify-center mt-0.5">
+                      <span className="text-[9px] font-normal text-gray-400 px-1 bg-orange-50 rounded">Orç</span>
+                      <span className="text-[9px] font-normal text-gray-400 px-1 bg-blue-50 rounded">Real</span>
+                    </div>
+                  </th>
                 ))}
               </tr>
             </thead>
@@ -104,12 +127,11 @@ function AbaPreenchimento({ cicloId, anoFiscal, mesInicio, mesFim, indicadores, 
                     </td>
                     <td className="px-4 py-2.5 text-xs text-gray-600">{ind.tipo}</td>
                     <td className="px-4 py-2.5 text-gray-700 text-sm">
-                      {ind.metaAlvo != null ? `${ind.metaAlvo}${ind.unidade}` : "—"}
-                      {nota != null && (
-                        <span className={`ml-2 text-xs font-semibold px-1.5 py-0.5 rounded-full ${nota >= 100 ? "bg-green-100 text-green-700" : nota > 0 ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-600"}`}>
+                      {nota != null ? (
+                        <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${nota >= 100 ? "bg-green-100 text-green-700" : nota > 0 ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-600"}`}>
                           {nota.toFixed(1)}%
                         </span>
-                      )}
+                      ) : <span className="text-gray-300">—</span>}
                     </td>
                     {gerarPeriodos(anoFiscal, mesInicio, mesFim, "MENSAL").map(p => {
                       const periodoInd = periodos.find(pi => {
@@ -125,20 +147,31 @@ function AbaPreenchimento({ cicloId, anoFiscal, mesInicio, mesFim, indicadores, 
                         return pi === `${anoFiscal}`;
                       });
                       if (!periodoInd) return <td key={p} className="px-2 py-2.5 text-center text-gray-200 text-xs">—</td>;
-                      const key = `${ind.id}_${periodoInd}`;
-                      const isSaving = salvando === key;
+                      const keyReal = `${ind.id}_${periodoInd}`;
+                      const keyOrc = `${ind.id}_${periodoInd}`;
+                      const isSaving = salvando === keyReal;
                       return (
-                        <td key={p} className="px-2 py-2">
-                          <div className="flex items-center gap-1">
+                        <td key={p} className="px-1 py-1">
+                          <div className="flex gap-1">
                             <input
                               type="number"
-                              value={draft[key] ?? ""}
-                              onChange={e => setDraft(d => ({...d,[key]:e.target.value}))}
-                              onBlur={() => salvar(ind.id, periodoInd)}
-                              className="w-20 border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
-                              placeholder="0"
+                              value={draftOrc[keyOrc] ?? ""}
+                              onChange={e => setDraftOrc(d => ({...d,[keyOrc]:e.target.value}))}
+                              onBlur={() => salvarOrcado(ind.id, periodoInd)}
+                              className="w-16 border border-orange-200 bg-orange-50 rounded px-1.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-orange-400"
+                              placeholder="Orç"
                             />
-                            {isSaving && <Save size={12} className="text-blue-400 animate-pulse"/>}
+                            <div className="relative">
+                              <input
+                                type="number"
+                                value={draft[keyReal] ?? ""}
+                                onChange={e => setDraft(d => ({...d,[keyReal]:e.target.value}))}
+                                onBlur={() => salvar(ind.id, periodoInd)}
+                                className="w-16 border border-blue-200 bg-blue-50 rounded px-1.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                placeholder="Real"
+                              />
+                              {isSaving && <Save size={10} className="absolute right-1 top-1/2 -translate-y-1/2 text-blue-400 animate-pulse"/>}
+                            </div>
                           </div>
                         </td>
                       );
@@ -216,12 +249,11 @@ function AbaResultados({ indicadores, realizacoes, agrupamentos, atribuicoes, an
       for (const ig of ag.indicadores) {
         if (filtroIndicador && String(ig.indicadorId) !== filtroIndicador) continue;
         const nota = notasPorIndicador.get(ig.indicadorId) ?? 0;
-        const mid = calcMID(nota, ig.peso);
+        const mid = calcMID(nota, ig.peso, at.pesoNaCesta);
         mids.push({ ind: ig.indicador, nota, peso: ig.peso, mid });
         atingAg += mid;
       }
-      const contrib = atingAg * (at.pesoNaCesta / 100);
-      resultado += contrib;
+      resultado += atingAg;
       detalhes.push({ agrupamento: ag, atingimento: atingAg, pesoNaCesta: at.pesoNaCesta, mids });
     }
     return { resultado, detalhes };
@@ -335,6 +367,7 @@ export default function ApuracaoPage() {
   const [aba, setAba] = useState<"preenchimento"|"resultados">("preenchimento");
   const [indicadores, setIndicadores] = useState<Indicador[]>([]);
   const [realizacoes, setRealizacoes] = useState<Realizacao[]>([]);
+  const [metasPeriodo, setMetasPeriodo] = useState<MetaPeriodo[]>([]);
   const [agrupamentos, setAgrupamentos] = useState<Agrupamento[]>([]);
   const [atribuicoes, setAtribuicoes] = useState<Atribuicao[]>([]);
 
@@ -353,6 +386,7 @@ export default function ApuracaoPage() {
       setIndicadores(comFaixas);
     });
     fetch(`/api/realizacoes?cicloId=${cid}`).then(r=>r.json()).then(d=>setRealizacoes(d.realizacoes??[]));
+    fetch(`/api/meta-periodos?cicloId=${cid}`).then(r=>r.json()).then(d=>setMetasPeriodo(d.metasPeriodo??[]));
     fetch(`/api/agrupamentos?cicloId=${cid}`).then(r=>r.json()).then(d=>setAgrupamentos(d.agrupamentos??[]));
     fetch(`/api/atribuicoes?cicloId=${cid}`).then(r=>r.json()).then(d=>setAtribuicoes(d.atribuicoes??[]));
   }, [cicloAtivo?.id]);
@@ -390,6 +424,7 @@ export default function ApuracaoPage() {
           mesFim={cicloAtivo.mesFim}
           indicadores={indicadores}
           realizacoes={realizacoes}
+          metasPeriodo={metasPeriodo}
           onSaved={carregar}
         />
       )}

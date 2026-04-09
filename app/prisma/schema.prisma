@@ -108,6 +108,7 @@ model Indicador {
   indicadoresGrupo    IndicadorNoAgrupamento[]
   faixas              FaixaIndicador[]
   realizacoes         Realizacao[]
+  metasPeriodo        MetaPeriodo[]
 
   @@unique([cicloId, codigo])
 }
@@ -157,6 +158,18 @@ model Realizacao {
   valorRealizado Float
   lancadoPor     String?
   criadoEm       DateTime  @default(now())
+
+  @@unique([indicadorId, periodo])
+}
+
+model MetaPeriodo {
+  id          Int       @id @default(autoincrement())
+  cicloId     Int
+  indicadorId Int
+  indicador   Indicador @relation(fields: [indicadorId], references: [id], onDelete: Cascade)
+  periodo     String
+  valorOrcado Float
+  criadoEm    DateTime  @default(now())
 
   @@unique([indicadorId, periodo])
 }
