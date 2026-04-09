@@ -367,7 +367,9 @@ export default function MetasPage() {
 
   async function excluirInd(id: number) {
     if (!confirm("Excluir indicador?")) return;
-    await fetch(`/api/indicadores?id=${id}`,{method:"DELETE"}); carregarInds();
+    const res = await fetch(`/api/indicadores?id=${id}`,{method:"DELETE"});
+    if (!res.ok) { const d = await res.json(); alert(d.error ?? "Erro ao excluir"); return; }
+    carregarInds();
   }
   async function excluirAg(id: number) {
     if (!confirm("Excluir agrupamento?")) return;

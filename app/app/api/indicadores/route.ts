@@ -92,6 +92,14 @@ export async function DELETE(req: Request) {
   const { searchParams } = new URL(req.url);
   const id = searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id obrigatório" }, { status: 400 });
-  await prisma.indicador.delete({ where: { id: Number(id) } });
-  return NextResponse.json({ ok: true });
+  const numId = Number(id);
+  try {
+    // Remove vínculos com agrupamentos antes de deletar (sem cascade na FK)
+    await prisma.indicadorNoAgrupamento.deleteMany({ where: { indicadorId: numId } });
+    await prisma.indicador.delete({ where: { id: numId } });
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ error: msg }, { status: 400 });
+  }
 }
