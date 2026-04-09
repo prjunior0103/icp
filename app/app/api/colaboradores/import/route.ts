@@ -20,7 +20,13 @@ export async function POST(req: Request) {
   const buf = Buffer.from(await file.arrayBuffer());
   const wb = XLSX.read(buf, { type: "buffer" });
   const ws = wb.Sheets[wb.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json<Record<string, string>>(ws, { defval: "" });
+  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: "" });
+
+  // Converte qualquer valor para string ou null (XLSX pode retornar number/boolean para células numéricas/booleanas)
+  const toStr = (v: unknown): string | null => {
+    if (v == null || v === "" || v === false) return null;
+    return String(v).trim() || null;
+  };
 
   const erros: string[] = [];
   let criados = 0;
@@ -43,9 +49,8 @@ export async function POST(req: Request) {
     }
 
     const statusValidos = ["ATIVO", "INATIVO", "AFASTADO"];
-    const status = statusValidos.includes(row.status?.toUpperCase())
-      ? row.status.toUpperCase()
-      : "ATIVO";
+    const statusRaw = toStr(row.status)?.toUpperCase() ?? "";
+    const status = statusValidos.includes(statusRaw) ? statusRaw : "ATIVO";
 
     const matricula = String(row.matricula).trim();
     const admissao = row.admissao ? new Date(String(row.admissao)) : null;
@@ -58,42 +63,29 @@ export async function POST(req: Request) {
       const existing = await prisma.colaborador.findFirst({
         where: { cicloId: Number(cicloId), matricula },
       });
+      const sharedData = {
+        nome: String(row.nome).trim(),
+        cargo: String(row.cargo).trim(),
+        grade: toStr(row.grade),
+        email: toStr(row.email),
+        salarioBase,
+        target,
+        centroCusto: toStr(row.centroCusto),
+        codEmpresa: toStr(row.codEmpresa),
+        admissao,
+        matriculaGestor: toStr(row.matriculaGestor),
+        nomeGestor: toStr(row.nomeGestor),
+        status,
+      };
+
       if (existing) {
         await prisma.colaborador.update({
           where: { id: existing.id },
-          data: {
-            nome: String(row.nome).trim(),
-            cargo: String(row.cargo).trim(),
-            grade: row.grade || null,
-            email: row.email || null,
-            salarioBase,
-            target,
-            centroCusto: row.centroCusto || null,
-            codEmpresa: row.codEmpresa || null,
-            admissao,
-            matriculaGestor: row.matriculaGestor || null,
-            nomeGestor: row.nomeGestor || null,
-            status,
-          },
+          data: sharedData,
         });
       } else {
         await prisma.colaborador.create({
-          data: {
-            cicloId: Number(cicloId),
-            nome: String(row.nome).trim(),
-            matricula,
-            cargo: String(row.cargo).trim(),
-            grade: row.grade || null,
-            email: row.email || null,
-            salarioBase,
-            target,
-            centroCusto: row.centroCusto || null,
-            codEmpresa: row.codEmpresa || null,
-            admissao,
-            matriculaGestor: row.matriculaGestor || null,
-            nomeGestor: row.nomeGestor || null,
-            status,
-          },
+          data: { cicloId: Number(cicloId), matricula, ...sharedData },
         });
       }
       criados++;
