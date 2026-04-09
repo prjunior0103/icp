@@ -175,7 +175,7 @@ function RelatIndicador({ indicadores, notasMap, realMap, orcMap, atribuicoes }:
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              {["Código","Indicador","Tipo","Métrica","Orçado","Realizado","Nota","Impacta"].map(h => (
+              {["Código","Indicador","Tipo","Métrica","Orçado","Realizado","% Atingimento","Impacta"].map(h => (
                 <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
               ))}
             </tr>
@@ -227,7 +227,7 @@ function RelatContratacao({ atribuicoes, indicadores, notasMap }: { atribuicoes:
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              {["Indicador","Nome Indicador","Colaborador","Matrícula","Agrupamento","Peso Ind. (%)","Peso Cesta (%)","Nota"].map(h => (
+              {["Indicador","Nome Indicador","Colaborador","Matrícula","Agrupamento","Peso Ind. (%)","Peso Cesta (%)","% Atingimento"].map(h => (
                 <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
               ))}
             </tr>
@@ -275,7 +275,7 @@ function RelatResponsavel({ indicadores, notasMap, realizacoes, anoFiscal, mesIn
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              {["Responsável","Código","Indicador","Tipo","Periodicidade","Status","Nota"].map(h => (
+              {["Responsável","Código","Indicador","Tipo","Periodicidade","Status","% Atingimento"].map(h => (
                 <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
               ))}
             </tr>

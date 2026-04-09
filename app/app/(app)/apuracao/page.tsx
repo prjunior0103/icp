@@ -203,7 +203,7 @@ function AbaPreenchimento({ cicloId, anoFiscal, mesInicio, mesFim, indicadores, 
               <tr>
                 <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase" rowSpan={2}>Indicador</th>
                 <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase" rowSpan={2}>Tipo</th>
-                <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase" rowSpan={2}>Nota</th>
+                <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase" rowSpan={2}>% Atingimento</th>
                 {mesesCiclo.map(p => (
                   <th key={p} className="text-center px-2 py-2 text-xs font-semibold text-gray-500 uppercase whitespace-nowrap border-l border-gray-200" colSpan={1}>
                     {labelPeriodo(p)}
@@ -472,7 +472,7 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
                         <table className="w-full text-xs">
                           <thead><tr className="text-gray-400">
                             <th className="text-left pb-1">Indicador</th>
-                            <th className="text-right pb-1">Nota</th>
+                            <th className="text-right pb-1">% Ating.</th>
                             <th className="text-right pb-1">Peso</th>
                             <th className="text-right pb-1">MID</th>
                           </tr></thead>
