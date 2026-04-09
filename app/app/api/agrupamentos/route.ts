@@ -21,10 +21,10 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-  const { cicloId, nome, tipo, descricao } = await req.json();
+  const { cicloId, nome, tipo, peso, descricao } = await req.json();
   if (!cicloId || !nome) return NextResponse.json({ error: "cicloId e nome obrigatórios" }, { status: 400 });
   const agrupamento = await prisma.agrupamento.create({
-    data: { cicloId: Number(cicloId), nome, tipo: tipo ?? "CORPORATIVO", descricao: descricao || null },
+    data: { cicloId: Number(cicloId), nome, tipo: tipo ?? "CORPORATIVO", peso: peso != null ? Number(peso) : 0, descricao: descricao || null },
     include: { indicadores: { include: { indicador: true } } },
   });
   return NextResponse.json({ agrupamento }, { status: 201 });
@@ -33,11 +33,11 @@ export async function POST(req: Request) {
 export async function PUT(req: Request) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-  const { id, nome, tipo, descricao, indicadores } = await req.json();
+  const { id, nome, tipo, peso, descricao, indicadores } = await req.json();
   if (!id) return NextResponse.json({ error: "id obrigatório" }, { status: 400 });
   await prisma.agrupamento.update({
     where: { id: Number(id) },
-    data: { ...(nome && { nome }), ...(tipo && { tipo }), descricao: descricao ?? null },
+    data: { ...(nome && { nome }), ...(tipo && { tipo }), ...(peso != null && { peso: Number(peso) }), descricao: descricao ?? null },
   });
   // Sync indicadores se fornecido
   if (indicadores !== undefined) {

@@ -112,6 +112,7 @@ model Agrupamento {
   cicloId     Int
   nome        String
   tipo        String                 @default("CORPORATIVO") // CORPORATIVO | AREA
+  peso        Float                  @default(0)
   descricao   String?
   criadoEm    DateTime               @default(now())
   indicadores IndicadorNoAgrupamento[]
