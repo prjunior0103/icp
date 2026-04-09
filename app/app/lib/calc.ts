@@ -39,14 +39,9 @@ export function calcNota(ind: IndicadorCalc, valorRealizado: number): number {
   return Math.min(nota, 120);
 }
 
-/** Peso efetivo do indicador = pesoIndicador × pesoNaCesta / 100 */
-export function calcPesoEfetivo(pesoIndicador: number, pesoNaCesta: number): number {
-  return (pesoIndicador * pesoNaCesta) / 100;
-}
-
-/** MID = nota × pesoEfetivo / 100 */
-export function calcMID(nota: number, pesoIndicador: number, pesoNaCesta: number): number {
-  return nota * calcPesoEfetivo(pesoIndicador, pesoNaCesta) / 100;
+/** MID = nota × peso do indicador no agrupamento / 100 */
+export function calcMID(nota: number, pesoIndicador: number): number {
+  return (nota * pesoIndicador) / 100;
 }
 
 /** Resultado do colaborador = soma de todos os MIDs */
