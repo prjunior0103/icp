@@ -39,23 +39,21 @@ export function calcNota(ind: IndicadorCalc, valorRealizado: number): number {
   return Math.min(nota, 120);
 }
 
-/** MID = nota × (peso do indicador no agrupamento / 100) */
-export function calcMID(nota: number, pesoIndicadorNoAgrupamento: number): number {
-  return nota * (pesoIndicadorNoAgrupamento / 100);
+/** Peso efetivo do indicador = pesoIndicador × pesoNaCesta / 100 */
+export function calcPesoEfetivo(pesoIndicador: number, pesoNaCesta: number): number {
+  return (pesoIndicador * pesoNaCesta) / 100;
 }
 
-/** Atingimento do agrupamento = soma dos MIDs dos seus indicadores */
-export function calcAtingimentoAgrupamento(
-  indicadores: { nota: number; peso: number }[]
-): number {
-  return indicadores.reduce((sum, i) => sum + calcMID(i.nota, i.peso), 0);
+/** MID = nota × pesoEfetivo / 100 */
+export function calcMID(nota: number, pesoIndicador: number, pesoNaCesta: number): number {
+  return nota * calcPesoEfetivo(pesoIndicador, pesoNaCesta) / 100;
 }
 
-/** Resultado do colaborador = soma(atingimentoAgrupamento × pesoNaCesta / 100) */
+/** Resultado do colaborador = soma de todos os MIDs */
 export function calcResultadoColaborador(
-  agrupamentos: { atingimento: number; pesoNaCesta: number }[]
+  mids: number[]
 ): number {
-  return agrupamentos.reduce((sum, a) => sum + a.atingimento * (a.pesoNaCesta / 100), 0);
+  return mids.reduce((sum, m) => sum + m, 0);
 }
 
 /** Prêmio projetado = salárioBase × target × (resultado / 100) */
