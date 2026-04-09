@@ -236,49 +236,95 @@ function ModalAgrupamento({ ag, cicloId, indicadores, onSave, onClose }: { ag: A
 }
 
 // ─── Modal Atribuição ─────────────────────────────────────
-function ModalAtribuicao({ cicloId, agrupamentos, onSave, onClose }: { cicloId: number; agrupamentos: Agrupamento[]; onSave: () => void; onClose: () => void; }) {
+function ModalAtribuicao({ cicloId, agrupamentos, atrib, onSave, onClose }: {
+  cicloId: number; agrupamentos: Agrupamento[]; atrib: Atribuicao | null; onSave: () => void; onClose: () => void;
+}) {
+  const editando = atrib !== null;
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
-  const [form, setForm] = useState({ colaboradorId:"", agrupamentoId:"", pesoNaCesta:"", cascata:"NENHUM" });
+  const [colaboradorId, setColaboradorId] = useState(atrib ? String(atrib.colaboradorId) : "");
+  const [cascata, setCascata] = useState(atrib?.cascata ?? "NENHUM");
+  // Para novo: mapa agrupamentoId → pesoNaCesta selecionado
+  const [selecionados, setSelecionados] = useState<Map<number,number>>(
+    atrib ? new Map([[atrib.agrupamentoId, atrib.pesoNaCesta]]) : new Map()
+  );
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
-  useEffect(() => { fetch(`/api/colaboradores?cicloId=${cicloId}`).then(r=>r.json()).then(d=>setColaboradores(d.colaboradores??[])); },[cicloId]);
+
+  useEffect(() => {
+    fetch(`/api/colaboradores?cicloId=${cicloId}`).then(r=>r.json()).then(d=>setColaboradores(d.colaboradores??[]));
+  },[cicloId]);
+
+  function toggleAg(agId: number, peso: number) {
+    setSelecionados(m => {
+      const n = new Map(m);
+      n.has(agId) ? n.delete(agId) : n.set(agId, peso);
+      return n;
+    });
+  }
 
   async function salvar(e: React.FormEvent) {
-    e.preventDefault(); setSalvando(true); setErro("");
-    const res = await fetch("/api/atribuicoes", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({...form, cicloId, colaboradorId:Number(form.colaboradorId), agrupamentoId:Number(form.agrupamentoId), pesoNaCesta:Number(form.pesoNaCesta)}) });
-    if (!res.ok) { setErro("Erro ao atribuir"); setSalvando(false); return; }
-    onSave(); onClose();
+    e.preventDefault();
+    if (!colaboradorId) { setErro("Selecione um colaborador"); return; }
+    if (selecionados.size === 0) { setErro("Selecione ao menos um agrupamento"); return; }
+    setSalvando(true); setErro("");
+    try {
+      for (const [agrupamentoId, pesoNaCesta] of selecionados) {
+        const res = await fetch("/api/atribuicoes", {
+          method: "POST", headers: {"Content-Type":"application/json"},
+          body: JSON.stringify({ cicloId, colaboradorId: Number(colaboradorId), agrupamentoId, pesoNaCesta, cascata }),
+        });
+        if (!res.ok) { const d = await res.json(); setErro(d.error ?? "Erro ao atribuir"); setSalvando(false); return; }
+      }
+      onSave(); onClose();
+    } catch { setErro("Erro ao salvar"); setSalvando(false); }
   }
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-gray-900">Nova Atribuição</h3>
+          <h3 className="text-lg font-bold text-gray-900">{editando ? "Editar Atribuição" : "Nova Atribuição"}</h3>
           <button onClick={onClose}><X size={20} className="text-gray-400"/></button>
         </div>
         <form onSubmit={salvar} className="space-y-3">
-          <div><label className="block text-xs font-medium text-gray-600 mb-1">Colaborador / Gestor *</label>
-          <select required value={form.colaboradorId} onChange={e=>setForm(f=>({...f,colaboradorId:e.target.value}))} className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <div><label className="block text-xs font-medium text-gray-600 mb-1">Colaborador *</label>
+          <select required value={colaboradorId} onChange={e=>setColaboradorId(e.target.value)}
+            disabled={editando}
+            className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500">
             <option value="">Selecionar...</option>
             {colaboradores.map(c => <option key={c.id} value={c.id}>{c.nome} ({c.matricula})</option>)}
           </select></div>
-          <div><label className="block text-xs font-medium text-gray-600 mb-1">Agrupamento *</label>
-          <select required value={form.agrupamentoId} onChange={e=>{
-            const ag = agrupamentos.find(a=>String(a.id)===e.target.value);
-            const soma = ag ? ag.indicadores.reduce((s,i)=>s+i.peso,0) : 0;
-            setForm(f=>({...f, agrupamentoId:e.target.value, pesoNaCesta: ag ? String(soma) : ""}));
-          }} className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-            <option value="">Selecionar...</option>
-            {agrupamentos.map(a => {
-              const soma = a.indicadores.reduce((s,i)=>s+i.peso,0);
-              return <option key={a.id} value={a.id}>{a.nome} ({a.tipo}) — {soma}%</option>;
-            })}
-          </select></div>
-          <div><label className="block text-xs font-medium text-gray-600 mb-1">Peso na Cesta (%)</label>
-          <input readOnly type="number" value={form.pesoNaCesta} className="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-1.5 text-sm text-gray-500 cursor-default"/></div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Agrupamentos *</label>
+            <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-52 overflow-y-auto">
+              {agrupamentos.map(ag => {
+                const somaPeso = ag.indicadores.reduce((s,i)=>s+i.peso,0);
+                const sel = selecionados.has(ag.id);
+                return (
+                  <div key={ag.id} className={`flex items-center gap-2 px-3 py-2 ${sel?"bg-blue-50":""}`}>
+                    <input type="checkbox" checked={sel} disabled={editando && ag.id !== atrib?.agrupamentoId}
+                      onChange={()=>!editando && toggleAg(ag.id, somaPeso)} className="rounded"/>
+                    <div className="flex-1">
+                      <p className="text-sm text-gray-800">{ag.nome}</p>
+                      <p className="text-xs text-gray-400">{ag.tipo} — {somaPeso.toFixed(2)}%</p>
+                    </div>
+                    {sel && (
+                      <input type="number" min="0" max="100" step="0.01"
+                        value={selecionados.get(ag.id) ?? somaPeso}
+                        onChange={e=>setSelecionados(m=>{ const n=new Map(m); n.set(ag.id,Number(e.target.value)); return n; })}
+                        className="w-20 border border-gray-300 rounded px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        placeholder="Peso %"/>
+                    )}
+                  </div>
+                );
+              })}
+              {agrupamentos.length===0 && <p className="text-xs text-gray-400 p-3">Nenhum agrupamento cadastrado</p>}
+            </div>
+          </div>
+
           <div><label className="block text-xs font-medium text-gray-600 mb-1">Cascata</label>
-          <select value={form.cascata} onChange={e=>setForm(f=>({...f,cascata:e.target.value}))} className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <select value={cascata} onChange={e=>setCascata(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
             <option value="NENHUM">Nenhum (somente este)</option>
             <option value="DIRETOS">Diretos</option>
             <option value="DIRETOS_E_INDIRETOS">Diretos e Indiretos</option>
@@ -286,7 +332,7 @@ function ModalAtribuicao({ cicloId, agrupamentos, onSave, onClose }: { cicloId: 
           {erro && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{erro}</p>}
           <div className="flex gap-3 pt-1">
             <button type="button" onClick={onClose} className="flex-1 border border-gray-300 text-gray-700 text-sm py-2 rounded-lg hover:bg-gray-50">Cancelar</button>
-            <button type="submit" disabled={salvando} className="flex-1 bg-blue-700 hover:bg-blue-800 disabled:bg-blue-400 text-white text-sm py-2 rounded-lg">{salvando?"Atribuindo...":"Atribuir"}</button>
+            <button type="submit" disabled={salvando} className="flex-1 bg-blue-700 hover:bg-blue-800 disabled:bg-blue-400 text-white text-sm py-2 rounded-lg">{salvando?"Salvando...":"Salvar"}</button>
           </div>
         </form>
       </div>
@@ -348,7 +394,7 @@ export default function MetasPage() {
   const [busca, setBusca] = useState("");
   const [modalInd, setModalInd] = useState<Indicador|null|"new">(null);
   const [modalAg, setModalAg] = useState<Agrupamento|null|"new">(null);
-  const [modalAtrib, setModalAtrib] = useState(false);
+  const [modalAtrib, setModalAtrib] = useState<Atribuicao | null | "new">(null);
   const [modalImport, setModalImport] = useState(false);
 
   const carregarInds = useCallback(() => {
@@ -494,7 +540,7 @@ export default function MetasPage() {
       {/* ── ABA ATRIBUIÇÕES ── */}
       {aba==="atribuicoes" && (
         <div className="space-y-4">
-          <div className="flex justify-end"><button onClick={()=>setModalAtrib(true)} className="flex items-center gap-2 bg-blue-700 hover:bg-blue-800 text-white text-sm px-3 py-2 rounded-lg"><Plus size={15}/>Nova Atribuição</button></div>
+          <div className="flex justify-end"><button onClick={()=>setModalAtrib("new")} className="flex items-center gap-2 bg-blue-700 hover:bg-blue-800 text-white text-sm px-3 py-2 rounded-lg"><Plus size={15}/>Nova Atribuição</button></div>
           {atribuicoes.length===0 ? (
             <div className="bg-white rounded-xl border border-gray-200 p-10 text-center text-gray-400"><Users size={36} className="mx-auto mb-2 text-gray-300"/>Nenhuma atribuição cadastrada</div>
           ) : (
@@ -513,7 +559,7 @@ export default function MetasPage() {
                         <td className="px-4 py-2.5 font-medium text-gray-800">{a.pesoNaCesta}%</td>
                         <td className="px-4 py-2.5 text-xs text-gray-500">{a.cascata}</td>
                         <td className="px-4 py-2.5"><span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${soma===100?"bg-green-100 text-green-700":"bg-yellow-100 text-yellow-700"}`}>{soma}%</span></td>
-                        <td className="px-4 py-2.5"><button onClick={()=>excluirAtrib(a.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"><Trash2 size={14}/></button></td>
+                        <td className="px-4 py-2.5"><div className="flex gap-1"><button onClick={()=>setModalAtrib(a)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"><Pencil size={14}/></button><button onClick={()=>excluirAtrib(a.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"><Trash2 size={14}/></button></div></td>
                       </tr>
                     );
                   })}
@@ -526,7 +572,7 @@ export default function MetasPage() {
 
       {modalInd!==null && <ModalIndicador ind={modalInd==="new"?null:modalInd} cicloId={cicloAtivo.id} colaboradores={colaboradores} todosIndicadores={indicadores} onSave={carregarInds} onClose={()=>setModalInd(null)}/>}
       {modalAg!==null && <ModalAgrupamento ag={modalAg==="new"?null:modalAg} cicloId={cicloAtivo.id} indicadores={indicadores} onSave={carregarAgs} onClose={()=>setModalAg(null)}/>}
-      {modalAtrib && <ModalAtribuicao cicloId={cicloAtivo.id} agrupamentos={agrupamentos} onSave={carregarAtribs} onClose={()=>setModalAtrib(false)}/>}
+      {modalAtrib!==null && <ModalAtribuicao cicloId={cicloAtivo.id} agrupamentos={agrupamentos} atrib={modalAtrib==="new"?null:modalAtrib} onSave={carregarAtribs} onClose={()=>setModalAtrib(null)}/>}
       {modalImport && <ModalImport cicloId={cicloAtivo.id} onDone={carregarInds} onClose={()=>setModalImport(false)}/>}
     </div>
   );

@@ -139,5 +139,21 @@ export async function POST(req: Request) {
     }
   }
 
+  // Resolve gestorId a partir de matriculaGestor — necessário para cascata funcionar
+  const comGestor = await prisma.colaborador.findMany({
+    where: { cicloId: Number(cicloId), matriculaGestor: { not: null } },
+    select: { id: true, matriculaGestor: true },
+  });
+  for (const c of comGestor) {
+    if (!c.matriculaGestor) continue;
+    const gestor = await prisma.colaborador.findFirst({
+      where: { cicloId: Number(cicloId), matricula: c.matriculaGestor },
+      select: { id: true },
+    });
+    if (gestor) {
+      await prisma.colaborador.update({ where: { id: c.id }, data: { gestorId: gestor.id } });
+    }
+  }
+
   return NextResponse.json({ criados, erros });
 }
