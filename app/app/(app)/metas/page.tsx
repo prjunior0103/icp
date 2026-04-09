@@ -9,7 +9,7 @@ interface Indicador { id: number; cicloId: number; codigo: string; nome: string;
 interface FaixaIndicador { id?: number; de: number; ate: number; nota: number; }
 interface IndicadorNoGrupo { id: number; indicadorId: number; peso: number; indicador: Indicador; }
 interface Agrupamento { id: number; cicloId: number; nome: string; tipo: string; descricao?: string | null; indicadores: IndicadorNoGrupo[]; }
-interface Colaborador { id: number; nome: string; matricula: string; }
+interface Colaborador { id: number; nome: string; matricula: string; centroCusto?: string | null; area?: { nivel1: string; nivel2?: string | null; nivel3?: string | null; nivel4?: string | null; nivel5?: string | null } | null; }
 interface Atribuicao { id: number; colaboradorId: number; agrupamentoId: number; pesoNaCesta: number; cascata: string; colaborador: Colaborador; agrupamento: Agrupamento; }
 
 const TIPOS = ["MAIOR_MELHOR","MENOR_MELHOR","PROJETO_MARCO"];
@@ -404,6 +404,7 @@ export default function MetasPage() {
   const [selAtribs, setSelAtribs] = useState<Set<number>>(new Set());
   const [excluindoAtribs, setExcluindoAtribs] = useState(false);
   const [atribuindoAg, setAtribuindoAg] = useState<Set<number>>(new Set());
+  const [filtroAreaAtrib, setFiltroAreaAtrib] = useState("");
 
   const carregarInds = useCallback(() => {
     if (!cicloAtivo) return;
@@ -583,7 +584,13 @@ export default function MetasPage() {
       {/* ── ABA ATRIBUIÇÕES ── */}
       {aba==="atribuicoes" && (
         <div className="space-y-4">
-          <div className="flex items-center justify-end gap-2">
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1 max-w-xs">
+              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"/>
+              <input value={filtroAreaAtrib} onChange={e=>setFiltroAreaAtrib(e.target.value)} placeholder="Área / Centro de Custo..."
+                className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+            </div>
+            <div className="flex-1"/>
             {selAtribs.size > 0 && (
               <button onClick={excluirAtribsMassa} disabled={excluindoAtribs}
                 className="flex items-center gap-2 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white text-sm px-3 py-2 rounded-lg">
@@ -606,7 +613,12 @@ export default function MetasPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {atribuicoes.map(a=>{
+                  {atribuicoes.filter(a => {
+                    if (!filtroAreaAtrib) return true;
+                    const t = filtroAreaAtrib.toLowerCase();
+                    const c = a.colaborador;
+                    return [c.area?.nivel1,c.area?.nivel2,c.area?.nivel3,c.area?.nivel4,c.area?.nivel5].some(n=>n?.toLowerCase().includes(t)) || c.centroCusto?.toLowerCase().includes(t);
+                  }).map(a=>{
                     const soma = somasPorColab[a.colaboradorId]??0;
                     return (
                       <tr key={a.id} className={`hover:bg-gray-50 ${selAtribs.has(a.id)?"bg-blue-50":""}`}>

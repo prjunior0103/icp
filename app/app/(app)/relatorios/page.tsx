@@ -11,7 +11,7 @@ interface Realizacao { id: number; indicadorId: number; periodo: string; valorRe
 interface MetaPeriodo { id: number; indicadorId: number; periodo: string; valorOrcado: number; }
 interface IndicadorNoGrupo { indicadorId: number; peso: number; indicador: Indicador; }
 interface Agrupamento { id: number; nome: string; tipo: string; indicadores: IndicadorNoGrupo[]; }
-interface Colaborador { id: number; nome: string; matricula: string; cargo: string; salarioBase: number; target: number; gestorId?: number | null; area?: { nivel1: string; nivel2?: string | null } | null; }
+interface Colaborador { id: number; nome: string; matricula: string; cargo: string; salarioBase: number; target: number; gestorId?: number | null; centroCusto?: string | null; area?: { nivel1: string; nivel2?: string | null; nivel3?: string | null; nivel4?: string | null; nivel5?: string | null } | null; }
 interface Atribuicao { colaboradorId: number; agrupamentoId: number; pesoNaCesta: number; colaborador: Colaborador; agrupamento: Agrupamento; }
 
 type AbaId = "colaborador" | "indicador" | "contratacao" | "responsavel" | "gestor" | "calibracao";
@@ -65,13 +65,20 @@ function NotaBadge({ nota }: { nota: number | null | undefined }) {
 // ─── R1: Por Colaborador ─────────────────────────────────
 function RelatColaborador({ atribuicoes, notasMap }: { atribuicoes: Atribuicao[]; notasMap: Map<number, number>; }) {
   const [busca, setBusca] = useState("");
+  const [filtroArea, setFiltroArea] = useState("");
   const [expandido, setExpandido] = useState<Record<number, boolean>>({});
 
   const colabsMap = new Map<number, Colaborador>();
   for (const a of atribuicoes) colabsMap.set(a.colaboradorId, a.colaborador);
-  const colabs = Array.from(colabsMap.values()).filter(c =>
-    !busca || c.nome.toLowerCase().includes(busca.toLowerCase()) || c.matricula.includes(busca)
-  );
+  const colabs = Array.from(colabsMap.values()).filter(c => {
+    if (busca && !c.nome.toLowerCase().includes(busca.toLowerCase()) && !c.matricula.includes(busca)) return false;
+    if (filtroArea) {
+      const t = filtroArea.toLowerCase();
+      const matchArea = [c.area?.nivel1,c.area?.nivel2,c.area?.nivel3,c.area?.nivel4,c.area?.nivel5].some(n=>n?.toLowerCase().includes(t));
+      if (!matchArea && !c.centroCusto?.toLowerCase().includes(t)) return false;
+    }
+    return true;
+  });
 
   function calcColab(id: number) {
     const atribs = atribuicoes.filter(a => a.colaboradorId === id);
@@ -94,10 +101,17 @@ function RelatColaborador({ atribuicoes, notasMap }: { atribuicoes: Atribuicao[]
 
   return (
     <div className="space-y-3">
-      <div className="relative max-w-sm">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"/>
-        <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar colaborador..."
-          className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+      <div className="flex gap-3">
+        <div className="relative max-w-sm flex-1">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"/>
+          <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar colaborador..."
+            className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+        </div>
+        <div className="relative max-w-xs">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"/>
+          <input value={filtroArea} onChange={e => setFiltroArea(e.target.value)} placeholder="Área / Centro de Custo..."
+            className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+        </div>
       </div>
 
       {colabs.map(c => {

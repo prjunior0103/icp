@@ -17,7 +17,7 @@ interface Realizacao { id: number; indicadorId: number; periodo: string; valorRe
 interface MetaPeriodo { id: number; indicadorId: number; periodo: string; valorOrcado: number; }
 interface IndicadorNoGrupo { indicadorId: number; peso: number; indicador: Indicador; }
 interface Agrupamento { id: number; nome: string; tipo: string; indicadores: IndicadorNoGrupo[]; }
-interface Colaborador { id: number; nome: string; matricula: string; cargo: string; salarioBase: number; target: number; gestorId?: number | null; area?: { nivel1: string; nivel2?: string | null; nivel3?: string | null; nivel4?: string | null; nivel5?: string | null } | null; }
+interface Colaborador { id: number; nome: string; matricula: string; cargo: string; salarioBase: number; target: number; gestorId?: number | null; centroCusto?: string | null; area?: { nivel1: string; nivel2?: string | null; nivel3?: string | null; nivel4?: string | null; nivel5?: string | null } | null; }
 interface Atribuicao { colaboradorId: number; agrupamentoId: number; pesoNaCesta: number; colaborador: Colaborador; agrupamento: Agrupamento; }
 
 const MESES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
@@ -373,7 +373,12 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
   const colabsFiltrados = colaboradores.filter(c => {
     if (filtroGestor && String(c.gestorId) !== filtroGestor) return false;
     if (filtroColaborador && !c.nome.toLowerCase().includes(filtroColaborador.toLowerCase())) return false;
-    if (filtroNivel && !([c.area?.nivel1,c.area?.nivel2,c.area?.nivel3,c.area?.nivel4,c.area?.nivel5].some(n => n?.toLowerCase().includes(filtroNivel.toLowerCase())))) return false;
+    if (filtroNivel) {
+      const termo = filtroNivel.toLowerCase();
+      const matchArea = [c.area?.nivel1,c.area?.nivel2,c.area?.nivel3,c.area?.nivel4,c.area?.nivel5].some(n => n?.toLowerCase().includes(termo));
+      const matchCC = c.centroCusto?.toLowerCase().includes(termo);
+      if (!matchArea && !matchCC) return false;
+    }
     return true;
   });
 
@@ -418,7 +423,7 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
         </select>
         <div className="relative">
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"/>
-          <input value={filtroNivel} onChange={e=>setFiltroNivel(e.target.value)} placeholder="Nível (N1–N5)..."
+          <input value={filtroNivel} onChange={e=>setFiltroNivel(e.target.value)} placeholder="Área / Centro de Custo..."
             className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"/>
         </div>
       </div>

@@ -447,6 +447,7 @@ function AbaColaboradores({ cicloId }: { cicloId: number }) {
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
   const [areas, setAreas] = useState<Area[]>([]);
   const [busca, setBusca] = useState("");
+  const [filtroArea, setFiltroArea] = useState("");
   const [modalColab, setModalColab] = useState<Colaborador | null | "new">(null);
   const [modalImport, setModalImport] = useState(false);
   const [excluindo, setExcluindo] = useState<number | null>(null);
@@ -498,6 +499,15 @@ function AbaColaboradores({ cicloId }: { cicloId: number }) {
             className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
+        <div className="relative">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            value={filtroArea}
+            onChange={(e) => setFiltroArea(e.target.value)}
+            placeholder="Área / Centro de Custo..."
+            className="w-52 pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
         {selecionados.size > 0 && (
           <button onClick={excluirSelecionados} disabled={excluindoMassa}
             className="flex items-center gap-2 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white text-sm px-3 py-2 rounded-lg">
@@ -534,7 +544,11 @@ function AbaColaboradores({ cicloId }: { cicloId: number }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {colaboradores.map((c) => (
+              {colaboradores.filter(c => {
+                if (!filtroArea) return true;
+                const t = filtroArea.toLowerCase();
+                return [c.area?.nivel1,c.area?.nivel2,c.area?.nivel3,c.area?.nivel4,c.area?.nivel5].some(n=>n?.toLowerCase().includes(t)) || c.centroCusto?.toLowerCase().includes(t);
+              }).map((c) => (
                 <tr key={c.id} className={`hover:bg-gray-50 ${selecionados.has(c.id) ? "bg-blue-50" : ""}`}>
                   <td className="px-4 py-2.5">
                     <input type="checkbox" checked={selecionados.has(c.id)} onChange={() => toggleSel(c.id)} className="rounded" />
