@@ -203,7 +203,14 @@ function ModalAgrupamento({ ag, cicloId, indicadores, onSave, onClose }: { ag: A
               <option value="CORPORATIVO">Corporativo</option><option value="AREA">Área</option></select></div>
           </div>
           <div>
-            <p className="text-xs font-medium text-gray-600 mb-2">Indicadores e pesos</p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-medium text-gray-600">Indicadores e pesos</p>
+              {(() => {
+                const total = selecionados.reduce((s,x)=>s+x.peso,0);
+                const cor = Math.abs(total-100)<0.01 ? "text-green-600 bg-green-50" : total>100 ? "text-red-600 bg-red-50" : "text-orange-600 bg-orange-50";
+                return selecionados.length>0 ? <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${cor}`}>Total: {total.toFixed(2)}%</span> : null;
+              })()}
+            </div>
             <div className="space-y-1 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-2">
               {indicadores.map(ind => {
                 const sel = selecionados.find(x => x.indicadorId===ind.id);
