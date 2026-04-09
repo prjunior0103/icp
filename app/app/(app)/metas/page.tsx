@@ -16,6 +16,7 @@ const TIPOS = ["MAIOR_MELHOR","MENOR_MELHOR","PROJETO_MARCO"];
 const ABRANGENCIA = ["CORPORATIVO","AREA","INDIVIDUAL"];
 const PERIODICIDADE = ["MENSAL","TRIMESTRAL","SEMESTRAL","ANUAL"];
 const CRITERIO = ["SOMA","MEDIA","ULTIMA_POSICAO"];
+const UNIDADES = ["%","R$","Unidades","Dias","Horas","Pontos","Índice","NPS","Score","Toneladas","Km","Litros","Kg"];
 const STATUS_JANELA_COLOR: Record<string,string> = { ABERTA:"bg-green-100 text-green-700", FECHADA:"bg-gray-100 text-gray-500", PRORROGADA:"bg-yellow-100 text-yellow-700" };
 
 // ─── Modal Indicador ──────────────────────────────────────
@@ -85,7 +86,7 @@ function ModalIndicador({ ind, cicloId, colaboradores, todosIndicadores, onSave,
             {input("Nome","nome",undefined,true)}
             {sel("Tipo","tipo",TIPOS)}
             {sel("Abrangência","abrangencia",ABRANGENCIA)}
-            {input("Unidade","unidade")}
+            {sel("Unidade","unidade",UNIDADES)}
             {input("Métrica","metrica")}
             {input("Meta Mínima","metaMinima","number")}
             {input("Meta Alvo","metaAlvo","number")}
