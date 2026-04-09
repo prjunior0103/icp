@@ -48,25 +48,97 @@ model Area {
 }
 
 model Colaborador {
-  id               Int           @id @default(autoincrement())
+  id               Int                    @id @default(autoincrement())
   cicloId          Int
   areaId           Int?
-  area             Area?         @relation(fields: [areaId], references: [id])
+  area             Area?                  @relation(fields: [areaId], references: [id])
   nome             String
   email            String?
   matricula        String
   cargo            String
   grade            String?
   salarioBase      Float
-  target           Float         // múltiplo salarial ex: 1.5
+  target           Float
   centroCusto      String?
   codEmpresa       String?
   admissao         DateTime?
   gestorId         Int?
-  gestor           Colaborador?  @relation("GestorSubordinados", fields: [gestorId], references: [id])
-  subordinados     Colaborador[] @relation("GestorSubordinados")
+  gestor           Colaborador?           @relation("GestorSubordinados", fields: [gestorId], references: [id])
+  subordinados     Colaborador[]          @relation("GestorSubordinados")
   matriculaGestor  String?
   nomeGestor       String?
-  status           String        @default("ATIVO") // ATIVO, INATIVO, AFASTADO
-  criadoEm         DateTime      @default(now())
+  status           String                 @default("ATIVO")
+  criadoEm         DateTime               @default(now())
+  atribuicoes      AtribuicaoAgrupamento[]
+  indicadoresResp  Indicador[]            @relation("ResponsavelEnvio")
+}
+
+model Indicador {
+  id                  Int                    @id @default(autoincrement())
+  cicloId             Int
+  codigo              String
+  nome                String
+  descricao           String?
+  tipo                String                 // MAIOR_MELHOR | MENOR_MELHOR | PROJETO_MARCO
+  abrangencia         String                 @default("CORPORATIVO") // CORPORATIVO | AREA | INDIVIDUAL
+  unidade             String                 @default("%")
+  metaMinima          Float?
+  metaAlvo            Float?
+  metaMaxima          Float?
+  baseline            Float?
+  metrica             String?
+  periodicidade       String                 @default("MENSAL") // MENSAL | TRIMESTRAL | SEMESTRAL | ANUAL
+  criterioApuracao    String                 @default("ULTIMA_POSICAO") // SOMA | MEDIA | ULTIMA_POSICAO
+  origemDado          String?
+  analistaResp        String?
+  aprovadorId         String?                // User.id
+  responsavelEnvioId  Int?
+  responsavelEnvio    Colaborador?           @relation("ResponsavelEnvio", fields: [responsavelEnvioId], references: [id])
+  divisorId           Int?
+  divisor             Indicador?             @relation("IndicadorDivisor", fields: [divisorId], references: [id])
+  divisorado          Indicador[]            @relation("IndicadorDivisor")
+  statusJanela        String                 @default("FECHADA") // ABERTA | FECHADA | PRORROGADA
+  janelaAbertaEm      DateTime?
+  janelaFechadaEm     DateTime?
+  status              String                 @default("DRAFT") // DRAFT | ATIVO
+  criadoEm            DateTime               @default(now())
+  indicadoresGrupo    IndicadorNoAgrupamento[]
+
+  @@unique([cicloId, codigo])
+}
+
+model Agrupamento {
+  id          Int                    @id @default(autoincrement())
+  cicloId     Int
+  nome        String
+  tipo        String                 @default("CORPORATIVO") // CORPORATIVO | AREA
+  descricao   String?
+  criadoEm    DateTime               @default(now())
+  indicadores IndicadorNoAgrupamento[]
+  atribuicoes AtribuicaoAgrupamento[]
+}
+
+model IndicadorNoAgrupamento {
+  id            Int         @id @default(autoincrement())
+  agrupamentoId Int
+  agrupamento   Agrupamento @relation(fields: [agrupamentoId], references: [id], onDelete: Cascade)
+  indicadorId   Int
+  indicador     Indicador   @relation(fields: [indicadorId], references: [id])
+  peso          Float       @default(0)
+
+  @@unique([agrupamentoId, indicadorId])
+}
+
+model AtribuicaoAgrupamento {
+  id              Int          @id @default(autoincrement())
+  cicloId         Int
+  colaboradorId   Int
+  colaborador     Colaborador  @relation(fields: [colaboradorId], references: [id])
+  agrupamentoId   Int
+  agrupamento     Agrupamento  @relation(fields: [agrupamentoId], references: [id])
+  pesoNaCesta     Float
+  cascata         String       @default("NENHUM") // NENHUM | DIRETOS | DIRETOS_E_INDIRETOS
+  criadoEm        DateTime     @default(now())
+
+  @@unique([colaboradorId, agrupamentoId])
 }
