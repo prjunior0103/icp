@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useSession } from "next-auth/react";
-import { Plus, X, Building2, Calendar, LayoutDashboard } from "lucide-react";
+import { Plus, X, Building2, Calendar, LayoutDashboard, Pencil, Trash2 } from "lucide-react";
 import { useCiclo } from "@/app/lib/ciclo-context";
 
 const MESES = [
@@ -28,39 +28,88 @@ export default function DashboardPage() {
   const role = (session?.user as { role?: string })?.role;
 
   const [modalOpen, setModalOpen] = useState(false);
+  const [editando, setEditando] = useState<typeof ciclos[0] | null>(null);
   const [anoFiscal, setAnoFiscal] = useState(String(new Date().getFullYear()));
   const [mesInicio, setMesInicio] = useState("1");
   const [mesFim, setMesFim] = useState("12");
+  const [statusForm, setStatusForm] = useState("SETUP");
   const [salvando, setSalvando] = useState(false);
+  const [excluindo, setExcluindo] = useState<number | null>(null);
   const [erro, setErro] = useState("");
 
-  async function criarCiclo(e: React.FormEvent) {
+  function abrirEditar(c: typeof ciclos[0]) {
+    setEditando(c);
+    setAnoFiscal(String(c.anoFiscal));
+    setMesInicio(String(c.mesInicio));
+    setMesFim(String(c.mesFim));
+    setStatusForm(c.status);
+    setErro("");
+    setModalOpen(true);
+  }
+
+  function abrirCriar() {
+    setEditando(null);
+    setAnoFiscal(String(new Date().getFullYear()));
+    setMesInicio("1");
+    setMesFim("12");
+    setStatusForm("SETUP");
+    setErro("");
+    setModalOpen(true);
+  }
+
+  async function salvarCiclo(e: React.FormEvent) {
     e.preventDefault();
     setErro("");
     setSalvando(true);
     try {
-      const res = await fetch("/api/ciclos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          anoFiscal: Number(anoFiscal),
-          mesInicio: Number(mesInicio),
-          mesFim: Number(mesFim),
-        }),
-      });
+      let res: Response;
+      if (editando) {
+        res = await fetch("/api/ciclos", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: editando.id,
+            anoFiscal: Number(anoFiscal),
+            mesInicio: Number(mesInicio),
+            mesFim: Number(mesFim),
+            status: statusForm,
+          }),
+        });
+      } else {
+        res = await fetch("/api/ciclos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            anoFiscal: Number(anoFiscal),
+            mesInicio: Number(mesInicio),
+            mesFim: Number(mesFim),
+          }),
+        });
+      }
       if (!res.ok) {
         const data = await res.json();
-        setErro(data.error ?? "Erro ao criar ciclo");
+        setErro(data.error ?? "Erro ao salvar ciclo");
         return;
       }
       const { ciclo } = await res.json();
       recarregar();
-      setCicloAtivo(ciclo);
+      if (!editando) setCicloAtivo(ciclo);
       setModalOpen(false);
     } catch {
       setErro("Erro de conexão");
     } finally {
       setSalvando(false);
+    }
+  }
+
+  async function excluirCiclo(id: number) {
+    if (!confirm("Confirma exclusão do ciclo?")) return;
+    setExcluindo(id);
+    try {
+      await fetch(`/api/ciclos?id=${id}`, { method: "DELETE" });
+      recarregar();
+    } finally {
+      setExcluindo(null);
     }
   }
 
@@ -74,7 +123,7 @@ export default function DashboardPage() {
         </div>
         {role === "GUARDIAO" && (
           <button
-            onClick={() => setModalOpen(true)}
+            onClick={abrirCriar}
             className="flex items-center gap-2 bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
           >
             <Plus size={16} />
@@ -147,20 +196,43 @@ export default function DashboardPage() {
           </div>
           <div className="divide-y divide-gray-50">
             {ciclos.map((c) => (
-              <button
+              <div
                 key={c.id}
-                onClick={() => setCicloAtivo(c)}
-                className={`w-full flex items-center justify-between px-5 py-3 text-sm hover:bg-gray-50 transition-colors ${
+                className={`flex items-center justify-between px-5 py-3 text-sm hover:bg-gray-50 transition-colors ${
                   cicloAtivo?.id === c.id ? "bg-blue-50" : ""
                 }`}
               >
-                <span className={`font-medium ${cicloAtivo?.id === c.id ? "text-blue-700" : "text-gray-700"}`}>
-                  Ciclo {c.anoFiscal}
-                </span>
-                <span className={`text-xs px-2 py-0.5 rounded-full border ${statusColor[c.status] ?? ""}`}>
-                  {statusLabel[c.status] ?? c.status}
-                </span>
-              </button>
+                <button
+                  onClick={() => setCicloAtivo(c)}
+                  className="flex items-center gap-3 flex-1 text-left"
+                >
+                  <span className={`font-medium ${cicloAtivo?.id === c.id ? "text-blue-700" : "text-gray-700"}`}>
+                    Ciclo {c.anoFiscal}
+                  </span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full border ${statusColor[c.status] ?? ""}`}>
+                    {statusLabel[c.status] ?? c.status}
+                  </span>
+                </button>
+                {role === "GUARDIAO" && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => abrirEditar(c)}
+                      className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                      title="Editar"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                    <button
+                      onClick={() => excluirCiclo(c.id)}
+                      disabled={excluindo === c.id}
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-40"
+                      title="Excluir"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         </div>
@@ -178,13 +250,15 @@ export default function DashboardPage() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
             <div className="flex items-center justify-between mb-5">
-              <h3 className="text-lg font-bold text-gray-900">Novo Ciclo ICP</h3>
+              <h3 className="text-lg font-bold text-gray-900">
+                {editando ? `Editar Ciclo ${editando.anoFiscal}` : "Novo Ciclo ICP"}
+              </h3>
               <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-gray-600">
                 <X size={20} />
               </button>
             </div>
 
-            <form onSubmit={criarCiclo} className="space-y-4">
+            <form onSubmit={salvarCiclo} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Ano Fiscal
@@ -231,6 +305,23 @@ export default function DashboardPage() {
                 </div>
               </div>
 
+              {editando && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Status
+                  </label>
+                  <select
+                    value={statusForm}
+                    onChange={(e) => setStatusForm(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="SETUP">Configuração</option>
+                    <option value="ATIVO">Ativo</option>
+                    <option value="ENCERRADO">Encerrado</option>
+                  </select>
+                </div>
+              )}
+
               {erro && (
                 <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{erro}</p>
               )}
@@ -248,7 +339,7 @@ export default function DashboardPage() {
                   disabled={salvando}
                   className="flex-1 bg-blue-700 hover:bg-blue-800 disabled:bg-blue-400 text-white text-sm font-medium py-2 rounded-lg transition-colors"
                 >
-                  {salvando ? "Criando..." : "Criar Ciclo"}
+                  {salvando ? "Salvando..." : editando ? "Salvar" : "Criar Ciclo"}
                 </button>
               </div>
             </form>
