@@ -431,7 +431,6 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
         <div className="space-y-2">
           {colabsFiltrados.map(c => {
             const { resultado, detalhes } = calcResultadoColab(c.id);
-            const premio = c.salarioBase * (c.target / 100) * (resultado / 100);
             const aberto = expandido[c.id];
             return (
               <div key={c.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -449,12 +448,6 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
                       <p className="text-xs text-gray-400">Resultado</p>
                       <p className={`text-sm font-bold ${resultado >= 100 ? "text-green-600" : resultado > 0 ? "text-yellow-600" : "text-gray-400"}`}>
                         {resultado.toFixed(1)}%
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-gray-400">Prêmio Projetado</p>
-                      <p className="text-sm font-bold text-blue-700">
-                        {premio.toLocaleString("pt-BR", { style:"currency", currency:"BRL" })}
                       </p>
                     </div>
                     {aberto ? <ChevronUp size={16} className="text-gray-400"/> : <ChevronDown size={16} className="text-gray-400"/>}

@@ -528,7 +528,7 @@ function AbaColaboradores({ cicloId }: { cicloId: number }) {
                 <th className="px-4 py-2.5">
                   <input type="checkbox" checked={selecionados.size === colaboradores.length} onChange={toggleTodos} className="rounded" />
                 </th>
-                {["Matrícula", "Nome", "Cargo / Grade", "Área", "Salário Base", "Gestor", "Status", ""].map((h) => (
+                {["Matrícula", "Nome", "Cargo / Grade", "Área", "Gestor", "Status", ""].map((h) => (
                   <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -549,9 +549,6 @@ function AbaColaboradores({ cicloId }: { cicloId: number }) {
                     {c.grade && <p className="text-xs text-gray-400">{c.grade}</p>}
                   </td>
                   <td className="px-4 py-2.5 text-gray-600 text-xs">{c.area?.nivel1 ?? "—"}</td>
-                  <td className="px-4 py-2.5 text-gray-700">
-                    {c.salarioBase.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                  </td>
                   <td className="px-4 py-2.5 text-gray-600 text-xs">{c.nomeGestor ?? "—"}</td>
                   <td className="px-4 py-2.5">
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[c.status] ?? ""}`}>
