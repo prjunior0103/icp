@@ -7,7 +7,7 @@ import { useCiclo } from "@/app/lib/ciclo-context";
 // ─── Types ────────────────────────────────────────────────
 interface Indicador { id: number; cicloId: number; codigo: string; nome: string; tipo: string; abrangencia: string; unidade: string; metaMinima?: number | null; metaAlvo?: number | null; metaMaxima?: number | null; baseline?: number | null; metrica?: string | null; periodicidade: string; criterioApuracao: string; origemDado?: string | null; analistaResp?: string | null; statusJanela: string; status: string; descricao?: string | null; }
 interface IndicadorNoGrupo { id: number; indicadorId: number; peso: number; indicador: Indicador; }
-interface Agrupamento { id: number; cicloId: number; nome: string; tipo: string; peso: number; descricao?: string | null; indicadores: IndicadorNoGrupo[]; }
+interface Agrupamento { id: number; cicloId: number; nome: string; tipo: string; descricao?: string | null; indicadores: IndicadorNoGrupo[]; }
 interface Colaborador { id: number; nome: string; matricula: string; }
 interface Atribuicao { id: number; colaboradorId: number; agrupamentoId: number; pesoNaCesta: number; cascata: string; colaborador: Colaborador; agrupamento: Agrupamento; }
 
@@ -101,7 +101,6 @@ function ModalIndicador({ ind, cicloId, colaboradores, onSave, onClose }: { ind:
 function ModalAgrupamento({ ag, cicloId, indicadores, onSave, onClose }: { ag: Agrupamento | null; cicloId: number; indicadores: Indicador[]; onSave: () => void; onClose: () => void; }) {
   const [nome, setNome] = useState(ag?.nome ?? "");
   const [tipo, setTipo] = useState(ag?.tipo ?? "CORPORATIVO");
-  const [peso, setPesoAg] = useState(ag?.peso != null ? String(ag.peso) : "");
   const [selecionados, setSelecionados] = useState<{indicadorId:number;peso:number}[]>(ag?.indicadores.map(i => ({indicadorId:i.indicadorId,peso:i.peso})) ?? []);
   const [salvando, setSalvando] = useState(false);
 
@@ -114,7 +113,7 @@ function ModalAgrupamento({ ag, cicloId, indicadores, onSave, onClose }: { ag: A
 
   async function salvar(e: React.FormEvent) {
     e.preventDefault(); setSalvando(true);
-    const body = ag ? { id: ag.id, nome, tipo, peso: Number(peso), indicadores: selecionados } : { cicloId, nome, tipo, peso: Number(peso) };
+    const body = ag ? { id: ag.id, nome, tipo, indicadores: selecionados } : { cicloId, nome, tipo };
     const res = await fetch("/api/agrupamentos", { method: ag ? "PUT" : "POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) });
     if (!res.ok) { setSalvando(false); return; }
     if (!ag) {
@@ -139,8 +138,6 @@ function ModalAgrupamento({ ag, cicloId, indicadores, onSave, onClose }: { ag: A
             <div><label className="block text-xs font-medium text-gray-600 mb-1">Tipo</label>
             <select value={tipo} onChange={e=>setTipo(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
               <option value="CORPORATIVO">Corporativo</option><option value="AREA">Área</option></select></div>
-            <div><label className="block text-xs font-medium text-gray-600 mb-1">Peso na Cesta (%) *</label>
-            <input required type="number" min="0" max="100" value={peso} onChange={e=>setPesoAg(e.target.value)} placeholder="ex: 60" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/></div>
           </div>
           <div>
             <p className="text-xs font-medium text-gray-600 mb-2">Indicadores e pesos</p>
@@ -199,10 +196,14 @@ function ModalAtribuicao({ cicloId, agrupamentos, onSave, onClose }: { cicloId: 
           <div><label className="block text-xs font-medium text-gray-600 mb-1">Agrupamento *</label>
           <select required value={form.agrupamentoId} onChange={e=>{
             const ag = agrupamentos.find(a=>String(a.id)===e.target.value);
-            setForm(f=>({...f, agrupamentoId:e.target.value, pesoNaCesta: ag ? String(ag.peso) : f.pesoNaCesta}));
+            const soma = ag ? ag.indicadores.reduce((s,i)=>s+i.peso,0) : 0;
+            setForm(f=>({...f, agrupamentoId:e.target.value, pesoNaCesta: ag ? String(soma) : ""}));
           }} className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
             <option value="">Selecionar...</option>
-            {agrupamentos.map(a => <option key={a.id} value={a.id}>{a.nome} ({a.tipo}) — {a.peso}%</option>)}
+            {agrupamentos.map(a => {
+              const soma = a.indicadores.reduce((s,i)=>s+i.peso,0);
+              return <option key={a.id} value={a.id}>{a.nome} ({a.tipo}) — {soma}%</option>;
+            })}
           </select></div>
           <div><label className="block text-xs font-medium text-gray-600 mb-1">Peso na Cesta (%)</label>
           <input readOnly type="number" value={form.pesoNaCesta} className="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-1.5 text-sm text-gray-500 cursor-default"/></div>
