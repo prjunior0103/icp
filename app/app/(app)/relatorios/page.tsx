@@ -89,8 +89,7 @@ function RelatColaborador({ atribuicoes, notasMap }: { atribuicoes: Atribuicao[]
       }
       grupos.push({ ag: at.agrupamento, pesoNaCesta: at.pesoNaCesta, mids, ating });
     }
-    const premio = (colabsMap.get(id)!.salarioBase) * ((colabsMap.get(id)!.target) / 100) * (resultado / 100);
-    return { resultado, premio, grupos };
+    return { resultado, grupos };
   }
 
   return (
@@ -102,7 +101,7 @@ function RelatColaborador({ atribuicoes, notasMap }: { atribuicoes: Atribuicao[]
       </div>
 
       {colabs.map(c => {
-        const { resultado, premio, grupos } = calcColab(c.id);
+        const { resultado, grupos } = calcColab(c.id);
         const aberto = expandido[c.id];
         return (
           <div key={c.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -116,10 +115,6 @@ function RelatColaborador({ atribuicoes, notasMap }: { atribuicoes: Atribuicao[]
                 <div className="text-right">
                   <p className="text-xs text-gray-400">Resultado</p>
                   <NotaBadge nota={resultado}/>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-gray-400">Prêmio Projetado</p>
-                  <p className="text-sm font-bold text-blue-700">{premio.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</p>
                 </div>
                 {aberto ? <ChevronUp size={16} className="text-gray-400"/> : <ChevronDown size={16} className="text-gray-400"/>}
               </div>
@@ -347,14 +342,13 @@ function RelatGestor({ atribuicoes, notasMap }: { atribuicoes: Atribuicao[]; not
         <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>{["Colaborador","Matrícula","Cargo","Área","Resultado","Prêmio Projetado"].map(h => (
+              <tr>{["Colaborador","Matrícula","Cargo","Área","Resultado"].map(h => (
                 <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
               ))}</tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {subordinados.sort((a,b) => calcResultado(b.id) - calcResultado(a.id)).map(c => {
                 const resultado = calcResultado(c.id);
-                const premio = c.salarioBase * (c.target / 100) * (resultado / 100);
                 return (
                   <tr key={c.id} className="hover:bg-gray-50">
                     <td className="px-4 py-2.5 font-medium text-gray-800">{c.nome}</td>
@@ -362,7 +356,6 @@ function RelatGestor({ atribuicoes, notasMap }: { atribuicoes: Atribuicao[]; not
                     <td className="px-4 py-2.5 text-gray-600 text-xs">{c.cargo}</td>
                     <td className="px-4 py-2.5 text-gray-500 text-xs">{c.area?.nivel1 ?? "—"}</td>
                     <td className="px-4 py-2.5"><NotaBadge nota={resultado}/></td>
-                    <td className="px-4 py-2.5 font-semibold text-blue-700">{premio.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}</td>
                   </tr>
                 );
               })}
@@ -429,11 +422,6 @@ function RelatCalibracao({ atribuicoes, notasMap }: { atribuicoes: Atribuicao[];
               { label: "Cargo",            fn: (id: number) => colabsMap.get(id)?.cargo ?? "—" },
               { label: "Área",             fn: (id: number) => colabsMap.get(id)?.area?.nivel1 ?? "—" },
               { label: "Resultado",        fn: (id: number) => <NotaBadge nota={calcResultado(id)}/> },
-              { label: "Prêmio Projetado", fn: (id: number) => {
-                const c = colabsMap.get(id)!;
-                const r = calcResultado(id);
-                return (c.salarioBase * (c.target / 100) * (r / 100)).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
-              }},
             ] as { label: string; fn: (id: number) => React.ReactNode }[]).map(row => (
               <tr key={row.label} className="hover:bg-gray-50">
                 <td className="px-4 py-2.5 font-medium text-gray-600 text-xs whitespace-nowrap">{row.label}</td>

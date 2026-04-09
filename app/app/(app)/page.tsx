@@ -181,12 +181,11 @@ export default function DashboardPage() {
       )}
 
       {/* Cards de resumo */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {[
           { label: "Colaboradores", value: cicloAtivo ? String(contagens.colaboradores) : "—" },
           { label: "Metas", value: cicloAtivo ? "0" : "—" },
           { label: "Indicadores", value: cicloAtivo ? "0" : "—" },
-          { label: "Prêmio projetado", value: cicloAtivo ? "R$ 0" : "—" },
         ].map(({ label, value }) => (
           <div key={label} className="bg-white rounded-xl border border-gray-200 p-5">
             <p className="text-sm text-gray-500">{label}</p>
