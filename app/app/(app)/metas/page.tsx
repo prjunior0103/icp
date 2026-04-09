@@ -468,7 +468,17 @@ export default function MetasPage() {
               {agrupamentos.map(ag=>(
                 <div key={ag.id} className="bg-white rounded-xl border border-gray-200 p-4">
                   <div className="flex items-center justify-between mb-2">
-                    <div><p className="font-semibold text-gray-800">{ag.nome}</p><span className="text-xs text-gray-400">{ag.tipo}</span></div>
+                    <div>
+                      <p className="font-semibold text-gray-800">{ag.nome}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-xs text-gray-400">{ag.tipo}</span>
+                        {ag.indicadores.length>0 && (() => {
+                          const total = ag.indicadores.reduce((s,i)=>s+i.peso,0);
+                          const cor = Math.abs(total-100)<0.01 ? "text-green-600 bg-green-50" : total>100 ? "text-red-600 bg-red-50" : "text-orange-600 bg-orange-50";
+                          return <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${cor}`}>Total: {total.toFixed(2)}%</span>;
+                        })()}
+                      </div>
+                    </div>
                     <div className="flex gap-1"><button onClick={()=>setModalAg(ag)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"><Pencil size={14}/></button><button onClick={()=>excluirAg(ag.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"><Trash2 size={14}/></button></div>
                   </div>
                   {ag.indicadores.length>0 ? (
