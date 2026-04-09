@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { Plus, X, Building2, Calendar, LayoutDashboard, Pencil, Trash2 } from "lucide-react";
 import { useCiclo } from "@/app/lib/ciclo-context";
@@ -26,6 +26,16 @@ export default function DashboardPage() {
   const { data: session } = useSession();
   const { ciclos, cicloAtivo, setCicloAtivo, recarregar } = useCiclo();
   const role = (session?.user as { role?: string })?.role;
+
+  const [contagens, setContagens] = useState({ colaboradores: 0 });
+
+  useEffect(() => {
+    if (!cicloAtivo) { setContagens({ colaboradores: 0 }); return; }
+    fetch(`/api/colaboradores?cicloId=${cicloAtivo.id}`)
+      .then((r) => r.json())
+      .then((d) => setContagens({ colaboradores: (d.colaboradores ?? []).length }))
+      .catch(() => {});
+  }, [cicloAtivo?.id]);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editando, setEditando] = useState<typeof ciclos[0] | null>(null);
@@ -173,7 +183,7 @@ export default function DashboardPage() {
       {/* Cards de resumo */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: "Colaboradores", value: cicloAtivo ? "0" : "—" },
+          { label: "Colaboradores", value: cicloAtivo ? String(contagens.colaboradores) : "—" },
           { label: "Metas", value: cicloAtivo ? "0" : "—" },
           { label: "Indicadores", value: cicloAtivo ? "0" : "—" },
           { label: "Prêmio projetado", value: cicloAtivo ? "R$ 0" : "—" },
