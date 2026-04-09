@@ -396,6 +396,7 @@ export default function MetasPage() {
   const [agrupamentos, setAgrupamentos] = useState<Agrupamento[]>([]);
   const [atribuicoes, setAtribuicoes] = useState<Atribuicao[]>([]);
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
+  const [areas, setAreas] = useState<{id:number;nivel1:string;nivel2?:string|null;nivel3?:string|null;nivel4?:string|null;nivel5?:string|null;centroCusto:string}[]>([]);
   const [busca, setBusca] = useState("");
   const [modalInd, setModalInd] = useState<Indicador|null|"new">(null);
   const [modalAg, setModalAg] = useState<Agrupamento|null|"new">(null);
@@ -425,6 +426,7 @@ export default function MetasPage() {
     carregarInds(); carregarAgs(); carregarAtribs();
     if (cicloAtivo) {
       fetch(`/api/colaboradores?cicloId=${cicloAtivo.id}`).then(r=>r.json()).then(d=>setColaboradores(d.colaboradores??[]));
+      fetch(`/api/areas?cicloId=${cicloAtivo.id}`).then(r=>r.json()).then(d=>setAreas(d.areas??[]));
     }
   },[carregarInds,carregarAgs,carregarAtribs,cicloAtivo?.id]);
 
@@ -587,10 +589,7 @@ export default function MetasPage() {
           <div className="flex items-center gap-2">
             <select value={filtroAreaAtrib} onChange={e=>setFiltroAreaAtrib(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500">
               <option value="">Todas as áreas / CC</option>
-              {Array.from(new Set(atribuicoes.flatMap(a => [
-                a.colaborador.area?.nivel1, a.colaborador.area?.nivel2, a.colaborador.area?.nivel3,
-                a.colaborador.area?.nivel4, a.colaborador.area?.nivel5, a.colaborador.centroCusto
-              ].filter(Boolean)))).sort().map(v => <option key={v} value={v!}>{v}</option>)}
+              {Array.from(new Set(areas.flatMap(a => [a.nivel1,a.nivel2,a.nivel3,a.nivel4,a.nivel5,a.centroCusto].filter(Boolean)))).sort().map(v => <option key={v} value={v!}>{v}</option>)}
             </select>
             <div className="flex-1"/>
             {selAtribs.size > 0 && (

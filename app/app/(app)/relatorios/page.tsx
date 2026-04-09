@@ -63,7 +63,7 @@ function NotaBadge({ nota }: { nota: number | null | undefined }) {
 }
 
 // ─── R1: Por Colaborador ─────────────────────────────────
-function RelatColaborador({ atribuicoes, notasMap }: { atribuicoes: Atribuicao[]; notasMap: Map<number, number>; }) {
+function RelatColaborador({ atribuicoes, notasMap, areas }: { atribuicoes: Atribuicao[]; notasMap: Map<number, number>; areas: {nivel1:string;nivel2?:string|null;nivel3?:string|null;nivel4?:string|null;nivel5?:string|null;centroCusto:string}[]; }) {
   const [busca, setBusca] = useState("");
   const [filtroArea, setFiltroArea] = useState("");
   const [expandido, setExpandido] = useState<Record<number, boolean>>({});
@@ -109,9 +109,7 @@ function RelatColaborador({ atribuicoes, notasMap }: { atribuicoes: Atribuicao[]
         </div>
         <select value={filtroArea} onChange={e => setFiltroArea(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">Todas as áreas / CC</option>
-          {Array.from(new Set(Array.from(colabsMap.values()).flatMap(c => [
-            c.area?.nivel1, c.area?.nivel2, c.area?.nivel3, c.area?.nivel4, c.area?.nivel5, c.centroCusto
-          ].filter(Boolean)))).sort().map(v => <option key={v} value={v!}>{v}</option>)}
+          {Array.from(new Set(areas.flatMap(a => [a.nivel1,a.nivel2,a.nivel3,a.nivel4,a.nivel5,a.centroCusto].filter(Boolean)))).sort().map(v => <option key={v} value={v!}>{v}</option>)}
         </select>
       </div>
 
@@ -460,6 +458,7 @@ export default function RelatoriosPage() {
   const [realizacoes, setRealizacoes] = useState<Realizacao[]>([]);
   const [metasPeriodo, setMetasPeriodo] = useState<MetaPeriodo[]>([]);
   const [atribuicoes, setAtribuicoes] = useState<Atribuicao[]>([]);
+  const [areas, setAreas] = useState<{nivel1:string;nivel2?:string|null;nivel3?:string|null;nivel4?:string|null;nivel5?:string|null;centroCusto:string}[]>([]);
   const [exportando, setExportando] = useState(false);
 
   const carregar = useCallback(() => {
@@ -477,6 +476,7 @@ export default function RelatoriosPage() {
     fetch(`/api/realizacoes?cicloId=${cid}`).then(r => r.json()).then(d => setRealizacoes(d.realizacoes ?? []));
     fetch(`/api/meta-periodos?cicloId=${cid}`).then(r => r.json()).then(d => setMetasPeriodo(d.metasPeriodo ?? []));
     fetch(`/api/atribuicoes?cicloId=${cid}`).then(r => r.json()).then(d => setAtribuicoes(d.atribuicoes ?? []));
+    fetch(`/api/areas?cicloId=${cid}`).then(r => r.json()).then(d => setAreas(d.areas ?? []));
   }, [cicloAtivo?.id]);
 
   useEffect(() => { carregar(); }, [carregar]);
@@ -527,7 +527,7 @@ export default function RelatoriosPage() {
         ))}
       </div>
 
-      {aba === "colaborador" && <RelatColaborador atribuicoes={atribuicoes} notasMap={notasMap}/>}
+      {aba === "colaborador" && <RelatColaborador atribuicoes={atribuicoes} notasMap={notasMap} areas={areas}/>}
       {aba === "indicador"   && <RelatIndicador indicadores={indicadores} notasMap={notasMap} realMap={realMap} orcMap={orcMap} atribuicoes={atribuicoes}/>}
       {aba === "contratacao" && <RelatContratacao atribuicoes={atribuicoes} indicadores={indicadores} notasMap={notasMap}/>}
       {aba === "responsavel" && <RelatResponsavel indicadores={indicadores} notasMap={notasMap} realizacoes={realizacoes} anoFiscal={cicloAtivo.anoFiscal} mesInicio={cicloAtivo.mesInicio} mesFim={cicloAtivo.mesFim}/>}

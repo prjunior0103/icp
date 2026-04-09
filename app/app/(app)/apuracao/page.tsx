@@ -19,6 +19,7 @@ interface IndicadorNoGrupo { indicadorId: number; peso: number; indicador: Indic
 interface Agrupamento { id: number; nome: string; tipo: string; indicadores: IndicadorNoGrupo[]; }
 interface Colaborador { id: number; nome: string; matricula: string; cargo: string; salarioBase: number; target: number; gestorId?: number | null; centroCusto?: string | null; area?: { nivel1: string; nivel2?: string | null; nivel3?: string | null; nivel4?: string | null; nivel5?: string | null } | null; }
 interface Atribuicao { colaboradorId: number; agrupamentoId: number; pesoNaCesta: number; colaborador: Colaborador; agrupamento: Agrupamento; }
+interface Area { id: number; nivel1: string; nivel2?: string | null; nivel3?: string | null; nivel4?: string | null; nivel5?: string | null; centroCusto: string; }
 
 const MESES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
 
@@ -325,9 +326,9 @@ function AbaPreenchimento({ cicloId, anoFiscal, mesInicio, mesFim, indicadores, 
 }
 
 // ─── Aba Resultados ────────────────────────────────────────
-function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, atribuicoes, anoFiscal, mesInicio, mesFim }:
+function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, atribuicoes, areas, anoFiscal, mesInicio, mesFim }:
   { indicadores: Indicador[]; realizacoes: Realizacao[]; metasPeriodo: MetaPeriodo[]; agrupamentos: Agrupamento[];
-    atribuicoes: Atribuicao[]; anoFiscal: number; mesInicio: number; mesFim: number; }) {
+    atribuicoes: Atribuicao[]; areas: Area[]; anoFiscal: number; mesInicio: number; mesFim: number; }) {
 
   const [filtroGestor, setFiltroGestor] = useState("");
   const [filtroColaborador, setFiltroColaborador] = useState("");
@@ -423,8 +424,8 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
         </select>
         <select value={filtroNivel} onChange={e=>setFiltroNivel(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">Todas as áreas / CC</option>
-          {Array.from(new Set(colaboradores.flatMap(c => [
-            c.area?.nivel1, c.area?.nivel2, c.area?.nivel3, c.area?.nivel4, c.area?.nivel5, c.centroCusto
+          {Array.from(new Set(areas.flatMap(a => [
+            a.nivel1, a.nivel2, a.nivel3, a.nivel4, a.nivel5, a.centroCusto
           ].filter(Boolean)))).sort().map(v => <option key={v} value={v!}>{v}</option>)}
         </select>
       </div>
@@ -515,6 +516,7 @@ export default function ApuracaoPage() {
   const [metasPeriodo, setMetasPeriodo] = useState<MetaPeriodo[]>([]);
   const [agrupamentos, setAgrupamentos] = useState<Agrupamento[]>([]);
   const [atribuicoes, setAtribuicoes] = useState<Atribuicao[]>([]);
+  const [areas, setAreas] = useState<Area[]>([]);
 
   const carregar = useCallback(() => {
     if (!cicloAtivo) return;
@@ -532,6 +534,7 @@ export default function ApuracaoPage() {
     fetch(`/api/meta-periodos?cicloId=${cid}`).then(r=>r.json()).then(d=>setMetasPeriodo(d.metasPeriodo??[]));
     fetch(`/api/agrupamentos?cicloId=${cid}`).then(r=>r.json()).then(d=>setAgrupamentos(d.agrupamentos??[]));
     fetch(`/api/atribuicoes?cicloId=${cid}`).then(r=>r.json()).then(d=>setAtribuicoes(d.atribuicoes??[]));
+    fetch(`/api/areas?cicloId=${cid}`).then(r=>r.json()).then(d=>setAreas(d.areas??[]));
   }, [cicloAtivo?.id]);
 
   useEffect(() => { carregar(); }, [carregar]);
@@ -578,6 +581,7 @@ export default function ApuracaoPage() {
           metasPeriodo={metasPeriodo}
           agrupamentos={agrupamentos}
           atribuicoes={atribuicoes}
+          areas={areas}
           anoFiscal={cicloAtivo.anoFiscal}
           mesInicio={cicloAtivo.mesInicio}
           mesFim={cicloAtivo.mesFim}
