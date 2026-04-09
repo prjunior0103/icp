@@ -398,7 +398,7 @@ export default function MetasPage() {
   const [modalImport, setModalImport] = useState(false);
   const [selAtribs, setSelAtribs] = useState<Set<number>>(new Set());
   const [excluindoAtribs, setExcluindoAtribs] = useState(false);
-  const [atribuindoCorp, setAtribuindoCorp] = useState(false);
+  const [atribuindoAg, setAtribuindoAg] = useState<Set<number>>(new Set());
 
   const carregarInds = useCallback(() => {
     if (!cicloAtivo) return;
@@ -436,26 +436,22 @@ export default function MetasPage() {
     if (!confirm("Remover atribuição?")) return;
     await fetch(`/api/atribuicoes?id=${id}`,{method:"DELETE"}); carregarAtribs();
   }
-  async function atribuirCorpTodos() {
-    const corps = agrupamentos.filter(ag => ag.tipo === "CORPORATIVO");
-    if (corps.length === 0) { alert("Nenhum agrupamento CORPORATIVO cadastrado."); return; }
+  async function atribuirATodos(ag: Agrupamento) {
     if (colaboradores.length === 0) { alert("Nenhum colaborador neste ciclo."); return; }
-    const peso = Math.round((100 / corps.length) * 100) / 100;
-    if (!confirm(`Atribuir ${corps.length} agrupamento(s) corporativo(s) a ${colaboradores.length} colaborador(es) com ${peso}% cada?\n\nEsta ação só afeta agrupamentos CORPORATIVO.`)) return;
-    setAtribuindoCorp(true);
+    const peso = Math.round(ag.indicadores.reduce((s, i) => s + i.peso, 0) * 100) / 100;
+    if (!confirm(`Atribuir "${ag.nome}" a ${colaboradores.length} colaborador(es) com peso ${peso}%?`)) return;
+    setAtribuindoAg(s => new Set(s).add(ag.id));
     const cid = cicloAtivo!.id;
     await Promise.all(
-      colaboradores.flatMap(c =>
-        corps.map(ag =>
-          fetch("/api/atribuicoes", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ cicloId: cid, colaboradorId: c.id, agrupamentoId: ag.id, pesoNaCesta: peso, cascata: "NENHUM" }),
-          })
-        )
+      colaboradores.map(c =>
+        fetch("/api/atribuicoes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cicloId: cid, colaboradorId: c.id, agrupamentoId: ag.id, pesoNaCesta: peso, cascata: "NENHUM" }),
+        })
       )
     );
-    setAtribuindoCorp(false);
+    setAtribuindoAg(s => { const n = new Set(s); n.delete(ag.id); return n; });
     carregarAtribs();
   }
 
@@ -560,7 +556,14 @@ export default function MetasPage() {
                         })()}
                       </div>
                     </div>
-                    <div className="flex gap-1"><button onClick={()=>setModalAg(ag)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"><Pencil size={14}/></button><button onClick={()=>excluirAg(ag.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"><Trash2 size={14}/></button></div>
+                    <div className="flex items-center gap-1">
+                      <button onClick={()=>atribuirATodos(ag)} disabled={atribuindoAg.has(ag.id)}
+                        className="flex items-center gap-1 text-xs px-2 py-1 border border-blue-600 text-blue-700 hover:bg-blue-50 disabled:opacity-50 rounded">
+                        <Users size={12}/>{atribuindoAg.has(ag.id) ? "Atribuindo..." : "Atribuir a Todos"}
+                      </button>
+                      <button onClick={()=>setModalAg(ag)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"><Pencil size={14}/></button>
+                      <button onClick={()=>excluirAg(ag.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"><Trash2 size={14}/></button>
+                    </div>
                   </div>
                   {ag.indicadores.length>0 ? (
                     <div className="flex flex-wrap gap-2">{ag.indicadores.map(i=><span key={i.id} className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">{i.indicador.codigo} — {i.peso}%</span>)}</div>
@@ -582,10 +585,6 @@ export default function MetasPage() {
                 <Trash2 size={15}/>{excluindoAtribs ? "Excluindo..." : `Excluir ${selAtribs.size}`}
               </button>
             )}
-            <button onClick={atribuirCorpTodos} disabled={atribuindoCorp}
-              className="flex items-center gap-2 border border-blue-600 text-blue-700 hover:bg-blue-50 disabled:opacity-50 text-sm px-3 py-2 rounded-lg">
-              <Users size={15}/>{atribuindoCorp ? "Atribuindo..." : "Atribuir Corporativos a Todos"}
-            </button>
             <button onClick={()=>setModalAtrib("new")} className="flex items-center gap-2 bg-blue-700 hover:bg-blue-800 text-white text-sm px-3 py-2 rounded-lg"><Plus size={15}/>Nova Atribuição</button>
           </div>
           {atribuicoes.length===0 ? (
