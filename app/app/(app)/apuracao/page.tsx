@@ -421,11 +421,12 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
           <option value="">Todos os indicadores</option>
           {indicadores.map(i=><option key={i.id} value={i.id}>{i.codigo} — {i.nome}</option>)}
         </select>
-        <div className="relative">
-          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"/>
-          <input value={filtroNivel} onChange={e=>setFiltroNivel(e.target.value)} placeholder="Área / Centro de Custo..."
-            className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"/>
-        </div>
+        <select value={filtroNivel} onChange={e=>setFiltroNivel(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="">Todas as áreas / CC</option>
+          {Array.from(new Set(colaboradores.flatMap(c => [
+            c.area?.nivel1, c.area?.nivel2, c.area?.nivel3, c.area?.nivel4, c.area?.nivel5, c.centroCusto
+          ].filter(Boolean)))).sort().map(v => <option key={v} value={v!}>{v}</option>)}
+        </select>
       </div>
 
       {colabsFiltrados.length === 0 ? (

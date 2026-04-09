@@ -585,11 +585,13 @@ export default function MetasPage() {
       {aba==="atribuicoes" && (
         <div className="space-y-4">
           <div className="flex items-center gap-2">
-            <div className="relative flex-1 max-w-xs">
-              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"/>
-              <input value={filtroAreaAtrib} onChange={e=>setFiltroAreaAtrib(e.target.value)} placeholder="Área / Centro de Custo..."
-                className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"/>
-            </div>
+            <select value={filtroAreaAtrib} onChange={e=>setFiltroAreaAtrib(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="">Todas as áreas / CC</option>
+              {Array.from(new Set(atribuicoes.flatMap(a => [
+                a.colaborador.area?.nivel1, a.colaborador.area?.nivel2, a.colaborador.area?.nivel3,
+                a.colaborador.area?.nivel4, a.colaborador.area?.nivel5, a.colaborador.centroCusto
+              ].filter(Boolean)))).sort().map(v => <option key={v} value={v!}>{v}</option>)}
+            </select>
             <div className="flex-1"/>
             {selAtribs.size > 0 && (
               <button onClick={excluirAtribsMassa} disabled={excluindoAtribs}

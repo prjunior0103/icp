@@ -107,11 +107,12 @@ function RelatColaborador({ atribuicoes, notasMap }: { atribuicoes: Atribuicao[]
           <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar colaborador..."
             className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
         </div>
-        <div className="relative max-w-xs">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"/>
-          <input value={filtroArea} onChange={e => setFiltroArea(e.target.value)} placeholder="Área / Centro de Custo..."
-            className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
-        </div>
+        <select value={filtroArea} onChange={e => setFiltroArea(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="">Todas as áreas / CC</option>
+          {Array.from(new Set(Array.from(colabsMap.values()).flatMap(c => [
+            c.area?.nivel1, c.area?.nivel2, c.area?.nivel3, c.area?.nivel4, c.area?.nivel5, c.centroCusto
+          ].filter(Boolean)))).sort().map(v => <option key={v} value={v!}>{v}</option>)}
+        </select>
       </div>
 
       {colabs.map(c => {

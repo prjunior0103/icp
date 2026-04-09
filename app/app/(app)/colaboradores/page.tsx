@@ -499,15 +499,12 @@ function AbaColaboradores({ cicloId }: { cicloId: number }) {
             className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
-        <div className="relative">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            value={filtroArea}
-            onChange={(e) => setFiltroArea(e.target.value)}
-            placeholder="Área / Centro de Custo..."
-            className="w-52 pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
+        <select value={filtroArea} onChange={e => setFiltroArea(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="">Todas as áreas / CC</option>
+          {Array.from(new Set(colaboradores.flatMap(c => [
+            c.area?.nivel1, c.area?.nivel2, c.area?.nivel3, c.area?.nivel4, c.area?.nivel5, c.centroCusto
+          ].filter(Boolean)))).sort().map(v => <option key={v} value={v!}>{v}</option>)}
+        </select>
         {selecionados.size > 0 && (
           <button onClick={excluirSelecionados} disabled={excluindoMassa}
             className="flex items-center gap-2 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white text-sm px-3 py-2 rounded-lg">
