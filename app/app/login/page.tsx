@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -18,13 +18,13 @@ export default function LoginPage() {
 
     try {
       const result = await signIn("credentials", {
-        username,
+        email,
         password,
         redirect: false,
       });
 
       if (result?.error) {
-        setError("Usuário ou senha inválidos.");
+        setError("Email ou senha inválidos.");
       } else {
         router.push("/");
       }
@@ -37,10 +37,9 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col">
-      {/* Header */}
       <header className="bg-blue-900 text-white py-4 px-6 shadow-md">
         <div className="max-w-7xl mx-auto flex items-center gap-3">
-          <div aria-hidden="true" className="w-9 h-9 bg-blue-400 rounded flex items-center justify-center font-bold text-lg">
+          <div className="w-9 h-9 bg-blue-400 rounded flex items-center justify-center font-bold text-sm">
             ICP
           </div>
           <div>
@@ -52,7 +51,6 @@ export default function LoginPage() {
         </div>
       </header>
 
-      {/* Card */}
       <main className="flex-1 flex items-center justify-center px-4">
         <div className="bg-white rounded-xl shadow-lg w-full max-w-sm p-8">
           <h2 className="text-2xl font-bold text-gray-800 mb-1">Entrar</h2>
@@ -66,20 +64,20 @@ export default function LoginPage() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4" aria-label="Formulário de login">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">
-                Usuário
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                Email
               </label>
               <input
-                id="username"
-                type="text"
-                autoComplete="username"
+                id="email"
+                type="email"
+                autoComplete="email"
                 required
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="admin"
+                placeholder="admin@empresa.com"
               />
             </div>
 
@@ -102,7 +100,6 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              aria-label={loading ? "Entrando, aguarde..." : "Entrar no sistema"}
               className="w-full bg-blue-700 hover:bg-blue-800 disabled:bg-blue-400 text-white font-semibold py-2.5 rounded-lg text-sm transition-colors"
             >
               {loading ? "Entrando..." : "Entrar"}

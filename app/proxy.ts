@@ -63,7 +63,8 @@ export default auth(function middleware(req: NextRequest & { auth: unknown }) {
 
   const isPublic =
     pathname.startsWith("/login") ||
-    pathname.startsWith("/api/auth");
+    pathname.startsWith("/api/auth") ||
+    pathname === "/api/seed";
 
   if (!req.auth && !isPublic) {
     const loginUrl = new URL("/login", req.url);

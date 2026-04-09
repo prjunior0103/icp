@@ -1,29 +1,29 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
+import { compare } from "bcryptjs";
+import { prisma } from "@/app/lib/prisma";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
     Credentials({
       name: "Credentials",
       credentials: {
-        username: { label: "Usuário", type: "text" },
+        email: { label: "Email", type: "email" },
         password: { label: "Senha", type: "password" },
       },
       async authorize(credentials) {
-        const authUsername = process.env.AUTH_USERNAME ?? "admin";
-        const authPassword = process.env.AUTH_PASSWORD ?? "admin";
+        if (!credentials?.email || !credentials?.password) return null;
 
-        if (
-          credentials?.username === authUsername &&
-          credentials?.password === authPassword
-        ) {
-          return {
-            id: "1",
-            name: String(credentials.username),
-            role: "GUARDIAO",
-          };
-        }
-        return null;
+        const user = await prisma.user.findUnique({
+          where: { email: String(credentials.email) },
+        });
+
+        if (!user || !user.ativo) return null;
+
+        const valid = await compare(String(credentials.password), user.passwordHash);
+        if (!valid) return null;
+
+        return { id: user.id, name: user.name, email: user.email, role: user.role };
       },
     }),
   ],
@@ -31,12 +31,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async jwt({ token, user }) {
       if (user) {
         token.role = (user as { role?: string }).role ?? "COLABORADOR";
+        token.id = user.id;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
-        (session.user as { role?: string }).role = token.role as string;
+        (session.user as { role?: string; id?: string }).role = token.role as string;
+        (session.user as { role?: string; id?: string }).id = token.id as string;
       }
       return session;
     },
