@@ -17,11 +17,11 @@ import {
 import { CicloProvider, useCiclo } from "@/app/lib/ciclo-context";
 
 const NAV_ITEMS = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/metas", label: "Metas", icon: Target },
   { href: "/colaboradores", label: "Colaboradores", icon: Users },
+  { href: "/metas", label: "Metas", icon: Target },
   { href: "/apuracao", label: "Apuração", icon: BarChart3 },
   { href: "/relatorios", label: "Relatórios", icon: FileText },
+  { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/configuracoes", label: "Configurações", icon: Settings },
 ];
 
