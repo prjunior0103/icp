@@ -396,6 +396,8 @@ export default function MetasPage() {
   const [modalAg, setModalAg] = useState<Agrupamento|null|"new">(null);
   const [modalAtrib, setModalAtrib] = useState<Atribuicao | null | "new">(null);
   const [modalImport, setModalImport] = useState(false);
+  const [selAtribs, setSelAtribs] = useState<Set<number>>(new Set());
+  const [excluindoAtribs, setExcluindoAtribs] = useState(false);
 
   const carregarInds = useCallback(() => {
     if (!cicloAtivo) return;
@@ -432,6 +434,15 @@ export default function MetasPage() {
   async function excluirAtrib(id: number) {
     if (!confirm("Remover atribuição?")) return;
     await fetch(`/api/atribuicoes?id=${id}`,{method:"DELETE"}); carregarAtribs();
+  }
+  async function excluirAtribsMassa() {
+    if (!confirm(`Excluir ${selAtribs.size} atribuição(ões)?`)) return;
+    setExcluindoAtribs(true);
+    await Promise.all([...selAtribs].map(id => fetch(`/api/atribuicoes?id=${id}`,{method:"DELETE"})));
+    setSelAtribs(new Set()); setExcluindoAtribs(false); carregarAtribs();
+  }
+  function toggleSelAtrib(id: number) {
+    setSelAtribs(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   }
 
   if (!cicloAtivo) return (
@@ -540,20 +551,34 @@ export default function MetasPage() {
       {/* ── ABA ATRIBUIÇÕES ── */}
       {aba==="atribuicoes" && (
         <div className="space-y-4">
-          <div className="flex justify-end"><button onClick={()=>setModalAtrib("new")} className="flex items-center gap-2 bg-blue-700 hover:bg-blue-800 text-white text-sm px-3 py-2 rounded-lg"><Plus size={15}/>Nova Atribuição</button></div>
+          <div className="flex items-center justify-end gap-2">
+            {selAtribs.size > 0 && (
+              <button onClick={excluirAtribsMassa} disabled={excluindoAtribs}
+                className="flex items-center gap-2 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white text-sm px-3 py-2 rounded-lg">
+                <Trash2 size={15}/>{excluindoAtribs ? "Excluindo..." : `Excluir ${selAtribs.size}`}
+              </button>
+            )}
+            <button onClick={()=>setModalAtrib("new")} className="flex items-center gap-2 bg-blue-700 hover:bg-blue-800 text-white text-sm px-3 py-2 rounded-lg"><Plus size={15}/>Nova Atribuição</button>
+          </div>
           {atribuicoes.length===0 ? (
             <div className="bg-white rounded-xl border border-gray-200 p-10 text-center text-gray-400"><Users size={36} className="mx-auto mb-2 text-gray-300"/>Nenhuma atribuição cadastrada</div>
           ) : (
             <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>{["Colaborador","Agrupamento","Peso","Cascata","Soma Total",""].map(h=><th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>)}</tr>
+                  <tr>
+                    <th className="px-4 py-2.5"><input type="checkbox" className="rounded"
+                      checked={selAtribs.size===atribuicoes.length && atribuicoes.length>0}
+                      onChange={()=>setSelAtribs(s=>s.size===atribuicoes.length?new Set():new Set(atribuicoes.map(a=>a.id)))}/></th>
+                    {["Colaborador","Agrupamento","Peso","Cascata","Soma Total",""].map(h=><th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>)}
+                  </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {atribuicoes.map(a=>{
                     const soma = somasPorColab[a.colaboradorId]??0;
                     return (
-                      <tr key={a.id} className="hover:bg-gray-50">
+                      <tr key={a.id} className={`hover:bg-gray-50 ${selAtribs.has(a.id)?"bg-blue-50":""}`}>
+                        <td className="px-4 py-2.5"><input type="checkbox" className="rounded" checked={selAtribs.has(a.id)} onChange={()=>toggleSelAtrib(a.id)}/></td>
                         <td className="px-4 py-2.5"><p className="font-medium text-gray-800">{a.colaborador.nome}</p><p className="text-xs text-gray-400">{a.colaborador.matricula}</p></td>
                         <td className="px-4 py-2.5 text-gray-700">{a.agrupamento.nome}</td>
                         <td className="px-4 py-2.5 font-medium text-gray-800">{a.pesoNaCesta}%</td>
