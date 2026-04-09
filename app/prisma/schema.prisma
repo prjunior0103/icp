@@ -32,3 +32,41 @@ model ParametroSistema {
   id           Int  @id @default(1)
   cicloAtivoId Int?
 }
+
+model Area {
+  id           Int           @id @default(autoincrement())
+  cicloId      Int
+  centroCusto  String
+  codEmpresa   String
+  nivel1       String
+  nivel2       String?
+  nivel3       String?
+  nivel4       String?
+  nivel5       String?
+  criadoEm     DateTime      @default(now())
+  colaboradores Colaborador[]
+}
+
+model Colaborador {
+  id               Int           @id @default(autoincrement())
+  cicloId          Int
+  areaId           Int?
+  area             Area?         @relation(fields: [areaId], references: [id])
+  nome             String
+  email            String?
+  matricula        String
+  cargo            String
+  grade            String?
+  salarioBase      Float
+  target           Float         // múltiplo salarial ex: 1.5
+  centroCusto      String?
+  codEmpresa       String?
+  admissao         DateTime?
+  gestorId         Int?
+  gestor           Colaborador?  @relation("GestorSubordinados", fields: [gestorId], references: [id])
+  subordinados     Colaborador[] @relation("GestorSubordinados")
+  matriculaGestor  String?
+  nomeGestor       String?
+  status           String        @default("ATIVO") // ATIVO, INATIVO, AFASTADO
+  criadoEm         DateTime      @default(now())
+}
