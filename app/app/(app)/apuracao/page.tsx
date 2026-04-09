@@ -482,7 +482,7 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
                                 <td className="py-1 text-gray-700">{m.ind.codigo} — {m.ind.nome}</td>
                                 <td className="py-1 text-right font-medium">{m.nota.toFixed(1)}%</td>
                                 <td className="py-1 text-right text-gray-500">{m.peso}%</td>
-                                <td className="py-1 text-right font-semibold text-blue-700">{m.mid.toFixed(2)}</td>
+                                <td className="py-1 text-right font-semibold text-blue-700">{m.mid.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%</td>
                               </tr>
                             ))}
                           </tbody>
