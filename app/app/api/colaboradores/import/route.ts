@@ -47,28 +47,59 @@ export async function POST(req: Request) {
       ? row.status.toUpperCase()
       : "ATIVO";
 
+    const matricula = String(row.matricula).trim();
+    const admissao = row.admissao ? new Date(String(row.admissao)) : null;
+    if (admissao && isNaN(admissao.getTime())) {
+      erros.push(`Linha ${linha}: data de admissão inválida "${row.admissao}"`);
+      continue;
+    }
+
     try {
-      await prisma.colaborador.create({
-        data: {
-          cicloId: Number(cicloId),
-          nome: String(row.nome),
-          matricula: String(row.matricula),
-          cargo: String(row.cargo),
-          grade: row.grade || null,
-          email: row.email || null,
-          salarioBase,
-          target,
-          centroCusto: row.centroCusto || null,
-          codEmpresa: row.codEmpresa || null,
-          admissao: row.admissao ? new Date(String(row.admissao)) : null,
-          matriculaGestor: row.matriculaGestor || null,
-          nomeGestor: row.nomeGestor || null,
-          status,
-        },
+      const existing = await prisma.colaborador.findFirst({
+        where: { cicloId: Number(cicloId), matricula },
       });
+      if (existing) {
+        await prisma.colaborador.update({
+          where: { id: existing.id },
+          data: {
+            nome: String(row.nome).trim(),
+            cargo: String(row.cargo).trim(),
+            grade: row.grade || null,
+            email: row.email || null,
+            salarioBase,
+            target,
+            centroCusto: row.centroCusto || null,
+            codEmpresa: row.codEmpresa || null,
+            admissao,
+            matriculaGestor: row.matriculaGestor || null,
+            nomeGestor: row.nomeGestor || null,
+            status,
+          },
+        });
+      } else {
+        await prisma.colaborador.create({
+          data: {
+            cicloId: Number(cicloId),
+            nome: String(row.nome).trim(),
+            matricula,
+            cargo: String(row.cargo).trim(),
+            grade: row.grade || null,
+            email: row.email || null,
+            salarioBase,
+            target,
+            centroCusto: row.centroCusto || null,
+            codEmpresa: row.codEmpresa || null,
+            admissao,
+            matriculaGestor: row.matriculaGestor || null,
+            nomeGestor: row.nomeGestor || null,
+            status,
+          },
+        });
+      }
       criados++;
-    } catch {
-      erros.push(`Linha ${linha}: erro ao salvar (matrícula duplicada?)`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      erros.push(`Linha ${linha} (matrícula ${row.matricula}): ${msg}`);
     }
   }
 
