@@ -70,12 +70,12 @@ export async function PUT(req: Request) {
   const data: Record<string, unknown> = {};
   const fields = ["codigo","nome","tipo","abrangencia","unidade","metaMinima","metaAlvo","metaMaxima",
     "baseline","metrica","periodicidade","criterioApuracao","origemDado","analistaResp","aprovadorId",
-    "responsavelEnvioId","divisorId","statusJanela","janelaAbertaEm","janelaFechadaEm","status","descricao"];
+    "responsavelEnvioId","numeradorId","divisorId","statusJanela","janelaAbertaEm","janelaFechadaEm","status","descricao"];
   for (const f of fields) {
     if (rest[f] !== undefined) {
       if (["metaMinima","metaAlvo","metaMaxima","baseline"].includes(f))
         data[f] = rest[f] != null ? Number(rest[f]) : null;
-      else if (["responsavelEnvioId","divisorId"].includes(f))
+      else if (["responsavelEnvioId","numeradorId","divisorId"].includes(f))
         data[f] = rest[f] ? Number(rest[f]) : null;
       else if (["janelaAbertaEm","janelaFechadaEm"].includes(f))
         data[f] = rest[f] ? new Date(rest[f]) : null;

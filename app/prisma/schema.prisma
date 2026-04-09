@@ -94,6 +94,9 @@ model Indicador {
   aprovadorId         String?                // User.id
   responsavelEnvioId  Int?
   responsavelEnvio    Colaborador?           @relation("ResponsavelEnvio", fields: [responsavelEnvioId], references: [id])
+  numeradorId         Int?
+  numerador           Indicador?             @relation("IndicadorNumerador", fields: [numeradorId], references: [id])
+  numerados           Indicador[]            @relation("IndicadorNumerador")
   divisorId           Int?
   divisor             Indicador?             @relation("IndicadorDivisor", fields: [divisorId], references: [id])
   divisorado          Indicador[]            @relation("IndicadorDivisor")
@@ -103,6 +106,8 @@ model Indicador {
   status              String                 @default("DRAFT") // DRAFT | ATIVO
   criadoEm            DateTime               @default(now())
   indicadoresGrupo    IndicadorNoAgrupamento[]
+  faixas              FaixaIndicador[]
+  realizacoes         Realizacao[]
 
   @@unique([cicloId, codigo])
 }
@@ -141,4 +146,28 @@ model AtribuicaoAgrupamento {
   criadoEm        DateTime     @default(now())
 
   @@unique([colaboradorId, agrupamentoId])
+}
+
+model Realizacao {
+  id             Int       @id @default(autoincrement())
+  cicloId        Int
+  indicadorId    Int
+  indicador      Indicador @relation(fields: [indicadorId], references: [id], onDelete: Cascade)
+  periodo        String    // "2025-01" | "2025-T1" | "2025-S1" | "2025"
+  valorRealizado Float
+  lancadoPor     String?
+  criadoEm       DateTime  @default(now())
+
+  @@unique([indicadorId, periodo])
+}
+
+model FaixaIndicador {
+  id          Int       @id @default(autoincrement())
+  indicadorId Int
+  indicador   Indicador @relation(fields: [indicadorId], references: [id], onDelete: Cascade)
+  de          Float
+  ate         Float
+  nota        Float
+
+  @@unique([indicadorId, de])
 }

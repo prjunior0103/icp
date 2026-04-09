@@ -5,7 +5,8 @@ import { Plus, X, Pencil, Trash2, Upload, Download, Search, Target, BarChart3, U
 import { useCiclo } from "@/app/lib/ciclo-context";
 
 // ─── Types ────────────────────────────────────────────────
-interface Indicador { id: number; cicloId: number; codigo: string; nome: string; tipo: string; abrangencia: string; unidade: string; metaMinima?: number | null; metaAlvo?: number | null; metaMaxima?: number | null; baseline?: number | null; metrica?: string | null; periodicidade: string; criterioApuracao: string; origemDado?: string | null; analistaResp?: string | null; statusJanela: string; status: string; descricao?: string | null; }
+interface Indicador { id: number; cicloId: number; codigo: string; nome: string; tipo: string; abrangencia: string; unidade: string; metaMinima?: number | null; metaAlvo?: number | null; metaMaxima?: number | null; baseline?: number | null; metrica?: string | null; periodicidade: string; criterioApuracao: string; origemDado?: string | null; analistaResp?: string | null; numeradorId?: number | null; divisorId?: number | null; statusJanela: string; status: string; descricao?: string | null; }
+interface FaixaIndicador { id?: number; de: number; ate: number; nota: number; }
 interface IndicadorNoGrupo { id: number; indicadorId: number; peso: number; indicador: Indicador; }
 interface Agrupamento { id: number; cicloId: number; nome: string; tipo: string; descricao?: string | null; indicadores: IndicadorNoGrupo[]; }
 interface Colaborador { id: number; nome: string; matricula: string; }
@@ -18,19 +19,43 @@ const CRITERIO = ["SOMA","MEDIA","ULTIMA_POSICAO"];
 const STATUS_JANELA_COLOR: Record<string,string> = { ABERTA:"bg-green-100 text-green-700", FECHADA:"bg-gray-100 text-gray-500", PRORROGADA:"bg-yellow-100 text-yellow-700" };
 
 // ─── Modal Indicador ──────────────────────────────────────
-function ModalIndicador({ ind, cicloId, colaboradores, onSave, onClose }: { ind: Indicador | null; cicloId: number; colaboradores: Colaborador[]; onSave: () => void; onClose: () => void; }) {
-  const empty = { codigo:"", nome:"", tipo:"MAIOR_MELHOR", abrangencia:"CORPORATIVO", unidade:"%", metaMinima:"", metaAlvo:"", metaMaxima:"", baseline:"", metrica:"", periodicidade:"MENSAL", criterioApuracao:"ULTIMA_POSICAO", origemDado:"", analistaResp:"", statusJanela:"FECHADA", status:"DRAFT", descricao:"" };
+function ModalIndicador({ ind, cicloId, colaboradores, todosIndicadores, onSave, onClose }: {
+  ind: Indicador | null; cicloId: number; colaboradores: Colaborador[];
+  todosIndicadores: Indicador[]; onSave: () => void; onClose: () => void;
+}) {
+  const empty = { codigo:"", nome:"", tipo:"MAIOR_MELHOR", abrangencia:"CORPORATIVO", unidade:"%", metaMinima:"", metaAlvo:"", metaMaxima:"", baseline:"", metrica:"", periodicidade:"MENSAL", criterioApuracao:"ULTIMA_POSICAO", origemDado:"", analistaResp:"", numeradorId:"", divisorId:"", statusJanela:"FECHADA", status:"DRAFT", descricao:"" };
   const [form, setForm] = useState(ind ? { ...empty, ...Object.fromEntries(Object.entries(ind).map(([k,v]) => [k, v == null ? "" : String(v)])) } : empty);
+  const [faixas, setFaixas] = useState<FaixaIndicador[]>([]);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement|HTMLSelectElement|HTMLTextAreaElement>) => setForm(f => ({...f,[k]:e.target.value}));
+
+  useEffect(() => {
+    if (ind?.id) {
+      fetch(`/api/faixas?indicadorId=${ind.id}`).then(r=>r.json()).then(d=>setFaixas(d.faixas??[]));
+    }
+  }, [ind?.id]);
 
   async function salvar(e: React.FormEvent) {
     e.preventDefault(); setSalvando(true); setErro("");
     const body = ind ? { id: ind.id, ...form } : { cicloId, ...form };
     const res = await fetch("/api/indicadores", { method: ind ? "PUT" : "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(body) });
     if (!res.ok) { const d = await res.json(); setErro(d.error ?? "Erro"); setSalvando(false); return; }
+    const { indicador: saved } = await res.json();
+    // Salvar faixas se houver
+    if (faixas.length > 0) {
+      await fetch("/api/faixas", { method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify(faixas.map(f => ({ indicadorId: saved.id, de: f.de, ate: f.ate, nota: f.nota }))) });
+    } else if (ind?.id) {
+      await fetch(`/api/faixas?indicadorId=${ind.id}`, { method:"DELETE" });
+    }
     onSave(); onClose();
+  }
+
+  function addFaixa() { setFaixas(f => [...f, { de: 0, ate: 0, nota: 0 }]); }
+  function removeFaixa(i: number) { setFaixas(f => f.filter((_,idx) => idx!==i)); }
+  function setFaixa(i: number, k: keyof FaixaIndicador, v: string) {
+    setFaixas(f => f.map((fx,idx) => idx===i ? {...fx,[k]:Number(v)} : fx));
   }
 
   const input = (label: string, k: string, type="text", req=false) => (
@@ -42,6 +67,7 @@ function ModalIndicador({ ind, cicloId, colaboradores, onSave, onClose }: { ind:
     <select value={form[k as keyof typeof form]} onChange={set(k)} className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
       {opts.map(o => <option key={o} value={o}>{o}</option>)}</select></div>
   );
+  const outrosInds = todosIndicadores.filter(i => i.id !== ind?.id);
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
@@ -70,20 +96,56 @@ function ModalIndicador({ ind, cicloId, colaboradores, onSave, onClose }: { ind:
             {input("Origem do Dado","origemDado")}
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Analista Resp.</label>
-              <input
-                list="analista-list"
-                value={form.analistaResp}
-                onChange={set("analistaResp")}
-                placeholder="Pesquisar colaborador..."
-                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <datalist id="analista-list">
-                {colaboradores.map(c => <option key={c.id} value={c.nome}>{c.matricula} — {c.nome}</option>)}
-              </datalist>
+              <input list="analista-list" value={form.analistaResp} onChange={set("analistaResp")} placeholder="Pesquisar colaborador..."
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+              <datalist id="analista-list">{colaboradores.map(c => <option key={c.id} value={c.nome}>{c.matricula} — {c.nome}</option>)}</datalist>
             </div>
             {sel("Janela","statusJanela",["ABERTA","FECHADA","PRORROGADA"])}
             {sel("Status","status",["DRAFT","ATIVO"])}
           </div>
+
+          {/* Indicador Composto */}
+          <div className="border border-gray-200 rounded-lg p-3 space-y-2">
+            <p className="text-xs font-semibold text-gray-600">Indicador Composto (opcional)</p>
+            <p className="text-xs text-gray-400">Se preenchido, valor = Numerador ÷ Divisor</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="block text-xs font-medium text-gray-600 mb-1">Numerador</label>
+              <select value={form.numeradorId} onChange={set("numeradorId")} className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">— Nenhum —</option>
+                {outrosInds.map(i => <option key={i.id} value={i.id}>{i.codigo} — {i.nome}</option>)}
+              </select></div>
+              <div><label className="block text-xs font-medium text-gray-600 mb-1">Divisor</label>
+              <select value={form.divisorId} onChange={set("divisorId")} className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">— Nenhum —</option>
+                {outrosInds.map(i => <option key={i.id} value={i.id}>{i.codigo} — {i.nome}</option>)}
+              </select></div>
+            </div>
+          </div>
+
+          {/* Faixas de Atingimento */}
+          <div className="border border-gray-200 rounded-lg p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-gray-600">Faixas de Atingimento (opcional)</p>
+              <button type="button" onClick={addFaixa} className="text-xs text-blue-600 hover:underline flex items-center gap-1"><Plus size={12}/>Adicionar faixa</button>
+            </div>
+            {faixas.length > 0 && (
+              <div className="space-y-1">
+                <div className="grid grid-cols-4 gap-1 text-xs text-gray-500 font-medium px-1">
+                  <span>De (%)</span><span>Até (%)</span><span>Nota</span><span></span>
+                </div>
+                {faixas.map((f,i) => (
+                  <div key={i} className="grid grid-cols-4 gap-1 items-center">
+                    <input type="number" value={f.de} onChange={e=>setFaixa(i,"de",e.target.value)} className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"/>
+                    <input type="number" value={f.ate} onChange={e=>setFaixa(i,"ate",e.target.value)} className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"/>
+                    <input type="number" value={f.nota} onChange={e=>setFaixa(i,"nota",e.target.value)} className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"/>
+                    <button type="button" onClick={()=>removeFaixa(i)} className="text-red-400 hover:text-red-600 text-xs flex justify-center"><Trash2 size={12}/></button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {faixas.length === 0 && <p className="text-xs text-gray-400">Sem faixas — usa cálculo linear</p>}
+          </div>
+
           <div><label className="block text-xs font-medium text-gray-600 mb-1">Descrição</label>
           <textarea value={form.descricao} onChange={set("descricao")} rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/></div>
           {erro && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{erro}</p>}
@@ -442,7 +504,7 @@ export default function MetasPage() {
         </div>
       )}
 
-      {modalInd!==null && <ModalIndicador ind={modalInd==="new"?null:modalInd} cicloId={cicloAtivo.id} colaboradores={colaboradores} onSave={carregarInds} onClose={()=>setModalInd(null)}/>}
+      {modalInd!==null && <ModalIndicador ind={modalInd==="new"?null:modalInd} cicloId={cicloAtivo.id} colaboradores={colaboradores} todosIndicadores={indicadores} onSave={carregarInds} onClose={()=>setModalInd(null)}/>}
       {modalAg!==null && <ModalAgrupamento ag={modalAg==="new"?null:modalAg} cicloId={cicloAtivo.id} indicadores={indicadores} onSave={carregarAgs} onClose={()=>setModalAg(null)}/>}
       {modalAtrib && <ModalAtribuicao cicloId={cicloAtivo.id} agrupamentos={agrupamentos} onSave={carregarAtribs} onClose={()=>setModalAtrib(false)}/>}
       {modalImport && <ModalImport cicloId={cicloAtivo.id} onDone={carregarInds} onClose={()=>setModalImport(false)}/>}
