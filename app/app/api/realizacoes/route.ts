@@ -24,13 +24,26 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-  const { cicloId, indicadorId, periodo, valorRealizado, lancadoPor } = await req.json();
+  const { cicloId, indicadorId, periodo, valorRealizado, lancadoPor, dataEnvio, anexoPath } = await req.json();
   if (!cicloId || !indicadorId || !periodo || valorRealizado == null)
     return NextResponse.json({ error: "cicloId, indicadorId, periodo e valorRealizado são obrigatórios" }, { status: 400 });
   const realizacao = await prisma.realizacao.upsert({
     where: { indicadorId_periodo: { indicadorId: Number(indicadorId), periodo } },
-    update: { valorRealizado: Number(valorRealizado), lancadoPor: lancadoPor || null },
-    create: { cicloId: Number(cicloId), indicadorId: Number(indicadorId), periodo, valorRealizado: Number(valorRealizado), lancadoPor: lancadoPor || null },
+    update: {
+      valorRealizado: Number(valorRealizado),
+      lancadoPor: lancadoPor || null,
+      dataEnvio: dataEnvio ? new Date(dataEnvio) : null,
+      anexoPath: anexoPath || null,
+    },
+    create: {
+      cicloId: Number(cicloId),
+      indicadorId: Number(indicadorId),
+      periodo,
+      valorRealizado: Number(valorRealizado),
+      lancadoPor: lancadoPor || null,
+      dataEnvio: dataEnvio ? new Date(dataEnvio) : null,
+      anexoPath: anexoPath || null,
+    },
   });
   return NextResponse.json({ realizacao }, { status: 201 });
 }

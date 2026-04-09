@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useCiclo } from "@/app/lib/ciclo-context";
 import { calcNota, calcMID, gerarPeriodos, agregarRealizacoes } from "@/app/lib/calc";
-import { ClipboardList, BarChart3, Search, Save, ChevronDown, ChevronUp } from "lucide-react";
+import { ClipboardList, BarChart3, Search, Save, ChevronDown, ChevronUp, Paperclip, X } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────
 interface Indicador {
@@ -13,7 +13,7 @@ interface Indicador {
   numeradorId?: number | null; divisorId?: number | null;
   faixas?: { de: number; ate: number; nota: number }[];
 }
-interface Realizacao { id: number; indicadorId: number; periodo: string; valorRealizado: number; }
+interface Realizacao { id: number; indicadorId: number; periodo: string; valorRealizado: number; lancadoPor?: string | null; dataEnvio?: string | null; anexoPath?: string | null; }
 interface MetaPeriodo { id: number; indicadorId: number; periodo: string; valorOrcado: number; }
 interface IndicadorNoGrupo { indicadorId: number; peso: number; indicador: Indicador; }
 interface Agrupamento { id: number; nome: string; tipo: string; indicadores: IndicadorNoGrupo[]; }
@@ -45,6 +45,92 @@ function periodoDeInd(ind: Indicador, p: string, anoFiscal: number): string | nu
   }) ?? null;
 }
 
+// ─── Modal Evidência ─────────────────────────────────────
+interface EvidenciaTarget { indicadorId: number; periodo: string; nome: string; }
+
+function ModalEvidencia({ cicloId, target, realizacoes, onClose, onSaved }: {
+  cicloId: number; target: EvidenciaTarget; realizacoes: Realizacao[]; onClose: () => void; onSaved: () => void;
+}) {
+  const real = realizacoes.find(r => r.indicadorId === target.indicadorId && r.periodo === target.periodo);
+  const [lancadoPor, setLancadoPor] = useState(real?.lancadoPor ?? "");
+  const [dataEnvio, setDataEnvio] = useState(real?.dataEnvio ? real.dataEnvio.slice(0, 10) : new Date().toISOString().slice(0, 10));
+  const [file, setFile] = useState<File | null>(null);
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState("");
+
+  async function salvar() {
+    setSalvando(true);
+    setErro("");
+    try {
+      let anexoPath = real?.anexoPath ?? null;
+      if (file) {
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("cicloId", String(cicloId));
+        fd.append("indicadorId", String(target.indicadorId));
+        const r = await fetch("/api/upload", { method: "POST", body: fd });
+        if (!r.ok) { const e = await r.json(); setErro(e.error ?? "Erro no upload"); setSalvando(false); return; }
+        const data = await r.json();
+        anexoPath = data.anexoPath;
+      }
+      await fetch("/api/realizacoes", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cicloId, indicadorId: target.indicadorId, periodo: target.periodo,
+          valorRealizado: real?.valorRealizado ?? 0, lancadoPor: lancadoPor || null,
+          dataEnvio: dataEnvio || null, anexoPath }) });
+      onSaved();
+      onClose();
+    } catch { setErro("Erro ao salvar"); } finally { setSalvando(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-base font-bold text-gray-900">Evidência de Envio</h3>
+            <p className="text-xs text-gray-500 mt-0.5">{target.nome} — {target.periodo}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20}/></button>
+        </div>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Enviado por</label>
+            <input value={lancadoPor} onChange={e => setLancadoPor(e.target.value)} placeholder="Nome de quem enviou"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Data do envio</label>
+            <input type="date" value={dataEnvio} onChange={e => setDataEnvio(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Anexo (PDF ou Excel)</label>
+            {real?.anexoPath && (
+              <div className="flex items-center gap-2 mb-2 text-xs text-blue-600">
+                <Paperclip size={12}/>
+                <a href={real.anexoPath} target="_blank" rel="noreferrer" className="underline truncate max-w-xs">
+                  {real.anexoPath.split("/").pop()}
+                </a>
+              </div>
+            )}
+            <input type="file" accept=".pdf,.xlsx,.xls"
+              onChange={e => setFile(e.target.files?.[0] ?? null)}
+              className="w-full text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
+          </div>
+          {erro && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{erro}</p>}
+          <div className="flex gap-3 pt-1">
+            <button onClick={onClose} className="flex-1 border border-gray-300 text-gray-700 text-sm font-medium py-2 rounded-lg hover:bg-gray-50">Cancelar</button>
+            <button onClick={salvar} disabled={salvando}
+              className="flex-1 bg-blue-700 hover:bg-blue-800 disabled:bg-blue-400 text-white text-sm font-medium py-2 rounded-lg transition-colors">
+              {salvando ? "Salvando..." : "Salvar Evidência"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Aba Preenchimento ────────────────────────────────────
 function AbaPreenchimento({ cicloId, anoFiscal, mesInicio, mesFim, indicadores, realizacoes, metasPeriodo, onSaved }:
   { cicloId: number; anoFiscal: number; mesInicio: number; mesFim: number;
@@ -53,6 +139,7 @@ function AbaPreenchimento({ cicloId, anoFiscal, mesInicio, mesFim, indicadores, 
   const [salvando, setSalvando] = useState<string|null>(null);
   const [draft, setDraft] = useState<Record<string,string>>({});
   const [draftOrc, setDraftOrc] = useState<Record<string,string>>({});
+  const [evidencia, setEvidencia] = useState<EvidenciaTarget|null>(null);
 
   useEffect(() => {
     const init: Record<string,string> = {};
@@ -192,16 +279,25 @@ function AbaPreenchimento({ cicloId, anoFiscal, mesInicio, mesFim, indicadores, 
                               {savingOrc && <Save size={10} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-orange-400 animate-pulse"/>}
                             </div>
                             {/* Realizado */}
-                            <div className="relative">
-                              <input
-                                type="number"
-                                value={draft[keyReal] ?? ""}
-                                onChange={e => setDraft(d => ({...d,[keyReal]:e.target.value}))}
-                                onBlur={() => salvarReal(ind.id, pi)}
-                                className="w-20 border border-blue-300 bg-blue-50 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder:text-blue-300"
-                                placeholder="—"
-                              />
-                              {savingReal && <Save size={10} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-blue-400 animate-pulse"/>}
+                            <div className="flex items-center gap-1">
+                              <div className="relative">
+                                <input
+                                  type="number"
+                                  value={draft[keyReal] ?? ""}
+                                  onChange={e => setDraft(d => ({...d,[keyReal]:e.target.value}))}
+                                  onBlur={() => salvarReal(ind.id, pi)}
+                                  className="w-20 border border-blue-300 bg-blue-50 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder:text-blue-300"
+                                  placeholder="—"
+                                />
+                                {savingReal && <Save size={10} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-blue-400 animate-pulse"/>}
+                              </div>
+                              {draft[keyReal] && (
+                                <button onClick={() => setEvidencia({ indicadorId: ind.id, periodo: pi, nome: ind.nome })}
+                                  title="Adicionar evidência"
+                                  className={`p-0.5 rounded transition-colors ${realizacoes.find(r => r.indicadorId === ind.id && r.periodo === pi)?.anexoPath ? "text-green-600" : "text-gray-300 hover:text-blue-500"}`}>
+                                  <Paperclip size={11}/>
+                                </button>
+                              )}
                             </div>
                           </div>
                         </td>
@@ -213,6 +309,16 @@ function AbaPreenchimento({ cicloId, anoFiscal, mesInicio, mesFim, indicadores, 
             </tbody>
           </table>
         </div>
+      )}
+
+      {evidencia && (
+        <ModalEvidencia
+          cicloId={cicloId}
+          target={evidencia}
+          realizacoes={realizacoes}
+          onClose={() => setEvidencia(null)}
+          onSaved={() => { setEvidencia(null); onSaved(); }}
+        />
       )}
     </div>
   );

@@ -157,6 +157,8 @@ model Realizacao {
   periodo        String    // "2025-01" | "2025-T1" | "2025-S1" | "2025"
   valorRealizado Float
   lancadoPor     String?
+  dataEnvio      DateTime?
+  anexoPath      String?
   criadoEm       DateTime  @default(now())
 
   @@unique([indicadorId, periodo])
