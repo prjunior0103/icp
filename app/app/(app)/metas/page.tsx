@@ -17,6 +17,11 @@ const ABRANGENCIA = ["CORPORATIVO","AREA","INDIVIDUAL"];
 const PERIODICIDADE = ["MENSAL","TRIMESTRAL","SEMESTRAL","ANUAL"];
 const CRITERIO = ["SOMA","MEDIA","ULTIMA_POSICAO"];
 const UNIDADES = ["%","R$","Unidades","Dias","Horas","Pontos","Índice","NPS","Score","Toneladas","Km","Litros","Kg"];
+const PREFIXO_UNIDADES = new Set(["R$"]);
+function fmtValor(valor: number | null | undefined, unidade: string) {
+  if (valor == null) return "—";
+  return PREFIXO_UNIDADES.has(unidade) ? `${unidade} ${valor}` : `${valor}${unidade}`;
+}
 const STATUS_JANELA_COLOR: Record<string,string> = { ABERTA:"bg-green-100 text-green-700", FECHADA:"bg-gray-100 text-gray-500", PRORROGADA:"bg-yellow-100 text-yellow-700" };
 
 // ─── Modal Indicador ──────────────────────────────────────
@@ -521,7 +526,7 @@ export default function MetasPage() {
                       <td className="px-4 py-2.5 font-mono text-xs text-gray-600">{i.codigo}</td>
                       <td className="px-4 py-2.5"><p className="font-medium text-gray-800">{i.nome}</p>{i.metrica&&<p className="text-xs text-gray-400">{i.metrica}</p>}</td>
                       <td className="px-4 py-2.5 text-xs text-gray-600">{i.tipo}</td>
-                      <td className="px-4 py-2.5 text-gray-700">{i.metaAlvo!=null?`${i.metaAlvo}${i.unidade}`:"—"}</td>
+                      <td className="px-4 py-2.5 text-gray-700">{fmtValor(i.metaAlvo, i.unidade)}</td>
                       <td className="px-4 py-2.5"><span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_JANELA_COLOR[i.statusJanela]??""}`}>{i.statusJanela}</span></td>
                       <td className="px-4 py-2.5"><span className={`text-xs px-2 py-0.5 rounded-full ${i.status==="ATIVO"?"bg-green-100 text-green-700":"bg-gray-100 text-gray-500"}`}>{i.status}</span></td>
                       <td className="px-4 py-2.5"><div className="flex gap-1 justify-end"><button onClick={()=>setModalInd(i)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"><Pencil size={14}/></button><button onClick={()=>excluirInd(i.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"><Trash2 size={14}/></button></div></td>
