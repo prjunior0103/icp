@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/app/lib/auth";
 import { prisma } from "@/app/lib/prisma";
+import { logAudit, getAuditUser } from "@/app/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +46,10 @@ export async function POST(req: Request) {
       anexoPath: anexoPath || null,
     },
   });
+
+  const { userId, userName } = getAuditUser(session);
+  await logAudit({ userId, userName, acao: "CRIAR", entidade: "Realizacao", entidadeId: realizacao.id, descricao: `Realização indicadorId ${indicadorId} período ${periodo}: ${valorRealizado}` });
+
   return NextResponse.json({ realizacao }, { status: 201 });
 }
 
@@ -54,6 +59,11 @@ export async function DELETE(req: Request) {
   const { searchParams } = new URL(req.url);
   const id = searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id obrigatório" }, { status: 400 });
+  const realizacao = await prisma.realizacao.findUnique({ where: { id: Number(id) } });
   await prisma.realizacao.delete({ where: { id: Number(id) } });
+
+  const { userId, userName } = getAuditUser(session);
+  await logAudit({ userId, userName, acao: "EXCLUIR", entidade: "Realizacao", entidadeId: id, descricao: `Realização #${id} excluída`, dadosAntigos: realizacao });
+
   return NextResponse.json({ ok: true });
 }

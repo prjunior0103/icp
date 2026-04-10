@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/app/lib/auth";
 import { prisma } from "@/app/lib/prisma";
+import { logAudit, getAuditUser } from "@/app/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +41,9 @@ export async function POST(req: Request) {
     data: { anoFiscal, mesInicio, mesFim, bonusPool: bonusPool ?? null },
   });
 
+  const { userId, userName } = getAuditUser(session);
+  await logAudit({ userId, userName, acao: "CRIAR", entidade: "Ciclo", entidadeId: ciclo.id, descricao: `Ciclo ${anoFiscal} criado`, dadosNovos: ciclo });
+
   return NextResponse.json({ ciclo }, { status: 201 });
 }
 
@@ -56,7 +60,11 @@ export async function DELETE(req: Request) {
   const id = searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id obrigatório" }, { status: 400 });
 
+  const ciclo = await prisma.cicloICP.findUnique({ where: { id: Number(id) } });
   await prisma.cicloICP.delete({ where: { id: Number(id) } });
+
+  const { userId, userName } = getAuditUser(session);
+  await logAudit({ userId, userName, acao: "EXCLUIR", entidade: "Ciclo", entidadeId: id, descricao: `Ciclo ${ciclo?.anoFiscal ?? id} excluído`, dadosAntigos: ciclo });
 
   return NextResponse.json({ ok: true });
 }
@@ -75,6 +83,7 @@ export async function PUT(req: Request) {
 
   if (!id) return NextResponse.json({ error: "id obrigatório" }, { status: 400 });
 
+  const anterior = await prisma.cicloICP.findUnique({ where: { id: Number(id) } });
   const ciclo = await prisma.cicloICP.update({
     where: { id: Number(id) },
     data: {
@@ -85,6 +94,9 @@ export async function PUT(req: Request) {
       ...(bonusPool !== undefined && { bonusPool: bonusPool ? Number(bonusPool) : null }),
     },
   });
+
+  const { userId, userName } = getAuditUser(session);
+  await logAudit({ userId, userName, acao: "EDITAR", entidade: "Ciclo", entidadeId: id, descricao: `Ciclo ${ciclo.anoFiscal} editado`, dadosAntigos: anterior, dadosNovos: ciclo });
 
   return NextResponse.json({ ciclo });
 }

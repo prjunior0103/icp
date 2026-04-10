@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/app/lib/auth";
 import { prisma } from "@/app/lib/prisma";
+import { logAudit, getAuditUser } from "@/app/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -65,6 +66,9 @@ export async function POST(req: Request) {
     include: { area: true },
   });
 
+  const { userId, userName } = getAuditUser(session);
+  await logAudit({ userId, userName, acao: "CRIAR", entidade: "Colaborador", entidadeId: colaborador.id, descricao: `Colaborador ${nome} (${matricula}) criado` });
+
   return NextResponse.json({ colaborador }, { status: 201 });
 }
 
@@ -81,6 +85,7 @@ export async function PUT(req: Request) {
 
   if (!id) return NextResponse.json({ error: "id obrigatório" }, { status: 400 });
 
+  const anterior = await prisma.colaborador.findUnique({ where: { id: Number(id) } });
   const colaborador = await prisma.colaborador.update({
     where: { id: Number(id) },
     data: {
@@ -103,6 +108,9 @@ export async function PUT(req: Request) {
     include: { area: true },
   });
 
+  const { userId, userName } = getAuditUser(session);
+  await logAudit({ userId, userName, acao: "EDITAR", entidade: "Colaborador", entidadeId: id, descricao: `Colaborador ${colaborador.nome} editado`, dadosAntigos: anterior, dadosNovos: { nome, cargo, status } });
+
   return NextResponse.json({ colaborador });
 }
 
@@ -116,10 +124,15 @@ export async function DELETE(req: Request) {
 
   const numId = Number(id);
   try {
+    const colab = await prisma.colaborador.findUnique({ where: { id: numId } });
     // Remove vínculos antes de deletar (sem onDelete: Cascade nas FKs)
     await prisma.atribuicaoAgrupamento.deleteMany({ where: { colaboradorId: numId } });
     await prisma.colaborador.updateMany({ where: { gestorId: numId }, data: { gestorId: null } });
     await prisma.colaborador.delete({ where: { id: numId } });
+
+    const { userId, userName } = getAuditUser(session);
+    await logAudit({ userId, userName, acao: "EXCLUIR", entidade: "Colaborador", entidadeId: id, descricao: `Colaborador ${colab?.nome ?? id} (${colab?.matricula ?? ""}) excluído`, dadosAntigos: colab });
+
     return NextResponse.json({ ok: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

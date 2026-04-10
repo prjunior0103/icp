@@ -186,3 +186,16 @@ model FaixaIndicador {
 
   @@unique([indicadorId, de])
 }
+
+model AuditLog {
+  id          Int      @id @default(autoincrement())
+  userId      String
+  userName    String
+  acao        String   // CRIAR | EDITAR | EXCLUIR
+  entidade    String
+  entidadeId  String?
+  descricao   String
+  dadosAntigos String?
+  dadosNovos   String?
+  criadoEm    DateTime @default(now())
+}

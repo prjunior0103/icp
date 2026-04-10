@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/app/lib/auth";
 import { prisma } from "@/app/lib/prisma";
+import { logAudit, getAuditUser } from "@/app/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +59,10 @@ export async function POST(req: Request) {
       status: status ?? "DRAFT",
     },
   });
+
+  const { userId, userName } = getAuditUser(session);
+  await logAudit({ userId, userName, acao: "CRIAR", entidade: "Indicador", entidadeId: indicador.id, descricao: `Indicador ${codigo} — ${nome} criado` });
+
   return NextResponse.json({ indicador }, { status: 201 });
 }
 
@@ -83,6 +88,10 @@ export async function PUT(req: Request) {
     }
   }
   const indicador = await prisma.indicador.update({ where: { id: Number(id) }, data });
+
+  const { userId, userName } = getAuditUser(session);
+  await logAudit({ userId, userName, acao: "EDITAR", entidade: "Indicador", entidadeId: id, descricao: `Indicador ${indicador.codigo} — ${indicador.nome} editado`, dadosNovos: data });
+
   return NextResponse.json({ indicador });
 }
 
@@ -94,9 +103,14 @@ export async function DELETE(req: Request) {
   if (!id) return NextResponse.json({ error: "id obrigatório" }, { status: 400 });
   const numId = Number(id);
   try {
+    const indicador = await prisma.indicador.findUnique({ where: { id: numId } });
     // Remove vínculos com agrupamentos antes de deletar (sem cascade na FK)
     await prisma.indicadorNoAgrupamento.deleteMany({ where: { indicadorId: numId } });
     await prisma.indicador.delete({ where: { id: numId } });
+
+    const { userId, userName } = getAuditUser(session);
+    await logAudit({ userId, userName, acao: "EXCLUIR", entidade: "Indicador", entidadeId: id, descricao: `Indicador ${indicador?.codigo ?? id} — ${indicador?.nome ?? ""} excluído`, dadosAntigos: indicador });
+
     return NextResponse.json({ ok: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

@@ -13,6 +13,7 @@ import {
   ChevronDown,
   Building2,
   FileText,
+  Shield,
 } from "lucide-react";
 import { CicloProvider, useCiclo } from "@/app/lib/ciclo-context";
 
@@ -25,6 +26,10 @@ const NAV_ITEMS = [
   { href: "/configuracoes", label: "Configurações", icon: Settings },
 ];
 
+const NAV_GUARDIAO = [
+  { href: "/auditoria", label: "Auditoria", icon: Shield },
+];
+
 const statusBadge: Record<string, string> = {
   SETUP: "bg-yellow-100 text-yellow-700",
   ATIVO: "bg-green-100 text-green-700",
@@ -35,6 +40,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
   const router = useRouter();
   const pathname = usePathname();
+  const role = (session?.user as { role?: string })?.role;
   const { ciclos, cicloAtivo, setCicloAtivo } = useCiclo();
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
@@ -129,7 +135,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
       <div className="flex flex-1">
         <aside className="w-56 bg-white border-r border-gray-200 flex flex-col py-4">
           <nav className="flex-1 px-2 space-y-0.5">
-            {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+            {[...NAV_ITEMS, ...(role === "GUARDIAO" ? NAV_GUARDIAO : [])].map(({ href, label, icon: Icon }) => {
               const active = pathname === href;
               return (
                 <button

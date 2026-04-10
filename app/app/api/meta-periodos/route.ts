@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/app/lib/auth";
 import { prisma } from "@/app/lib/prisma";
+import { logAudit, getAuditUser } from "@/app/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,10 @@ export async function POST(req: Request) {
     update: { valorOrcado: Number(valorOrcado) },
     create: { cicloId: Number(cicloId), indicadorId: Number(indicadorId), periodo, valorOrcado: Number(valorOrcado) },
   });
+
+  const { userId, userName } = getAuditUser(session);
+  await logAudit({ userId, userName, acao: "CRIAR", entidade: "MetaPeriodo", entidadeId: metaPeriodo.id, descricao: `Meta período indicadorId ${indicadorId} — ${periodo}: ${valorOrcado}` });
+
   return NextResponse.json({ metaPeriodo }, { status: 201 });
 }
 
@@ -40,6 +45,11 @@ export async function DELETE(req: Request) {
   const { searchParams } = new URL(req.url);
   const id = searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id obrigatório" }, { status: 400 });
+  const meta = await prisma.metaPeriodo.findUnique({ where: { id: Number(id) } });
   await prisma.metaPeriodo.delete({ where: { id: Number(id) } });
+
+  const { userId, userName } = getAuditUser(session);
+  await logAudit({ userId, userName, acao: "EXCLUIR", entidade: "MetaPeriodo", entidadeId: id, descricao: `Meta período #${id} excluída`, dadosAntigos: meta });
+
   return NextResponse.json({ ok: true });
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/app/lib/auth";
 import { prisma } from "@/app/lib/prisma";
+import { logAudit, getAuditUser } from "@/app/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -63,6 +64,9 @@ export async function POST(req: Request) {
     for (const sid of subIds) await atribuir(sid);
   }
 
+  const { userId, userName } = getAuditUser(session);
+  await logAudit({ userId, userName, acao: "CRIAR", entidade: "Atribuicao", entidadeId: String(colaboradorId), descricao: `Atribuição criada/atualizada para colaboradorId ${colaboradorId} (${criados.length} registros)` });
+
   return NextResponse.json({ criados: criados.length }, { status: 201 });
 }
 
@@ -72,6 +76,11 @@ export async function DELETE(req: Request) {
   const { searchParams } = new URL(req.url);
   const id = searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id obrigatório" }, { status: 400 });
+  const atribuicao = await prisma.atribuicaoAgrupamento.findUnique({ where: { id: Number(id) } });
   await prisma.atribuicaoAgrupamento.delete({ where: { id: Number(id) } });
+
+  const { userId, userName } = getAuditUser(session);
+  await logAudit({ userId, userName, acao: "EXCLUIR", entidade: "Atribuicao", entidadeId: id, descricao: `Atribuição #${id} removida`, dadosAntigos: atribuicao });
+
   return NextResponse.json({ ok: true });
 }

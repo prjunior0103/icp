@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/app/lib/auth";
 import { prisma } from "@/app/lib/prisma";
+import { logAudit, getAuditUser } from "@/app/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,10 @@ export async function POST(req: Request) {
     data: { cicloId: Number(cicloId), nome, tipo: tipo ?? "CORPORATIVO", descricao: descricao || null },
     include: { indicadores: { include: { indicador: true } } },
   });
+
+  const { userId, userName } = getAuditUser(session);
+  await logAudit({ userId, userName, acao: "CRIAR", entidade: "Agrupamento", entidadeId: agrupamento.id, descricao: `Agrupamento "${nome}" criado` });
+
   return NextResponse.json({ agrupamento }, { status: 201 });
 }
 
@@ -54,6 +59,10 @@ export async function PUT(req: Request) {
     where: { id: Number(id) },
     include: { indicadores: { include: { indicador: true } } },
   });
+
+  const { userId, userName } = getAuditUser(session);
+  await logAudit({ userId, userName, acao: "EDITAR", entidade: "Agrupamento", entidadeId: id, descricao: `Agrupamento "${agrupamento?.nome ?? id}" editado` });
+
   return NextResponse.json({ agrupamento });
 }
 
@@ -63,6 +72,11 @@ export async function DELETE(req: Request) {
   const { searchParams } = new URL(req.url);
   const id = searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id obrigatório" }, { status: 400 });
+  const agrupamento = await prisma.agrupamento.findUnique({ where: { id: Number(id) } });
   await prisma.agrupamento.delete({ where: { id: Number(id) } });
+
+  const { userId, userName } = getAuditUser(session);
+  await logAudit({ userId, userName, acao: "EXCLUIR", entidade: "Agrupamento", entidadeId: id, descricao: `Agrupamento "${agrupamento?.nome ?? id}" excluído`, dadosAntigos: agrupamento });
+
   return NextResponse.json({ ok: true });
 }
