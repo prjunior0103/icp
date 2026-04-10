@@ -441,8 +441,8 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="relative">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative min-w-40">
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"/>
           <input value={filtroColaborador} onChange={e=>setFiltroColaborador(e.target.value)} placeholder="Colaborador..."
             className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"/>
