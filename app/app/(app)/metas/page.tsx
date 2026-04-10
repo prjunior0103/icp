@@ -730,7 +730,7 @@ export default function MetasPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {atribuicoes.filter(a => {
-                    return matchesAreaFilter(a.colaborador, filtroAreaAtrib);
+                    return matchesAreaFilter(a.colaborador, filtroAreaAtrib, areas);
                   }).map(a=>{
                     const soma = somasPorColab[a.colaboradorId]??0;
                     return (

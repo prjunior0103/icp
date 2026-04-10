@@ -81,7 +81,7 @@ function RelatColaborador({ atribuicoes, notasMap, areas }: { atribuicoes: Atrib
   for (const a of atribuicoes) colabsMap.set(a.colaboradorId, a.colaborador);
   const colabs = Array.from(colabsMap.values()).filter(c => {
     if (busca && !c.nome.toLowerCase().includes(busca.toLowerCase()) && !c.matricula.includes(busca)) return false;
-    if (!matchesAreaFilter(c, filtroArea)) return false;
+    if (!matchesAreaFilter(c, filtroArea, areas)) return false;
     return true;
   });
 

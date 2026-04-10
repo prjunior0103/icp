@@ -538,7 +538,7 @@ function AbaColaboradores({ cicloId }: { cicloId: number }) {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {colaboradores.filter(c => {
-                if (!matchesAreaFilter(c, filtroArea)) return false;
+                if (!matchesAreaFilter(c, filtroArea, areas)) return false;
                 return true;
               }).map((c) => (
                 <tr key={c.id} className={`hover:bg-gray-50 ${selecionados.has(c.id) ? "bg-blue-50" : ""}`}>

@@ -412,7 +412,7 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
   const colabsFiltrados = colaboradores.filter(c => {
     if (filtroGestor && String(c.gestorId) !== filtroGestor) return false;
     if (filtroColaborador && !c.nome.toLowerCase().includes(filtroColaborador.toLowerCase())) return false;
-    if (!matchesAreaFilter(c, filtroArea)) return false;
+    if (!matchesAreaFilter(c, filtroArea, areas)) return false;
     return true;
   });
 

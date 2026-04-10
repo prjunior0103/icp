@@ -31,15 +31,23 @@ interface ColabLike {
   centroCusto?: string | null;
 }
 
-export function matchesAreaFilter(c: ColabLike, f: AreaFilters): boolean {
+export function matchesAreaFilter(c: ColabLike, f: AreaFilters, areas?: AreaLike[]): boolean {
   const hasAny = f.nivel1 || f.nivel2 || f.nivel3 || f.nivel4 || f.nivel5 || f.cc;
   if (!hasAny) return true;
-  if (f.nivel1 && c.area?.nivel1 === f.nivel1) return true;
-  if (f.nivel2 && c.area?.nivel2 === f.nivel2) return true;
-  if (f.nivel3 && c.area?.nivel3 === f.nivel3) return true;
-  if (f.nivel4 && c.area?.nivel4 === f.nivel4) return true;
-  if (f.nivel5 && c.area?.nivel5 === f.nivel5) return true;
-  if (f.cc && c.centroCusto === f.cc) return true;
+
+  // Resolve área: usa o vínculo direto (areaId) ou, se nulo, busca pelo centroCusto
+  const linked = c.area as AreaLike | null | undefined;
+  const resolvedArea: AreaLike | null | undefined =
+    linked ?? (c.centroCusto && areas
+      ? areas.find(a => a.centroCusto === c.centroCusto) ?? null
+      : null);
+
+  if (f.nivel1 && resolvedArea?.nivel1 === f.nivel1) return true;
+  if (f.nivel2 && resolvedArea?.nivel2 === f.nivel2) return true;
+  if (f.nivel3 && resolvedArea?.nivel3 === f.nivel3) return true;
+  if (f.nivel4 && resolvedArea?.nivel4 === f.nivel4) return true;
+  if (f.nivel5 && resolvedArea?.nivel5 === f.nivel5) return true;
+  if (f.cc && (c.centroCusto === f.cc || resolvedArea?.centroCusto === f.cc)) return true;
   return false;
 }
 
