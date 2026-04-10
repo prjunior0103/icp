@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useCiclo } from "@/app/lib/ciclo-context";
 import { calcNota, calcMID, gerarPeriodos, agregarRealizacoes } from "@/app/lib/calc";
 import { ClipboardList, BarChart3, Search, Save, ChevronDown, ChevronUp, Paperclip, X } from "lucide-react";
-import { AreaCCCombobox } from "@/app/components/AreaCCCombobox";
+import { HierarchicalAreaFilter, EMPTY_FILTERS, matchesAreaFilter, type AreaFilters } from "@/app/components/HierarchicalAreaFilter";
 
 // ─── Types ────────────────────────────────────────────────
 interface Indicador {
@@ -371,7 +371,7 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
   const [filtroGestor, setFiltroGestor] = useState("");
   const [filtroColaborador, setFiltroColaborador] = useState("");
   const [filtroIndicador, setFiltroIndicador] = useState("");
-  const [filtroNivel, setFiltroNivel] = useState("");
+  const [filtroArea, setFiltroArea] = useState<AreaFilters>(EMPTY_FILTERS);
   const [expandido, setExpandido] = useState<Record<number,boolean>>({});
 
   // Calcular nota de cada indicador — usa orçado como meta quando disponível
@@ -412,11 +412,7 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
   const colabsFiltrados = colaboradores.filter(c => {
     if (filtroGestor && String(c.gestorId) !== filtroGestor) return false;
     if (filtroColaborador && !c.nome.toLowerCase().includes(filtroColaborador.toLowerCase())) return false;
-    if (filtroNivel) {
-      const matchArea = [c.area?.nivel1,c.area?.nivel2,c.area?.nivel3,c.area?.nivel4,c.area?.nivel5].some(n => n === filtroNivel);
-      const matchCC = c.centroCusto === filtroNivel;
-      if (!matchArea && !matchCC) return false;
-    }
+    if (!matchesAreaFilter(c, filtroArea)) return false;
     return true;
   });
 
@@ -459,7 +455,7 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
           <option value="">Todos os indicadores</option>
           {indicadores.map(i=><option key={i.id} value={i.id}>{i.codigo} — {i.nome}</option>)}
         </select>
-        <AreaCCCombobox areas={areas} value={filtroNivel} onChange={setFiltroNivel} />
+        <HierarchicalAreaFilter areas={areas} value={filtroArea} onChange={setFiltroArea} />
       </div>
 
       {colabsFiltrados.length === 0 ? (

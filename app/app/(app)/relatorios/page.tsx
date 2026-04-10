@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useCiclo } from "@/app/lib/ciclo-context";
 import { calcNota, calcMID, gerarPeriodos, agregarRealizacoes } from "@/app/lib/calc";
 import { FileText, Search, Download, Users, BarChart3, GitBranch, UserCheck, ChevronDown, ChevronUp, UserCog, LayoutGrid } from "lucide-react";
-import { AreaCCCombobox } from "@/app/components/AreaCCCombobox";
+import { HierarchicalAreaFilter, EMPTY_FILTERS, matchesAreaFilter, type AreaFilters } from "@/app/components/HierarchicalAreaFilter";
 
 // ─── Types ────────────────────────────────────────────────
 interface Indicador { id: number; codigo: string; nome: string; tipo: string; unidade: string; metaMinima?: number | null; metaAlvo?: number | null; metaMaxima?: number | null; periodicidade: string; criterioApuracao: string; numeradorId?: number | null; divisorId?: number | null; faixas?: { de: number; ate: number; nota: number }[]; analistaResp?: string | null; responsavelEnvio?: { id: number; nome: string } | null; }
@@ -74,17 +74,14 @@ function NotaBadge({ nota }: { nota: number | null | undefined }) {
 // ─── R1: Por Colaborador ─────────────────────────────────
 function RelatColaborador({ atribuicoes, notasMap, areas }: { atribuicoes: Atribuicao[]; notasMap: Map<number, number>; areas: {nivel1:string;nivel2?:string|null;nivel3?:string|null;nivel4?:string|null;nivel5?:string|null;centroCusto:string}[]; }) {
   const [busca, setBusca] = useState("");
-  const [filtroArea, setFiltroArea] = useState("");
+  const [filtroArea, setFiltroArea] = useState<AreaFilters>(EMPTY_FILTERS);
   const [expandido, setExpandido] = useState<Record<number, boolean>>({});
 
   const colabsMap = new Map<number, Colaborador>();
   for (const a of atribuicoes) colabsMap.set(a.colaboradorId, a.colaborador);
   const colabs = Array.from(colabsMap.values()).filter(c => {
     if (busca && !c.nome.toLowerCase().includes(busca.toLowerCase()) && !c.matricula.includes(busca)) return false;
-    if (filtroArea) {
-      const matchArea = [c.area?.nivel1,c.area?.nivel2,c.area?.nivel3,c.area?.nivel4,c.area?.nivel5].some(n => n === filtroArea);
-      if (!matchArea && c.centroCusto !== filtroArea) return false;
-    }
+    if (!matchesAreaFilter(c, filtroArea)) return false;
     return true;
   });
 
@@ -115,7 +112,7 @@ function RelatColaborador({ atribuicoes, notasMap, areas }: { atribuicoes: Atrib
           <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar colaborador..."
             className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
         </div>
-        <AreaCCCombobox areas={areas} value={filtroArea} onChange={setFiltroArea} size="md" />
+        <HierarchicalAreaFilter areas={areas} value={filtroArea} onChange={setFiltroArea} />
       </div>
 
       {colabs.map(c => {

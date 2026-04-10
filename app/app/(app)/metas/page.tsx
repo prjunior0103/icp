@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Plus, X, Pencil, Trash2, Upload, Download, Search, Target, BarChart3, Users, AlertCircle, CheckCircle2 } from "lucide-react";
 import { useCiclo } from "@/app/lib/ciclo-context";
-import { AreaCCCombobox } from "@/app/components/AreaCCCombobox";
+import { HierarchicalAreaFilter, EMPTY_FILTERS, matchesAreaFilter, type AreaFilters } from "@/app/components/HierarchicalAreaFilter";
 
 // ─── Types ────────────────────────────────────────────────
 interface Indicador { id: number; cicloId: number; codigo: string; nome: string; tipo: string; abrangencia: string; unidade: string; metaMinima?: number | null; metaAlvo?: number | null; metaMaxima?: number | null; baseline?: number | null; metrica?: string | null; periodicidade: string; criterioApuracao: string; origemDado?: string | null; analistaResp?: string | null; numeradorId?: number | null; divisorId?: number | null; statusJanela: string; status: string; descricao?: string | null; }
@@ -523,7 +523,7 @@ export default function MetasPage() {
   const [selAtribs, setSelAtribs] = useState<Set<number>>(new Set());
   const [excluindoAtribs, setExcluindoAtribs] = useState(false);
   const [atribuindoAg, setAtribuindoAg] = useState<Set<number>>(new Set());
-  const [filtroAreaAtrib, setFiltroAreaAtrib] = useState("");
+  const [filtroAreaAtrib, setFiltroAreaAtrib] = useState<AreaFilters>(EMPTY_FILTERS);
 
   const carregarInds = useCallback(() => {
     if (!cicloAtivo) return;
@@ -705,7 +705,7 @@ export default function MetasPage() {
       {aba==="atribuicoes" && (
         <div className="space-y-4">
           <div className="flex items-center gap-2">
-            <AreaCCCombobox areas={areas} value={filtroAreaAtrib} onChange={setFiltroAreaAtrib} />
+            <HierarchicalAreaFilter areas={areas} value={filtroAreaAtrib} onChange={setFiltroAreaAtrib} />
             <div className="flex-1"/>
             {selAtribs.size > 0 && (
               <button onClick={excluirAtribsMassa} disabled={excluindoAtribs}
@@ -730,9 +730,7 @@ export default function MetasPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {atribuicoes.filter(a => {
-                    if (!filtroAreaAtrib) return true;
-                    const c = a.colaborador;
-                    return [c.area?.nivel1,c.area?.nivel2,c.area?.nivel3,c.area?.nivel4,c.area?.nivel5].some(n => n === filtroAreaAtrib) || c.centroCusto === filtroAreaAtrib;
+                    return matchesAreaFilter(a.colaborador, filtroAreaAtrib);
                   }).map(a=>{
                     const soma = somasPorColab[a.colaboradorId]??0;
                     return (
