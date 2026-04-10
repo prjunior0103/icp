@@ -123,13 +123,38 @@ export async function POST(req: Request) {
       };
 
       if (existing) {
-        await prisma.colaborador.update({
-          where: { id: existing.id },
-          data: sharedData,
-        });
+        // Detectar movimentações por diff
+        const movs: { tipo: string; dadosAntigos: object; dadosNovos: object }[] = [];
+
+        if (sharedData.cargo && existing.cargo !== sharedData.cargo)
+          movs.push({ tipo: "MUDANCA_FUNCAO", dadosAntigos: { cargo: existing.cargo }, dadosNovos: { cargo: sharedData.cargo } });
+
+        if (sharedData.centroCusto && existing.centroCusto !== sharedData.centroCusto)
+          movs.push({ tipo: "MUDANCA_AREA", dadosAntigos: { centroCusto: existing.centroCusto }, dadosNovos: { centroCusto: sharedData.centroCusto } });
+
+        if (sharedData.matriculaGestor && existing.matriculaGestor !== sharedData.matriculaGestor)
+          movs.push({ tipo: "MUDANCA_GESTOR", dadosAntigos: { matriculaGestor: existing.matriculaGestor, nomeGestor: existing.nomeGestor }, dadosNovos: { matriculaGestor: sharedData.matriculaGestor, nomeGestor: sharedData.nomeGestor } });
+
+        if (existing.status !== "AFASTADO" && status === "AFASTADO")
+          movs.push({ tipo: "AFASTAMENTO", dadosAntigos: { status: existing.status }, dadosNovos: { status } });
+        else if (existing.status === "AFASTADO" && status === "ATIVO")
+          movs.push({ tipo: "RETORNO", dadosAntigos: { status: existing.status }, dadosNovos: { status } });
+        else if (existing.status === "ATIVO" && status === "INATIVO")
+          movs.push({ tipo: "DESLIGAMENTO", dadosAntigos: { status: existing.status }, dadosNovos: { status } });
+
+        await prisma.colaborador.update({ where: { id: existing.id }, data: sharedData });
+
+        for (const mov of movs) {
+          await prisma.movimentacaoColaborador.create({
+            data: { cicloId: Number(cicloId), matricula, tipo: mov.tipo, dadosAntigos: JSON.stringify(mov.dadosAntigos), dadosNovos: JSON.stringify(mov.dadosNovos) },
+          });
+        }
       } else {
         await prisma.colaborador.create({
           data: { cicloId: Number(cicloId), matricula, ...sharedData },
+        });
+        await prisma.movimentacaoColaborador.create({
+          data: { cicloId: Number(cicloId), matricula, tipo: "ADMISSAO", dadosNovos: JSON.stringify({ nome: sharedData.nome, cargo: sharedData.cargo, centroCusto: sharedData.centroCusto }) },
         });
       }
       criados++;

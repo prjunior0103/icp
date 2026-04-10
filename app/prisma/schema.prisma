@@ -187,6 +187,18 @@ model FaixaIndicador {
   @@unique([indicadorId, de])
 }
 
+model MovimentacaoColaborador {
+  id          Int      @id @default(autoincrement())
+  cicloId     Int
+  matricula   String
+  tipo        String   // ADMISSAO | DESLIGAMENTO | AFASTAMENTO | RETORNO | MUDANCA_FUNCAO | MUDANCA_AREA | MUDANCA_GESTOR
+  dataEfetiva DateTime @default(now())
+  dadosAntigos String?
+  dadosNovos   String?
+  observacao  String?
+  criadoEm    DateTime @default(now())
+}
+
 model AuditLog {
   id          Int      @id @default(autoincrement())
   userId      String

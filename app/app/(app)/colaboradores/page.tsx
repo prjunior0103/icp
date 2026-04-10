@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   Plus, X, Pencil, Trash2, Upload, Download,
-  Search, Users, Building2, AlertCircle, CheckCircle2,
+  Search, Users, Building2, AlertCircle, CheckCircle2, ArrowLeftRight,
 } from "lucide-react";
 import { HierarchicalAreaFilter, EMPTY_FILTERS, matchesAreaFilter, type AreaFilters } from "@/app/components/HierarchicalAreaFilter";
 import { useCiclo } from "@/app/lib/ciclo-context";
@@ -590,10 +590,112 @@ function AbaColaboradores({ cicloId }: { cicloId: number }) {
   );
 }
 
+// ─── Aba Movimentações ────────────────────────────────────
+const TIPO_COR: Record<string, string> = {
+  ADMISSAO:       "bg-green-100 text-green-700",
+  DESLIGAMENTO:   "bg-red-100 text-red-700",
+  AFASTAMENTO:    "bg-orange-100 text-orange-700",
+  RETORNO:        "bg-blue-100 text-blue-700",
+  MUDANCA_FUNCAO: "bg-purple-100 text-purple-700",
+  MUDANCA_AREA:   "bg-yellow-100 text-yellow-700",
+  MUDANCA_GESTOR: "bg-indigo-100 text-indigo-700",
+};
+const TIPO_LABEL: Record<string, string> = {
+  ADMISSAO:"Admissão", DESLIGAMENTO:"Desligamento", AFASTAMENTO:"Afastamento",
+  RETORNO:"Retorno", MUDANCA_FUNCAO:"Mudança de Função", MUDANCA_AREA:"Mudança de Área", MUDANCA_GESTOR:"Mudança de Gestor",
+};
+
+interface Movimentacao { id: number; matricula: string; tipo: string; dataEfetiva: string; dadosAntigos: string|null; dadosNovos: string|null; observacao: string|null; criadoEm: string; }
+
+function AbaMovimentacoes({ cicloId }: { cicloId: number }) {
+  const [movs, setMovs] = useState<Movimentacao[]>([]);
+  const [filtroTipo, setFiltroTipo] = useState("");
+  const [busca, setBusca] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setLoading(true);
+    const p = new URLSearchParams({ cicloId: String(cicloId), ...(filtroTipo && { tipo: filtroTipo }), ...(busca && { busca }) });
+    fetch(`/api/movimentacoes?${p}`).then(r=>r.json()).then(d=>{ setMovs(d.movimentacoes??[]); setLoading(false); });
+  }, [cicloId, filtroTipo, busca]);
+
+  function fmt(iso: string) {
+    return new Date(iso).toLocaleString("pt-BR", { day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit" });
+  }
+  function parseDados(json: string|null) {
+    if (!json) return null;
+    try { return JSON.parse(json); } catch { return null; }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative min-w-48">
+          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"/>
+          <input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar matrícula..."
+            className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+        </div>
+        <select value={filtroTipo} onChange={e=>setFiltroTipo(e.target.value)}
+          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="">Todos os tipos</option>
+          {Object.entries(TIPO_LABEL).map(([k,v])=><option key={k} value={k}>{v}</option>)}
+        </select>
+      </div>
+
+      {loading ? (
+        <div className="text-center py-10 text-gray-400 text-sm">Carregando...</div>
+      ) : movs.length === 0 ? (
+        <div className="flex flex-col items-center justify-center h-48 text-gray-400">
+          <ArrowLeftRight size={32} className="mb-2 text-gray-300"/>
+          <p className="text-sm">Nenhuma movimentação registrada</p>
+          <p className="text-xs mt-1">As movimentações são detectadas automaticamente no import</p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-200">
+                <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500 w-32">Data</th>
+                <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500 w-28">Matrícula</th>
+                <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500 w-36">Tipo</th>
+                <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">Antes</th>
+                <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">Depois</th>
+              </tr>
+            </thead>
+            <tbody>
+              {movs.map((m, i) => {
+                const ant = parseDados(m.dadosAntigos);
+                const nov = parseDados(m.dadosNovos);
+                return (
+                  <tr key={m.id} className={`border-b border-gray-100 ${i%2===0?"":"bg-gray-50/40"}`}>
+                    <td className="px-4 py-2.5 text-xs text-gray-500 whitespace-nowrap">{fmt(m.criadoEm)}</td>
+                    <td className="px-4 py-2.5 text-xs font-mono text-gray-700">{m.matricula}</td>
+                    <td className="px-4 py-2.5">
+                      <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${TIPO_COR[m.tipo]??"bg-gray-100 text-gray-600"}`}>
+                        {TIPO_LABEL[m.tipo]??m.tipo}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-gray-500">
+                      {ant ? Object.entries(ant).map(([k,v])=><span key={k} className="block">{k}: <span className="text-red-600">{String(v??"-")}</span></span>) : "—"}
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-gray-700">
+                      {nov ? Object.entries(nov).map(([k,v])=><span key={k} className="block">{k}: <span className="text-green-700">{String(v??"-")}</span></span>) : "—"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────
 export default function ColaboradoresPage() {
   const { cicloAtivo } = useCiclo();
-  const [aba, setAba] = useState<"colaboradores" | "areas">("colaboradores");
+  const [aba, setAba] = useState<"colaboradores" | "areas" | "movimentacoes">("colaboradores");
 
   if (!cicloAtivo) {
     return (
@@ -613,29 +715,26 @@ export default function ColaboradoresPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-200">
-        {(["colaboradores", "areas"] as const).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setAba(tab)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${
-              aba === tab
-                ? "border-blue-600 text-blue-700"
-                : "border-transparent text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            {tab === "colaboradores" ? (
-              <span className="flex items-center gap-1.5"><Users size={14} /> Colaboradores</span>
-            ) : (
-              <span className="flex items-center gap-1.5"><Building2 size={14} /> Áreas</span>
-            )}
+        {([
+          ["colaboradores", "Colaboradores", <Users size={14}/>],
+          ["areas", "Áreas", <Building2 size={14}/>],
+          ["movimentacoes", "Movimentações", <ArrowLeftRight size={14}/>],
+        ] as const).map(([tab, label, icon]) => (
+          <button key={tab} onClick={() => setAba(tab)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px flex items-center gap-1.5 ${
+              aba === tab ? "border-blue-600 text-blue-700" : "border-transparent text-gray-500 hover:text-gray-700"
+            }`}>
+            {icon} {label}
           </button>
         ))}
       </div>
 
       {aba === "colaboradores" ? (
         <AbaColaboradores cicloId={cicloAtivo.id} />
-      ) : (
+      ) : aba === "areas" ? (
         <AbaAreas cicloId={cicloAtivo.id} />
+      ) : (
+        <AbaMovimentacoes cicloId={cicloAtivo.id} />
       )}
     </div>
   );
