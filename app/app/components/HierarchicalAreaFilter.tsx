@@ -52,16 +52,24 @@ export function matchesAreaFilter(c: ColabLike, f: AreaFilters, areas?: AreaLike
   const hasAny = f.nivel1 || f.nivel2 || f.nivel3 || f.nivel4 || f.nivel5 || f.cc;
   if (!hasAny) return true;
 
-  // Usa TODAS as áreas candidatas — cobre areaId vinculado E lookup por CC
   const candidates = resolveAreas(c, areas);
 
-  if (f.cc  && (c.centroCusto === f.cc  || candidates.some(a => a.centroCusto === f.cc))) return true;
-  if (f.nivel1 && candidates.some(a => a.nivel1 === f.nivel1)) return true;
-  if (f.nivel2 && candidates.some(a => a.nivel2 === f.nivel2)) return true;
-  if (f.nivel3 && candidates.some(a => a.nivel3 === f.nivel3)) return true;
-  if (f.nivel4 && candidates.some(a => a.nivel4 === f.nivel4)) return true;
-  if (f.nivel5 && candidates.some(a => a.nivel5 === f.nivel5)) return true;
-  return false;
+  // CC sem filtros de nível: checar diretamente no colaborador (cobre casos sem área cadastrada)
+  const hasLevelFilter = f.nivel1 || f.nivel2 || f.nivel3 || f.nivel4 || f.nivel5;
+  if (f.cc && !hasLevelFilter) {
+    return c.centroCusto === f.cc || candidates.some(a => a.centroCusto === f.cc);
+  }
+
+  // AND: ao menos uma área candidata deve satisfazer TODOS os filtros ativos
+  return candidates.some(a => {
+    if (f.nivel1 && a.nivel1 !== f.nivel1) return false;
+    if (f.nivel2 && a.nivel2 !== f.nivel2) return false;
+    if (f.nivel3 && a.nivel3 !== f.nivel3) return false;
+    if (f.nivel4 && a.nivel4 !== f.nivel4) return false;
+    if (f.nivel5 && a.nivel5 !== f.nivel5) return false;
+    if (f.cc    && a.centroCusto !== f.cc) return false;
+    return true;
+  });
 }
 
 // ─── Mini combobox (interno) ─────────────────────────────
