@@ -123,16 +123,20 @@ export async function POST(req: Request) {
       };
 
       if (existing) {
+        // Normaliza para comparação — evita falsos positivos por case/espaço/null vs ""
+        const norm = (v: string | null | undefined) => (v?.trim() ?? null) || null;
+        const changed = (a: string | null | undefined, b: string | null | undefined) => norm(a) !== norm(b);
+
         // Detectar movimentações por diff
         const movs: { tipo: string; dadosAntigos: object; dadosNovos: object }[] = [];
 
-        if (sharedData.cargo && existing.cargo !== sharedData.cargo)
+        if (changed(existing.cargo, sharedData.cargo))
           movs.push({ tipo: "MUDANCA_FUNCAO", dadosAntigos: { cargo: existing.cargo }, dadosNovos: { cargo: sharedData.cargo } });
 
-        if (sharedData.centroCusto && existing.centroCusto !== sharedData.centroCusto)
+        if (changed(existing.centroCusto, sharedData.centroCusto))
           movs.push({ tipo: "MUDANCA_AREA", dadosAntigos: { centroCusto: existing.centroCusto }, dadosNovos: { centroCusto: sharedData.centroCusto } });
 
-        if (sharedData.matriculaGestor && existing.matriculaGestor !== sharedData.matriculaGestor)
+        if (changed(existing.matriculaGestor, sharedData.matriculaGestor))
           movs.push({ tipo: "MUDANCA_GESTOR", dadosAntigos: { matriculaGestor: existing.matriculaGestor, nomeGestor: existing.nomeGestor }, dadosNovos: { matriculaGestor: sharedData.matriculaGestor, nomeGestor: sharedData.nomeGestor } });
 
         if (existing.status !== "AFASTADO" && status === "AFASTADO")

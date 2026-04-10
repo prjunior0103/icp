@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import {
   Plus, X, Pencil, Trash2, Upload, Download,
   Search, Users, Building2, AlertCircle, CheckCircle2, ArrowLeftRight,
@@ -608,6 +609,7 @@ const TIPO_LABEL: Record<string, string> = {
 interface Movimentacao { id: number; matricula: string; tipo: string; dataEfetiva: string; dadosAntigos: string|null; dadosNovos: string|null; observacao: string|null; criadoEm: string; }
 
 function AbaMovimentacoes({ cicloId }: { cicloId: number }) {
+  const router = useRouter();
   const [movs, setMovs] = useState<Movimentacao[]>([]);
   const [filtroTipo, setFiltroTipo] = useState("");
   const [busca, setBusca] = useState("");
@@ -620,12 +622,17 @@ function AbaMovimentacoes({ cicloId }: { cicloId: number }) {
   }, [cicloId, filtroTipo, busca]);
 
   function fmt(iso: string) {
-    return new Date(iso).toLocaleString("pt-BR", { day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit" });
+    return new Date(iso).toLocaleDateString("pt-BR", { day:"2-digit", month:"2-digit", year:"numeric" });
   }
   function parseDados(json: string|null) {
     if (!json) return null;
     try { return JSON.parse(json); } catch { return null; }
   }
+
+  const LABEL_MAP: Record<string,string> = {
+    cargo:"Cargo", centroCusto:"Centro de Custo", matriculaGestor:"Matrícula Gestor",
+    nomeGestor:"Nome Gestor", status:"Status", nome:"Nome",
+  };
 
   return (
     <div className="space-y-4">
@@ -640,6 +647,7 @@ function AbaMovimentacoes({ cicloId }: { cicloId: number }) {
           <option value="">Todos os tipos</option>
           {Object.entries(TIPO_LABEL).map(([k,v])=><option key={k} value={k}>{v}</option>)}
         </select>
+        <p className="text-xs text-gray-400 ml-auto">Primeiro import do ciclo registra todos como Admissão</p>
       </div>
 
       {loading ? (
@@ -655,31 +663,43 @@ function AbaMovimentacoes({ cicloId }: { cicloId: number }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500 w-32">Data</th>
+                <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500 w-24">Data</th>
                 <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500 w-28">Matrícula</th>
                 <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500 w-36">Tipo</th>
-                <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">Antes</th>
-                <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">Depois</th>
+                <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">Antes → Depois</th>
+                <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500 w-24"></th>
               </tr>
             </thead>
             <tbody>
               {movs.map((m, i) => {
                 const ant = parseDados(m.dadosAntigos);
                 const nov = parseDados(m.dadosNovos);
+                const keys = nov ? Object.keys(nov) : ant ? Object.keys(ant) : [];
                 return (
-                  <tr key={m.id} className={`border-b border-gray-100 ${i%2===0?"":"bg-gray-50/40"}`}>
-                    <td className="px-4 py-2.5 text-xs text-gray-500 whitespace-nowrap">{fmt(m.criadoEm)}</td>
-                    <td className="px-4 py-2.5 text-xs font-mono text-gray-700">{m.matricula}</td>
-                    <td className="px-4 py-2.5">
+                  <tr key={m.id} className={`border-b border-gray-100 align-top ${i%2===0?"":"bg-gray-50/40"}`}>
+                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{fmt(m.dataEfetiva)}</td>
+                    <td className="px-4 py-3 text-xs font-mono text-gray-700">{m.matricula}</td>
+                    <td className="px-4 py-3">
                       <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${TIPO_COR[m.tipo]??"bg-gray-100 text-gray-600"}`}>
                         {TIPO_LABEL[m.tipo]??m.tipo}
                       </span>
                     </td>
-                    <td className="px-4 py-2.5 text-xs text-gray-500">
-                      {ant ? Object.entries(ant).map(([k,v])=><span key={k} className="block">{k}: <span className="text-red-600">{String(v??"-")}</span></span>) : "—"}
+                    <td className="px-4 py-3 text-xs">
+                      {keys.length === 0 ? <span className="text-gray-400">—</span> : keys.map(k => (
+                        <div key={k} className="mb-0.5">
+                          <span className="text-gray-400 mr-1">{LABEL_MAP[k]??k}:</span>
+                          {ant && <span className="text-red-600 line-through mr-1">{String(ant[k]??"-")}</span>}
+                          {nov && <span className="text-green-700 font-medium">{String(nov[k]??"-")}</span>}
+                        </div>
+                      ))}
                     </td>
-                    <td className="px-4 py-2.5 text-xs text-gray-700">
-                      {nov ? Object.entries(nov).map(([k,v])=><span key={k} className="block">{k}: <span className="text-green-700">{String(v??"-")}</span></span>) : "—"}
+                    <td className="px-4 py-3">
+                      {m.tipo === "ADMISSAO" && (
+                        <button onClick={() => router.push("/metas")}
+                          className="text-xs text-blue-600 hover:text-blue-800 whitespace-nowrap border border-blue-200 rounded px-2 py-1 hover:bg-blue-50">
+                          Atribuir
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );
