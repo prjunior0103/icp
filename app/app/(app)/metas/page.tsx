@@ -289,7 +289,13 @@ function ModalAtribuicao({ cicloId, agrupamentos, atrib, colaboradores, areas, o
     colaboradores.filter(c => gestoresIds.has(c.id))
   , [colaboradores, gestoresIds]);
 
-  // Prévia de impactados (client-side, exceto cascata indireta)
+  // Prévia de impactados (client-side)
+  function getSubordinadosRec(gId: number, todos: Colaborador[], indiretos: boolean): Colaborador[] {
+    const diretos = todos.filter(c => c.gestorId === gId);
+    if (!indiretos) return diretos;
+    return diretos.flatMap(d => [d, ...getSubordinadosRec(d.id, todos, true)]);
+  }
+
   const impactados = useMemo((): Colaborador[] => {
     if (editando) return atrib ? [atrib.colaborador] : [];
     switch (modo) {
@@ -304,11 +310,13 @@ function ModalAtribuicao({ cicloId, agrupamentos, atrib, colaboradores, areas, o
       case "todos":
         return colaboradores;
       case "gestor":
-        return gestorId ? colaboradores.filter(c => String(c.gestorId) === gestorId) : [];
+        if (!gestorId) return [];
+        return getSubordinadosRec(Number(gestorId), colaboradores, cascata === "DIRETOS_E_INDIRETOS");
       default:
         return [];
     }
-  }, [editando, atrib, modo, colaboradorId, grade, filtroArea, gestorId, colaboradores, areas]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editando, atrib, modo, colaboradorId, grade, filtroArea, gestorId, cascata, colaboradores, areas]);
 
   function toggleAg(agId: number, peso: number) {
     setSelecionados(m => {
@@ -358,7 +366,7 @@ function ModalAtribuicao({ cicloId, agrupamentos, atrib, colaboradores, areas, o
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold text-gray-900">{editando ? "Editar Atribuição" : "Nova Atribuição"}</h3>
           <button onClick={onClose}><X size={20} className="text-gray-400"/></button>
@@ -447,33 +455,12 @@ function ModalAtribuicao({ cicloId, agrupamentos, atrib, colaboradores, areas, o
             </div>
           )}
 
-          {/* Prévia de impactados */}
+          {/* Prévia de impactados — só contagem */}
           {!editando && (
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                Prévia de impactados
-                {modo === "gestor" && cascata === "DIRETOS_E_INDIRETOS" && (
-                  <span className="text-gray-400 font-normal"> (+ indiretos serão incluídos no servidor)</span>
-                )}
-              </label>
-              {impactados.length === 0 ? (
-                <p className="text-xs text-gray-400 italic">Nenhum colaborador selecionado</p>
-              ) : (
-                <div className="border border-gray-200 rounded-lg max-h-32 overflow-y-auto divide-y divide-gray-100">
-                  {impactados.slice(0, 50).map(c => (
-                    <div key={c.id} className="flex items-center gap-2 px-3 py-1.5">
-                      <span className="text-xs text-gray-700 font-medium">{c.nome}</span>
-                      <span className="text-xs text-gray-400">{c.matricula}</span>
-                    </div>
-                  ))}
-                  {impactados.length > 50 && (
-                    <div className="px-3 py-1.5 text-xs text-gray-400">... e mais {impactados.length - 50}</div>
-                  )}
-                </div>
-              )}
-              {impactados.length > 0 && (
-                <p className="text-xs text-blue-600 mt-1">{impactados.length} colaborador{impactados.length !== 1 ? "es" : ""} serão impactados</p>
-              )}
+            <div className={`rounded-lg px-3 py-2 text-sm ${impactados.length > 0 ? "bg-blue-50 text-blue-700" : "bg-gray-50 text-gray-400 italic"}`}>
+              {impactados.length > 0
+                ? `${impactados.length} colaborador${impactados.length !== 1 ? "es" : ""} serão impactados`
+                : "Nenhum colaborador selecionado"}
             </div>
           )}
 
