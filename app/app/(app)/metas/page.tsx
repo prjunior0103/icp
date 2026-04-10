@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Plus, X, Pencil, Trash2, Upload, Download, Search, Target, BarChart3, Users, AlertCircle, CheckCircle2 } from "lucide-react";
 import { useCiclo } from "@/app/lib/ciclo-context";
 import { HierarchicalAreaFilter, EMPTY_FILTERS, matchesAreaFilter, type AreaFilters } from "@/app/components/HierarchicalAreaFilter";
@@ -10,7 +10,7 @@ interface Indicador { id: number; cicloId: number; codigo: string; nome: string;
 interface FaixaIndicador { id?: number; de: number; ate: number; nota: number; }
 interface IndicadorNoGrupo { id: number; indicadorId: number; peso: number; indicador: Indicador; }
 interface Agrupamento { id: number; cicloId: number; nome: string; tipo: string; descricao?: string | null; indicadores: IndicadorNoGrupo[]; }
-interface Colaborador { id: number; nome: string; matricula: string; centroCusto?: string | null; area?: { nivel1: string; nivel2?: string | null; nivel3?: string | null; nivel4?: string | null; nivel5?: string | null } | null; }
+interface Colaborador { id: number; nome: string; matricula: string; grade?: string | null; gestorId?: number | null; centroCusto?: string | null; area?: { nivel1: string; nivel2?: string | null; nivel3?: string | null; nivel4?: string | null; nivel5?: string | null } | null; }
 interface Atribuicao { id: number; colaboradorId: number; agrupamentoId: number; pesoNaCesta: number; cascata: string; colaborador: Colaborador; agrupamento: Agrupamento; }
 
 const TIPOS = ["MAIOR_MELHOR","MENOR_MELHOR","PROJETO_MARCO"];
@@ -242,23 +242,73 @@ function ModalAgrupamento({ ag, cicloId, indicadores, onSave, onClose }: { ag: A
 }
 
 // ─── Modal Atribuição ─────────────────────────────────────
-function ModalAtribuicao({ cicloId, agrupamentos, atrib, onSave, onClose }: {
-  cicloId: number; agrupamentos: Agrupamento[]; atrib: Atribuicao | null; onSave: () => void; onClose: () => void;
+type ModoAtrib = "colaborador" | "grade" | "nivel" | "todos" | "gestor";
+
+const MODOS: { id: ModoAtrib; label: string }[] = [
+  { id: "colaborador", label: "Por Colaborador" },
+  { id: "grade",       label: "Por Grade" },
+  { id: "nivel",       label: "Por Nível" },
+  { id: "todos",       label: "Para Todos" },
+  { id: "gestor",      label: "Por Gestor" },
+];
+
+function ModalAtribuicao({ cicloId, agrupamentos, atrib, colaboradores, areas, onSave, onClose }: {
+  cicloId: number; agrupamentos: Agrupamento[]; atrib: Atribuicao | null;
+  colaboradores: Colaborador[]; areas: { nivel1: string; nivel2?: string | null; nivel3?: string | null; nivel4?: string | null; nivel5?: string | null; centroCusto: string }[];
+  onSave: () => void; onClose: () => void;
 }) {
   const editando = atrib !== null;
-  const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
+
+  // Modo — só relevante para novo
+  const [modo, setModo] = useState<ModoAtrib>("colaborador");
+
+  // Seletores por modo
   const [colaboradorId, setColaboradorId] = useState(atrib ? String(atrib.colaboradorId) : "");
-  const [cascata, setCascata] = useState(atrib?.cascata ?? "NENHUM");
-  // Para novo: mapa agrupamentoId → pesoNaCesta selecionado
-  const [selecionados, setSelecionados] = useState<Map<number,number>>(
+  const [grade, setGrade] = useState("");
+  const [filtroArea, setFiltroArea] = useState<AreaFilters>(EMPTY_FILTERS);
+  const [gestorId, setGestorId] = useState("");
+  const [cascata, setCascata] = useState<"DIRETOS"|"DIRETOS_E_INDIRETOS">("DIRETOS");
+
+  // Agrupamentos selecionados: Map<agrupamentoId, pesoNaCesta>
+  const [selecionados, setSelecionados] = useState<Map<number, number>>(
     atrib ? new Map([[atrib.agrupamentoId, atrib.pesoNaCesta]]) : new Map()
   );
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
 
-  useEffect(() => {
-    fetch(`/api/colaboradores?cicloId=${cicloId}`).then(r=>r.json()).then(d=>setColaboradores(d.colaboradores??[]));
-  },[cicloId]);
+  // Grades únicas
+  const grades = useMemo(() =>
+    [...new Set(colaboradores.map(c => c.grade).filter(Boolean) as string[])].sort()
+  , [colaboradores]);
+
+  // Gestores: colaboradores que têm subordinados
+  const gestoresIds = useMemo(() =>
+    new Set(colaboradores.map(c => c.gestorId).filter(Boolean))
+  , [colaboradores]);
+  const gestores = useMemo(() =>
+    colaboradores.filter(c => gestoresIds.has(c.id))
+  , [colaboradores, gestoresIds]);
+
+  // Prévia de impactados (client-side, exceto cascata indireta)
+  const impactados = useMemo((): Colaborador[] => {
+    if (editando) return atrib ? [atrib.colaborador] : [];
+    switch (modo) {
+      case "colaborador":
+        return colaboradorId ? colaboradores.filter(c => String(c.id) === colaboradorId) : [];
+      case "grade":
+        return grade ? colaboradores.filter(c => c.grade === grade) : [];
+      case "nivel": {
+        const hasFilter = Object.values(filtroArea).some(Boolean);
+        return hasFilter ? colaboradores.filter(c => matchesAreaFilter(c, filtroArea, areas)) : [];
+      }
+      case "todos":
+        return colaboradores;
+      case "gestor":
+        return gestorId ? colaboradores.filter(c => String(c.gestorId) === gestorId) : [];
+      default:
+        return [];
+    }
+  }, [editando, atrib, modo, colaboradorId, grade, filtroArea, gestorId, colaboradores, areas]);
 
   function toggleAg(agId: number, peso: number) {
     setSelecionados(m => {
@@ -270,16 +320,37 @@ function ModalAtribuicao({ cicloId, agrupamentos, atrib, onSave, onClose }: {
 
   async function salvar(e: React.FormEvent) {
     e.preventDefault();
-    if (!colaboradorId) { setErro("Selecione um colaborador"); return; }
     if (selecionados.size === 0) { setErro("Selecione ao menos um agrupamento"); return; }
+    if (!editando) {
+      if (modo === "colaborador" && !colaboradorId) { setErro("Selecione um colaborador"); return; }
+      if (modo === "grade" && !grade) { setErro("Selecione um grade"); return; }
+      if (modo === "nivel" && !Object.values(filtroArea).some(Boolean)) { setErro("Selecione ao menos um filtro de nível"); return; }
+      if (modo === "gestor" && !gestorId) { setErro("Selecione um gestor"); return; }
+      if (impactados.length === 0 && modo !== "gestor") { setErro("Nenhum colaborador encontrado para os critérios"); return; }
+    }
     setSalvando(true); setErro("");
     try {
-      for (const [agrupamentoId, pesoNaCesta] of selecionados) {
-        const res = await fetch("/api/atribuicoes", {
-          method: "POST", headers: {"Content-Type":"application/json"},
-          body: JSON.stringify({ cicloId, colaboradorId: Number(colaboradorId), agrupamentoId, pesoNaCesta, cascata }),
-        });
-        if (!res.ok) { const d = await res.json(); setErro(d.error ?? "Erro ao atribuir"); setSalvando(false); return; }
+      if (!editando && modo === "gestor") {
+        // Backend faz cascata recursiva
+        for (const [agrupamentoId, pesoNaCesta] of selecionados) {
+          const res = await fetch("/api/atribuicoes", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ cicloId, colaboradorId: Number(gestorId), agrupamentoId, pesoNaCesta, cascata }),
+          });
+          if (!res.ok) { const d = await res.json(); setErro(d.error ?? "Erro ao atribuir"); setSalvando(false); return; }
+        }
+      } else {
+        const targets = editando ? [atrib!.colaboradorId] : impactados.map(c => c.id);
+        await Promise.all(
+          targets.flatMap(colabId =>
+            [...selecionados].map(([agrupamentoId, pesoNaCesta]) =>
+              fetch("/api/atribuicoes", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ cicloId, colaboradorId: colabId, agrupamentoId, pesoNaCesta, cascata: "NENHUM" }),
+              })
+            )
+          )
+        );
       }
       onSave(); onClose();
     } catch { setErro("Erro ao salvar"); setSalvando(false); }
@@ -287,30 +358,138 @@ function ModalAtribuicao({ cicloId, agrupamentos, atrib, onSave, onClose }: {
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold text-gray-900">{editando ? "Editar Atribuição" : "Nova Atribuição"}</h3>
           <button onClick={onClose}><X size={20} className="text-gray-400"/></button>
         </div>
-        <form onSubmit={salvar} className="space-y-3">
-          <div><label className="block text-xs font-medium text-gray-600 mb-1">Colaborador *</label>
-          <select required value={colaboradorId} onChange={e=>setColaboradorId(e.target.value)}
-            disabled={editando}
-            className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500">
-            <option value="">Selecionar...</option>
-            {colaboradores.map(c => <option key={c.id} value={c.id}>{c.nome} ({c.matricula})</option>)}
-          </select></div>
 
+        <form onSubmit={salvar} className="space-y-4">
+          {/* Seletor de modo — só para novo */}
+          {!editando && (
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">Modo de atribuição</label>
+              <div className="flex flex-wrap gap-1.5">
+                {MODOS.map(m => (
+                  <button key={m.id} type="button" onClick={() => { setModo(m.id); setErro(""); }}
+                    className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+                      modo === m.id
+                        ? "bg-blue-700 text-white border-blue-700"
+                        : "border-gray-300 text-gray-600 hover:border-gray-400"
+                    }`}>
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Seleção por modo */}
+          {!editando && modo === "colaborador" && (
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Colaborador *</label>
+              <select value={colaboradorId} onChange={e => setColaboradorId(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">Selecionar...</option>
+                {colaboradores.map(c => <option key={c.id} value={c.id}>{c.nome} ({c.matricula})</option>)}
+              </select>
+            </div>
+          )}
+
+          {!editando && modo === "grade" && (
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Grade *</label>
+              {grades.length === 0
+                ? <p className="text-xs text-gray-400">Nenhum grade cadastrado nos colaboradores</p>
+                : <select value={grade} onChange={e => setGrade(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">Selecionar...</option>
+                    {grades.map(g => <option key={g} value={g}>{g}</option>)}
+                  </select>
+              }
+            </div>
+          )}
+
+          {!editando && modo === "nivel" && (
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Filtro de Nível *</label>
+              <HierarchicalAreaFilter areas={areas} value={filtroArea} onChange={setFiltroArea} />
+            </div>
+          )}
+
+          {!editando && modo === "todos" && (
+            <div className="bg-blue-50 rounded-lg px-3 py-2 text-sm text-blue-700">
+              Atribuição será feita para todos os {colaboradores.length} colaboradores do ciclo.
+            </div>
+          )}
+
+          {!editando && modo === "gestor" && (
+            <div className="space-y-2">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Gestor *</label>
+                {gestores.length === 0
+                  ? <p className="text-xs text-gray-400">Nenhum gestor identificado (colaboradores sem subordinados)</p>
+                  : <select value={gestorId} onChange={e => setGestorId(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                      <option value="">Selecionar...</option>
+                      {gestores.map(g => <option key={g.id} value={g.id}>{g.nome} ({g.matricula})</option>)}
+                    </select>
+                }
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Cascata</label>
+                <select value={cascata} onChange={e => setCascata(e.target.value as "DIRETOS"|"DIRETOS_E_INDIRETOS")}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <option value="DIRETOS">Diretos (1 nível)</option>
+                  <option value="DIRETOS_E_INDIRETOS">Diretos e Indiretos (todos os níveis)</option>
+                </select>
+              </div>
+            </div>
+          )}
+
+          {/* Prévia de impactados */}
+          {!editando && (
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Prévia de impactados
+                {modo === "gestor" && cascata === "DIRETOS_E_INDIRETOS" && (
+                  <span className="text-gray-400 font-normal"> (+ indiretos serão incluídos no servidor)</span>
+                )}
+              </label>
+              {impactados.length === 0 ? (
+                <p className="text-xs text-gray-400 italic">Nenhum colaborador selecionado</p>
+              ) : (
+                <div className="border border-gray-200 rounded-lg max-h-32 overflow-y-auto divide-y divide-gray-100">
+                  {impactados.slice(0, 50).map(c => (
+                    <div key={c.id} className="flex items-center gap-2 px-3 py-1.5">
+                      <span className="text-xs text-gray-700 font-medium">{c.nome}</span>
+                      <span className="text-xs text-gray-400">{c.matricula}</span>
+                    </div>
+                  ))}
+                  {impactados.length > 50 && (
+                    <div className="px-3 py-1.5 text-xs text-gray-400">... e mais {impactados.length - 50}</div>
+                  )}
+                </div>
+              )}
+              {impactados.length > 0 && (
+                <p className="text-xs text-blue-600 mt-1">{impactados.length} colaborador{impactados.length !== 1 ? "es" : ""} serão impactados</p>
+              )}
+            </div>
+          )}
+
+          {/* Agrupamentos */}
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Agrupamentos *</label>
             <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-52 overflow-y-auto">
               {agrupamentos.map(ag => {
-                const somaPeso = ag.indicadores.reduce((s,i)=>s+i.peso,0);
+                const somaPeso = ag.indicadores.reduce((s, i) => s + i.peso, 0);
                 const sel = selecionados.has(ag.id);
                 return (
-                  <div key={ag.id} className={`flex items-center gap-2 px-3 py-2 ${sel?"bg-blue-50":""}`}>
-                    <input type="checkbox" checked={sel} disabled={editando && ag.id !== atrib?.agrupamentoId}
-                      onChange={()=>!editando && toggleAg(ag.id, somaPeso)} className="rounded"/>
+                  <div key={ag.id} className={`flex items-center gap-2 px-3 py-2 ${sel ? "bg-blue-50" : ""}`}>
+                    <input type="checkbox" checked={sel}
+                      disabled={editando && ag.id !== atrib?.agrupamentoId}
+                      onChange={() => !editando && toggleAg(ag.id, somaPeso)}
+                      className="rounded" />
                     <div className="flex-1">
                       <p className="text-sm text-gray-800">{ag.nome}</p>
                       <p className="text-xs text-gray-400">{ag.tipo} — {somaPeso.toFixed(2)}%</p>
@@ -318,27 +497,28 @@ function ModalAtribuicao({ cicloId, agrupamentos, atrib, onSave, onClose }: {
                     {sel && (
                       <input type="number" min="0" max="100" step="0.01"
                         value={selecionados.get(ag.id) ?? somaPeso}
-                        onChange={e=>setSelecionados(m=>{ const n=new Map(m); n.set(ag.id,Number(e.target.value)); return n; })}
+                        onChange={e => setSelecionados(m => { const n = new Map(m); n.set(ag.id, Number(e.target.value)); return n; })}
                         className="w-20 border border-gray-300 rounded px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        placeholder="Peso %"/>
+                        placeholder="Peso %" />
                     )}
                   </div>
                 );
               })}
-              {agrupamentos.length===0 && <p className="text-xs text-gray-400 p-3">Nenhum agrupamento cadastrado</p>}
+              {agrupamentos.length === 0 && <p className="text-xs text-gray-400 p-3">Nenhum agrupamento cadastrado</p>}
             </div>
           </div>
 
-          <div><label className="block text-xs font-medium text-gray-600 mb-1">Cascata</label>
-          <select value={cascata} onChange={e=>setCascata(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-            <option value="NENHUM">Nenhum (somente este)</option>
-            <option value="DIRETOS">Diretos</option>
-            <option value="DIRETOS_E_INDIRETOS">Diretos e Indiretos</option>
-          </select></div>
           {erro && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{erro}</p>}
+
           <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onClose} className="flex-1 border border-gray-300 text-gray-700 text-sm py-2 rounded-lg hover:bg-gray-50">Cancelar</button>
-            <button type="submit" disabled={salvando} className="flex-1 bg-blue-700 hover:bg-blue-800 disabled:bg-blue-400 text-white text-sm py-2 rounded-lg">{salvando?"Salvando...":"Salvar"}</button>
+            <button type="button" onClick={onClose}
+              className="flex-1 border border-gray-300 text-gray-700 text-sm py-2 rounded-lg hover:bg-gray-50">
+              Cancelar
+            </button>
+            <button type="submit" disabled={salvando}
+              className="flex-1 bg-blue-700 hover:bg-blue-800 disabled:bg-blue-400 text-white text-sm py-2 rounded-lg">
+              {salvando ? "Salvando..." : editando ? "Salvar" : impactados.length > 0 || modo === "gestor" ? `Atribuir${impactados.length > 0 ? ` (${impactados.length})` : ""}` : "Atribuir"}
+            </button>
           </div>
         </form>
       </div>
@@ -756,7 +936,7 @@ export default function MetasPage() {
 
       {modalInd!==null && <ModalIndicador ind={modalInd==="new"?null:modalInd} cicloId={cicloAtivo.id} colaboradores={colaboradores} todosIndicadores={indicadores} onSave={carregarInds} onClose={()=>setModalInd(null)}/>}
       {modalAg!==null && <ModalAgrupamento ag={modalAg==="new"?null:modalAg} cicloId={cicloAtivo.id} indicadores={indicadores} onSave={carregarAgs} onClose={()=>setModalAg(null)}/>}
-      {modalAtrib!==null && <ModalAtribuicao cicloId={cicloAtivo.id} agrupamentos={agrupamentos} atrib={modalAtrib==="new"?null:modalAtrib} onSave={carregarAtribs} onClose={()=>setModalAtrib(null)}/>}
+      {modalAtrib!==null && <ModalAtribuicao cicloId={cicloAtivo.id} agrupamentos={agrupamentos} atrib={modalAtrib==="new"?null:modalAtrib} colaboradores={colaboradores} areas={areas} onSave={carregarAtribs} onClose={()=>setModalAtrib(null)}/>}
       {modalImport && <ModalImport cicloId={cicloAtivo.id} onDone={carregarInds} onClose={()=>setModalImport(false)}/>}
     </div>
   );
