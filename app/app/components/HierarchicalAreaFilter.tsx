@@ -31,23 +31,36 @@ interface ColabLike {
   centroCusto?: string | null;
 }
 
+/** Todas as áreas candidatas de um colaborador: área vinculada + todas com o mesmo CC */
+export function resolveAreas(c: ColabLike, areas?: AreaLike[]): AreaLike[] {
+  const candidates: AreaLike[] = [];
+  if (c.area) candidates.push(c.area as AreaLike);
+  if (areas && c.centroCusto) {
+    for (const a of areas) {
+      if (a.centroCusto === c.centroCusto) candidates.push(a);
+    }
+  }
+  return candidates;
+}
+
+/** Retorna o nível 1 resolvido (para exibição em colunas de área) */
+export function resolveNivel1(c: ColabLike, areas?: AreaLike[]): string | null {
+  return resolveAreas(c, areas).find(a => a.nivel1)?.nivel1 ?? null;
+}
+
 export function matchesAreaFilter(c: ColabLike, f: AreaFilters, areas?: AreaLike[]): boolean {
   const hasAny = f.nivel1 || f.nivel2 || f.nivel3 || f.nivel4 || f.nivel5 || f.cc;
   if (!hasAny) return true;
 
-  // Resolve área: usa o vínculo direto (areaId) ou, se nulo, busca pelo centroCusto
-  const linked = c.area as AreaLike | null | undefined;
-  const resolvedArea: AreaLike | null | undefined =
-    linked ?? (c.centroCusto && areas
-      ? areas.find(a => a.centroCusto === c.centroCusto) ?? null
-      : null);
+  // Usa TODAS as áreas candidatas — cobre areaId vinculado E lookup por CC
+  const candidates = resolveAreas(c, areas);
 
-  if (f.nivel1 && resolvedArea?.nivel1 === f.nivel1) return true;
-  if (f.nivel2 && resolvedArea?.nivel2 === f.nivel2) return true;
-  if (f.nivel3 && resolvedArea?.nivel3 === f.nivel3) return true;
-  if (f.nivel4 && resolvedArea?.nivel4 === f.nivel4) return true;
-  if (f.nivel5 && resolvedArea?.nivel5 === f.nivel5) return true;
-  if (f.cc && (c.centroCusto === f.cc || resolvedArea?.centroCusto === f.cc)) return true;
+  if (f.cc  && (c.centroCusto === f.cc  || candidates.some(a => a.centroCusto === f.cc))) return true;
+  if (f.nivel1 && candidates.some(a => a.nivel1 === f.nivel1)) return true;
+  if (f.nivel2 && candidates.some(a => a.nivel2 === f.nivel2)) return true;
+  if (f.nivel3 && candidates.some(a => a.nivel3 === f.nivel3)) return true;
+  if (f.nivel4 && candidates.some(a => a.nivel4 === f.nivel4)) return true;
+  if (f.nivel5 && candidates.some(a => a.nivel5 === f.nivel5)) return true;
   return false;
 }
 
