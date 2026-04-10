@@ -211,6 +211,8 @@ function AbaPreenchimento({ cicloId, anoFiscal, mesInicio, mesFim, indicadores, 
                     {labelPeriodo(p)}
                   </th>
                 ))}
+                <th className="text-center px-3 py-2 text-xs font-semibold text-indigo-600 uppercase whitespace-nowrap border-l-2 border-indigo-200 bg-indigo-50">YTD</th>
+                <th className="text-center px-3 py-2 text-xs font-semibold text-indigo-600 uppercase whitespace-nowrap border-l border-indigo-200 bg-indigo-50">Total</th>
               </tr>
               <tr className="bg-gray-50 border-b border-gray-200">
                 {mesesCiclo.map(p => (
@@ -221,6 +223,18 @@ function AbaPreenchimento({ cicloId, anoFiscal, mesInicio, mesFim, indicadores, 
                     </div>
                   </td>
                 ))}
+                <td className="border-l-2 border-indigo-200 bg-indigo-50/60 px-1 py-1">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[9px] text-center font-semibold text-orange-600 bg-orange-50 rounded px-1">Orçado</span>
+                    <span className="text-[9px] text-center font-semibold text-blue-600 bg-blue-50 rounded px-1">Realizado</span>
+                  </div>
+                </td>
+                <td className="border-l border-indigo-200 bg-indigo-50/60 px-1 py-1">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[9px] text-center font-semibold text-orange-600 bg-orange-50 rounded px-1">Orçado</span>
+                    <span className="text-[9px] text-center font-semibold text-blue-600 bg-blue-50 rounded px-1">Realizado</span>
+                  </div>
+                </td>
               </tr>
             </thead>
             <tbody>
@@ -241,6 +255,15 @@ function AbaPreenchimento({ cicloId, anoFiscal, mesInicio, mesFim, indicadores, 
                   ? { ...ind, metaAlvo: orcAgregado, faixas: ind.faixas ?? [] }
                   : { ...ind, faixas: ind.faixas ?? [] };
                 const nota = realAgregado != null ? calcNota(indParaNota, realAgregado) : null;
+
+                // YTD: até o último período com realizado lançado
+                const lastRealIdx = periodos.reduceRight((acc, p, i) =>
+                  acc === -1 && realizacoes.find(r => r.indicadorId === ind.id && r.periodo === p) ? i : acc, -1);
+                const ytdPeriodos = lastRealIdx >= 0 ? periodos.slice(0, lastRealIdx + 1) : [];
+                const ytdValsReal = ytdPeriodos.map(p => { const k=`${ind.id}_${p}`; return draft[k]!==undefined?Number(draft[k]):null; }).filter((v):v is number=>v!==null);
+                const ytdValsOrc  = ytdPeriodos.map(p => { const k=`${ind.id}_${p}`; return draftOrc[k]!==undefined?Number(draftOrc[k]):null; }).filter((v):v is number=>v!==null);
+                const ytdReal = agregarRealizacoes(ytdValsReal, ind.criterioApuracao);
+                const ytdOrc  = agregarRealizacoes(ytdValsOrc,  ind.criterioApuracao);
 
                 return (
                   <tr key={ind.id} className={`border-b border-gray-100 ${idx % 2 === 0 ? "bg-white" : "bg-gray-50/40"}`}>
@@ -305,6 +328,20 @@ function AbaPreenchimento({ cicloId, anoFiscal, mesInicio, mesFim, indicadores, 
                         </td>
                       );
                     })}
+                    {/* YTD */}
+                    <td className="border-l-2 border-indigo-200 bg-indigo-50/40 px-2 py-1 text-center whitespace-nowrap">
+                      <div className="flex flex-col gap-1 items-center">
+                        <span className="text-xs text-orange-600 font-mono">{ytdOrc != null ? ytdOrc.toLocaleString("pt-BR", {maximumFractionDigits:2}) : "—"}</span>
+                        <span className="text-xs text-blue-700 font-mono font-semibold">{ytdReal != null ? ytdReal.toLocaleString("pt-BR", {maximumFractionDigits:2}) : "—"}</span>
+                      </div>
+                    </td>
+                    {/* Total */}
+                    <td className="border-l border-indigo-200 bg-indigo-50/40 px-2 py-1 text-center whitespace-nowrap">
+                      <div className="flex flex-col gap-1 items-center">
+                        <span className="text-xs text-orange-600 font-mono">{orcAgregado != null ? orcAgregado.toLocaleString("pt-BR", {maximumFractionDigits:2}) : "—"}</span>
+                        <span className="text-xs text-blue-700 font-mono font-semibold">{realAgregado != null ? realAgregado.toLocaleString("pt-BR", {maximumFractionDigits:2}) : "—"}</span>
+                      </div>
+                    </td>
                   </tr>
                 );
               })}
