@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useCiclo } from "@/app/lib/ciclo-context";
 import { calcNota, calcMID, gerarPeriodos, agregarRealizacoes } from "@/app/lib/calc";
@@ -816,7 +817,7 @@ function RelatSemPainel({ colaboradoresAll, atribuicoes, agrupamentos, cicloId, 
       {/* Modal atribuir */}
       {modal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold text-gray-900">Atribuir Painel</h3>
               <button onClick={() => setModal(null)} className="text-gray-400 hover:text-gray-600"><X size={18}/></button>
@@ -1081,7 +1082,8 @@ export default function RelatoriosPage() {
   const role = (session?.user as { role?: string })?.role ?? "COLABORADOR";
   const isCliente = role === "CLIENTE";
   const { cicloAtivo } = useCiclo();
-  const [aba, setAba] = useState<AbaId>("colaborador");
+  const searchParams = useSearchParams();
+  const [aba, setAba] = useState<AbaId>((searchParams.get("aba") as AbaId) ?? "colaborador");
   const [indicadores, setIndicadores] = useState<Indicador[]>([]);
   const [realizacoes, setRealizacoes] = useState<Realizacao[]>([]);
   const [metasPeriodo, setMetasPeriodo] = useState<MetaPeriodo[]>([]);
@@ -1092,28 +1094,33 @@ export default function RelatoriosPage() {
   const [colaboradoresAll, setColaboradoresAll] = useState<ColaboradorBasico[]>([]);
   const [agrupamentosAll, setAgrupamentosAll] = useState<AgrupamentoBasico[]>([]);
 
-  const carregar = useCallback(() => {
+  const carregar = useCallback(async () => {
     if (!cicloAtivo) return;
     const cid = cicloAtivo.id;
-    fetch(`/api/indicadores?cicloId=${cid}`).then(r => r.json()).then(async d => {
-      const inds: Indicador[] = d.indicadores ?? [];
-      const comFaixas = await Promise.all(inds.map(async i => {
-        const fr = await fetch(`/api/faixas?indicadorId=${i.id}`);
-        const fd = await fr.json();
-        return { ...i, faixas: fd.faixas ?? [] };
-      }));
-      setIndicadores(comFaixas);
-    });
-    fetch(`/api/realizacoes?cicloId=${cid}`).then(r => r.json()).then(d => setRealizacoes(d.realizacoes ?? []));
-    fetch(`/api/meta-periodos?cicloId=${cid}`).then(r => r.json()).then(d => setMetasPeriodo(d.metasPeriodo ?? []));
-    fetch(`/api/atribuicoes?cicloId=${cid}`).then(r => r.json()).then(d => setAtribuicoes(d.atribuicoes ?? []));
-    fetch(`/api/areas?cicloId=${cid}`).then(r => r.json()).then(d => setAreas(d.areas ?? []));
-    fetch(`/api/colaboradores?cicloId=${cid}`).then(r => r.json()).then(d => setColaboradoresAll(d.colaboradores ?? []));
-    fetch(`/api/agrupamentos?cicloId=${cid}`).then(r => r.json()).then(d => setAgrupamentosAll(d.agrupamentos ?? []));
-    fetch(`/api/movimentacoes?cicloId=${cid}`).then(r => r.json()).then(d => {
-      const movs: { matricula: string; requerNovoPainel: boolean; statusTratamento: string }[] = d.movimentacoes ?? [];
-      setMovimentadosSet(new Set(movs.filter(m => m.requerNovoPainel && m.statusTratamento === "TRATADO").map(m => m.matricula)));
-    });
+    const [dInds, dReal, dMeta, dAtrib, dAreas, dColabs, dAgrup, dMovs] = await Promise.all([
+      fetch(`/api/indicadores?cicloId=${cid}`).then(r => r.json()),
+      fetch(`/api/realizacoes?cicloId=${cid}`).then(r => r.json()),
+      fetch(`/api/meta-periodos?cicloId=${cid}`).then(r => r.json()),
+      fetch(`/api/atribuicoes?cicloId=${cid}`).then(r => r.json()),
+      fetch(`/api/areas?cicloId=${cid}`).then(r => r.json()),
+      fetch(`/api/colaboradores?cicloId=${cid}`).then(r => r.json()),
+      fetch(`/api/agrupamentos?cicloId=${cid}`).then(r => r.json()),
+      fetch(`/api/movimentacoes?cicloId=${cid}`).then(r => r.json()),
+    ]);
+    const inds: Indicador[] = dInds.indicadores ?? [];
+    const comFaixas = await Promise.all(inds.map(async i => {
+      const fd = await fetch(`/api/faixas?indicadorId=${i.id}`).then(r => r.json());
+      return { ...i, faixas: fd.faixas ?? [] };
+    }));
+    setIndicadores(comFaixas);
+    setRealizacoes(dReal.realizacoes ?? []);
+    setMetasPeriodo(dMeta.metasPeriodo ?? []);
+    setAtribuicoes(dAtrib.atribuicoes ?? []);
+    setAreas(dAreas.areas ?? []);
+    setColaboradoresAll(dColabs.colaboradores ?? []);
+    setAgrupamentosAll(dAgrup.agrupamentos ?? []);
+    const movs: { matricula: string; requerNovoPainel: boolean; statusTratamento: string }[] = dMovs.movimentacoes ?? [];
+    setMovimentadosSet(new Set(movs.filter(m => m.requerNovoPainel && m.statusTratamento === "TRATADO").map(m => m.matricula)));
   }, [cicloAtivo?.id]);
 
   useEffect(() => { carregar(); }, [carregar]);
@@ -1132,14 +1139,19 @@ export default function RelatoriosPage() {
     setExportando(false);
   }
 
+  const { notasMap, realMap, orcMap } = useCalcEngine(
+    indicadores, realizacoes, metasPeriodo,
+    cicloAtivo?.anoFiscal ?? 0,
+    cicloAtivo?.mesInicio ?? 1,
+    cicloAtivo?.mesFim ?? 12
+  );
+
   if (!cicloAtivo) return (
     <div className="flex flex-col items-center justify-center h-64 text-gray-400">
       <FileText size={40} className="mb-3 text-gray-300"/>
       <p className="font-medium">Selecione um ciclo para ver os relatórios</p>
     </div>
   );
-
-  const { notasMap, realMap, orcMap } = useCalcEngine(indicadores, realizacoes, metasPeriodo, cicloAtivo.anoFiscal, cicloAtivo.mesInicio, cicloAtivo.mesFim);
 
   return (
     <div className="space-y-5">
@@ -1149,7 +1161,7 @@ export default function RelatoriosPage() {
           <p className="text-gray-500 text-sm mt-1">Ciclo {cicloAtivo.anoFiscal} — {cicloAtivo.status}</p>
         </div>
         <button onClick={exportarExcel} disabled={exportando}
-          className="flex items-center gap-2 bg-green-700 hover:bg-green-800 disabled:bg-green-400 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+          className="flex items-center gap-2 bg-blue-700 hover:bg-blue-800 disabled:bg-blue-400 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
           <Download size={15}/>
           {exportando ? "Exportando..." : "Exportar Excel"}
         </button>

@@ -6,15 +6,10 @@ import { useRouter } from "next/navigation";
 import { Plus, X, Building2, Calendar, LayoutDashboard, Pencil, Trash2, Users, Target, BarChart3, UserX, AlertCircle, TrendingUp, FileText, Shield, ArrowRight } from "lucide-react";
 import { useCiclo } from "@/app/lib/ciclo-context";
 import { calcNota, calcMID, gerarPeriodos, agregarRealizacoes } from "@/app/lib/calc";
+import { STATUS_COLOR, STATUS_LABEL } from "@/app/lib/status";
 
 const MESES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
 
-const statusLabel: Record<string, string> = { SETUP: "Configuração", ATIVO: "Ativo", ENCERRADO: "Encerrado" };
-const statusColor: Record<string, string> = {
-  SETUP: "bg-yellow-100 text-yellow-700 border-yellow-200",
-  ATIVO: "bg-green-100 text-green-700 border-green-200",
-  ENCERRADO: "bg-gray-100 text-gray-500 border-gray-200",
-};
 
 interface DashStats {
   totalColabs: number;
@@ -182,7 +177,7 @@ export default function DashboardPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
           <p className="text-gray-500 text-sm mt-1">
-            {cicloAtivo ? `Ciclo ${cicloAtivo.anoFiscal} — ${statusLabel[cicloAtivo.status] ?? cicloAtivo.status}` : "Selecione um ciclo"}
+            {cicloAtivo ? `Ciclo ${cicloAtivo.anoFiscal} — ${STATUS_LABEL[cicloAtivo.status] ?? cicloAtivo.status}` : "Selecione um ciclo"}
           </p>
         </div>
         {role === "GUARDIAO" && (
@@ -209,8 +204,8 @@ export default function DashboardPage() {
             <div className="flex-1">
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-bold text-gray-900">Ciclo ICP {cicloAtivo.anoFiscal}</h2>
-                <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${statusColor[cicloAtivo.status] ?? ""}`}>
-                  {statusLabel[cicloAtivo.status] ?? cicloAtivo.status}
+                <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${STATUS_COLOR[cicloAtivo.status] ?? ""}`}>
+                  {STATUS_LABEL[cicloAtivo.status] ?? cicloAtivo.status}
                 </span>
               </div>
               <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
@@ -256,7 +251,7 @@ export default function DashboardPage() {
                   )}
                 </button>
 
-                <button onClick={() => router.push("/relatorios")}
+                <button onClick={() => router.push("/relatorios?aba=sem-painel")}
                   className={`bg-white rounded-xl border p-5 text-left hover:border-red-300 transition-colors group ${stats.semPainel > 0 ? "border-red-200" : "border-gray-200"}`}>
                   <div className="flex items-center justify-between mb-2">
                     <UserX size={16} className={stats.semPainel > 0 ? "text-red-500" : "text-gray-400"}/>
@@ -266,7 +261,7 @@ export default function DashboardPage() {
                   <p className="text-xs text-gray-500 mt-0.5">Sem Painel</p>
                 </button>
 
-                <button onClick={() => router.push("/relatorios")}
+                <button onClick={() => router.push("/relatorios?aba=nao-apurados")}
                   className={`bg-white rounded-xl border p-5 text-left hover:border-amber-300 transition-colors group ${stats.pendenciasPreenchimento > 0 ? "border-amber-200" : "border-gray-200"}`}>
                   <div className="flex items-center justify-between mb-2">
                     <AlertCircle size={16} className={stats.pendenciasPreenchimento > 0 ? "text-amber-500" : "text-gray-400"}/>
@@ -351,7 +346,7 @@ export default function DashboardPage() {
               <div key={c.id} className={`flex items-center justify-between px-5 py-3 text-sm hover:bg-gray-50 transition-colors ${cicloAtivo?.id === c.id ? "bg-blue-50" : ""}`}>
                 <button onClick={() => setCicloAtivo(c)} className="flex items-center gap-3 flex-1 text-left">
                   <span className={`font-medium ${cicloAtivo?.id === c.id ? "text-blue-700" : "text-gray-700"}`}>Ciclo {c.anoFiscal}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full border ${statusColor[c.status] ?? ""}`}>{statusLabel[c.status] ?? c.status}</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full border ${STATUS_COLOR[c.status] ?? ""}`}>{STATUS_LABEL[c.status] ?? c.status}</span>
                 </button>
                 {role === "GUARDIAO" && (
                   <div className="flex items-center gap-1">

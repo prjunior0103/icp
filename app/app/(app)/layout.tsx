@@ -16,6 +16,7 @@ import {
   Shield,
 } from "lucide-react";
 import { CicloProvider, useCiclo } from "@/app/lib/ciclo-context";
+import { STATUS_BADGE, STATUS_LABEL } from "@/app/lib/status";
 
 const NAV_ITEMS = [
   { href: "/colaboradores", label: "Colaboradores", icon: Users, roles: ["GUARDIAO","BP","GESTOR","COLABORADOR"] },
@@ -30,11 +31,6 @@ const NAV_GUARDIAO = [
   { href: "/auditoria", label: "Auditoria", icon: Shield },
 ];
 
-const statusBadge: Record<string, string> = {
-  SETUP: "bg-yellow-100 text-yellow-700",
-  ATIVO: "bg-green-100 text-green-700",
-  ENCERRADO: "bg-gray-100 text-gray-500",
-};
 
 function AppShell({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
@@ -79,8 +75,8 @@ function AppShell({ children }: { children: React.ReactNode }) {
               {cicloAtivo ? `Ciclo ${cicloAtivo.anoFiscal}` : "Selecionar ciclo"}
             </span>
             {cicloAtivo && (
-              <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${statusBadge[cicloAtivo.status] ?? ""}`}>
-                {cicloAtivo.status}
+              <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${STATUS_BADGE[cicloAtivo.status] ?? ""}`}>
+                {STATUS_LABEL[cicloAtivo.status] ?? cicloAtivo.status}
               </span>
             )}
             <ChevronDown size={14} className="text-blue-300" />
@@ -103,7 +99,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
                     }`}
                   >
                     <span>Ciclo {c.anoFiscal}</span>
-                    <span className={`text-xs px-1.5 py-0.5 rounded ${statusBadge[c.status] ?? ""}`}>
+                    <span className={`text-xs px-1.5 py-0.5 rounded ${STATUS_BADGE[c.status] ?? ""}`}>
                       {c.status}
                     </span>
                   </button>
