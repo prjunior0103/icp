@@ -87,7 +87,7 @@ function ModalEvidencia({ cicloId, target, realizacoes, onClose, onSaved }: {
             <h3 className="text-base font-bold text-gray-900">Evidência de Envio</h3>
             <p className="text-xs text-gray-500 mt-0.5">{target.nome} — {target.periodo}</p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20}/></button>
+          <button onClick={onClose} aria-label="Fechar" className="text-gray-400 hover:text-gray-600"><X size={20}/></button>
         </div>
         <div className="space-y-4">
           <div>

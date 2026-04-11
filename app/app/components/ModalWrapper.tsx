@@ -32,10 +32,21 @@ export function ModalWrapper({
     return () => { document.body.style.overflow = ""; };
   }, []);
 
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   return (
     <div
       className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
       onClick={closeOnBackdrop ? onClose : undefined}
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
     >
       <div
         className={`bg-white rounded-xl shadow-xl w-full ${WIDTHS[size]} max-h-[90vh] overflow-y-auto`}
@@ -46,6 +57,7 @@ export function ModalWrapper({
             <h3 className="text-lg font-bold text-gray-900">{title}</h3>
             <button
               onClick={onClose}
+              aria-label="Fechar"
               className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100"
             >
               <X size={18} />

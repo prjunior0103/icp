@@ -133,7 +133,7 @@ function RelatColaborador({ atribuicoes, notasMap, areas, movimentadosSet }: { a
               <div className="text-left">
                 <div className="flex items-center gap-2">
                   <p className="font-semibold text-gray-800 text-sm">{c.nome}</p>
-                  {row.movimentado && <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">MOVIMENTADO</span>}
+                  {row.movimentado && <span className="text-2xs font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">MOVIMENTADO</span>}
                 </div>
                 <p className="text-xs text-gray-400">
                   {c.matricula} · {c.cargo}{c.area?.nivel1 ? ` · ${c.area.nivel1}` : ""}
@@ -385,7 +385,7 @@ function RelatGestor({ atribuicoes, notasMap, movimentadosSet }: { atribuicoes: 
                   <tr key={`${a.colaboradorId}-${a.agrupamentoId}`} className={`hover:bg-gray-50 ${movimentado ? "bg-amber-50/40" : ""}`}>
                     <td className="px-4 py-2.5">
                       <p className="font-medium text-gray-800">{a.colaborador.nome}</p>
-                      {movimentado && <span className="text-[10px] font-semibold text-amber-600">MOVIMENTADO</span>}
+                      {movimentado && <span className="text-2xs font-semibold text-amber-600">MOVIMENTADO</span>}
                     </td>
                     <td className="px-4 py-2.5 text-gray-500 text-xs">{a.colaborador.matricula}</td>
                     <td className="px-4 py-2.5 text-gray-600 text-xs">{a.colaborador.cargo}</td>
@@ -467,7 +467,7 @@ function RelatCalibracao({ atribuicoes, notasMap, movimentadosSet }: { atribuico
                 return (
                   <th key={key} className="text-center px-4 py-2.5 text-xs font-semibold text-gray-700 whitespace-nowrap">
                     {l?.colab.nome ?? key}
-                    {l?.movimentado && <span className="block text-[10px] font-normal text-amber-600">{l.ag.nome}</span>}
+                    {l?.movimentado && <span className="block text-2xs font-normal text-amber-600">{l.ag.nome}</span>}
                   </th>
                 );
               })}
@@ -680,7 +680,7 @@ function RelatMovimentacoes({ cicloId }: { cicloId: number }) {
                 <td className="px-4 py-2.5 font-medium text-gray-800 text-xs">{m.nomeColaborador ?? "—"}</td>
                 <td className="px-4 py-2.5 font-mono text-xs text-gray-500">{m.matricula}</td>
                 <td className="px-4 py-2.5">
-                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${MOV_TIPO_COR[m.tipo] ?? "bg-gray-100"}`}>
+                  <span className={`text-2xs font-semibold px-1.5 py-0.5 rounded-full ${MOV_TIPO_COR[m.tipo] ?? "bg-gray-100"}`}>
                     {MOV_TIPO_LABEL[m.tipo] ?? m.tipo}
                   </span>
                 </td>
@@ -693,7 +693,7 @@ function RelatMovimentacoes({ cicloId }: { cicloId: number }) {
                   ) : <span className="text-gray-400">—</span>}
                 </td>
                 <td className="px-4 py-2.5">
-                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                  <span className={`text-2xs font-semibold px-1.5 py-0.5 rounded-full ${
                     m.statusTratamento === "PENDENTE" ? "bg-amber-100 text-amber-700" :
                     m.statusTratamento === "TRATADO" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
                   }`}>

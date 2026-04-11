@@ -106,7 +106,7 @@ function ModalArea({
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold text-gray-900">{area ? "Editar Área" : "Nova Área"}</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+          <button onClick={onClose} aria-label="Fechar" className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
         </div>
         <form onSubmit={salvar} className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
@@ -192,7 +192,7 @@ function ModalColaborador({
       <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold text-gray-900">{colab ? "Editar Colaborador" : "Novo Colaborador"}</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+          <button onClick={onClose} aria-label="Fechar" className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
         </div>
         <form onSubmit={salvar} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
@@ -306,7 +306,7 @@ function ModalImport({
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold text-gray-900">Importar {tipo === "areas" ? "Áreas" : "Colaboradores"}</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+          <button onClick={onClose} aria-label="Fechar" className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
         </div>
 
         {!resultado ? (
@@ -424,8 +424,8 @@ function AbaAreas({ cicloId }: { cicloId: number }) {
                   <td className="px-4 py-2.5 text-gray-500">{a.nivel3 ?? "—"}</td>
                   <td className="px-4 py-2.5">
                     <div className="flex items-center gap-1 justify-end">
-                      <button onClick={() => setModalArea(a)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"><Pencil size={14} /></button>
-                      <button onClick={() => excluir(a.id)} disabled={excluindo === a.id} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded disabled:opacity-40"><Trash2 size={14} /></button>
+                      <button onClick={() => setModalArea(a)} aria-label="Editar área" className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"><Pencil size={14} /></button>
+                      <button onClick={() => excluir(a.id)} disabled={excluindo === a.id} aria-label="Excluir área" className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded disabled:opacity-40"><Trash2 size={14} /></button>
                     </div>
                   </td>
                 </tr>
@@ -593,7 +593,7 @@ function AbaColaboradores({ cicloId }: { cicloId: number }) {
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="px-4 py-2.5">
-                  <input type="checkbox" checked={selecionados.size === colaboradores.length} onChange={toggleTodos} className="rounded" />
+                  <input type="checkbox" checked={selecionados.size === colaboradores.length} onChange={toggleTodos} className="rounded" aria-label="Selecionar todos" />
                 </th>
                 {["Matrícula", "Nome", "Cargo / Grade", "CC / Gestor", "Status", "Situação", ""].map((h) => (
                   <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
@@ -609,7 +609,7 @@ function AbaColaboradores({ cicloId }: { cicloId: number }) {
                   <tr key={`${c.id}-${situacao ?? "normal"}-${idx}`} className={`hover:bg-gray-50 ${selecionados.has(c.id) ? "bg-blue-50" : ""} ${isMovimentado ? "bg-amber-50/40" : ""}`}>
                     <td className="px-4 py-2.5">
                       {!isMovimentado || situacao === "atual" ? (
-                        <input type="checkbox" checked={selecionados.has(c.id)} onChange={() => toggleSel(c.id)} className="rounded" />
+                        <input type="checkbox" checked={selecionados.has(c.id)} onChange={() => toggleSel(c.id)} className="rounded" aria-label={`Selecionar ${c.nome}`} />
                       ) : <span />}
                     </td>
                     <td className="px-4 py-2.5 font-mono text-xs text-gray-600">{c.matricula}</td>
@@ -646,8 +646,8 @@ function AbaColaboradores({ cicloId }: { cicloId: number }) {
                     <td className="px-4 py-2.5">
                       {(!isMovimentado || situacao === "atual") && (
                         <div className="flex items-center gap-1 justify-end">
-                          <button onClick={() => setModalColab(c)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"><Pencil size={14} /></button>
-                          <button onClick={() => excluir(c.id)} disabled={excluindo === c.id} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded disabled:opacity-40"><Trash2 size={14} /></button>
+                          <button onClick={() => setModalColab(c)} aria-label="Editar colaborador" className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"><Pencil size={14} /></button>
+                          <button onClick={() => excluir(c.id)} disabled={excluindo === c.id} aria-label="Excluir colaborador" className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded disabled:opacity-40"><Trash2 size={14} /></button>
                         </div>
                       )}
                     </td>
@@ -753,7 +753,7 @@ function ModalConfigCampos({ cicloId, onClose }: { cicloId: number; onClose: () 
       <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold text-gray-900">Campos de Movimentação</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+          <button onClick={onClose} aria-label="Fechar" className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
         </div>
         <p className="text-xs text-gray-500 mb-4">Selecione quais campos, ao mudar entre imports, constituem uma movimentação:</p>
         <div className="space-y-2 mb-5">
@@ -802,7 +802,7 @@ function ModalDesligamento({ mov, onSave, onClose }: { mov: Movimentacao; onSave
       <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold text-gray-900">Confirmar Desligamento</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+          <button onClick={onClose} aria-label="Fechar" className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
         </div>
         <p className="text-sm text-gray-600 mb-1"><strong>{mov.nomeColaborador}</strong></p>
         <p className="text-xs text-gray-400 mb-4">Matrícula: {mov.matricula}</p>
@@ -857,7 +857,7 @@ function ModalImportDesligamentos({ cicloId, onDone, onClose }: { cicloId: numbe
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold text-gray-900">Importar Desligamentos</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+          <button onClick={onClose} aria-label="Fechar" className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
         </div>
         {!resultado ? (
           <div className="space-y-4">
@@ -959,7 +959,7 @@ function ModalAtribuirPainel({ mov, cicloId, agrupamentos, onSave, onClose }: {
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold text-gray-900">Atribuir Novo Painel</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+          <button onClick={onClose} aria-label="Fechar" className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
         </div>
         <p className="text-sm text-gray-600 mb-1"><strong>{mov.nomeColaborador}</strong></p>
         <p className="text-xs text-gray-400 mb-1">Matrícula: {mov.matricula}</p>

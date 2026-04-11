@@ -908,7 +908,7 @@ export default function MetasPage() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="px-4 py-2.5"><input type="checkbox" className="rounded"
+                    <th className="px-4 py-2.5"><input type="checkbox" aria-label="Selecionar todos" className="rounded"
                       checked={selAtribs.size===atribuicoes.length && atribuicoes.length>0}
                       onChange={()=>setSelAtribs(s=>s.size===atribuicoes.length?new Set():new Set(atribuicoes.map(a=>a.id)))}/></th>
                     {["Colaborador","Agrupamento","Peso","Cascata","Soma Total",""].map(h=><th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>)}
@@ -921,7 +921,7 @@ export default function MetasPage() {
                     const soma = somasPorColab[a.colaboradorId]??0;
                     return (
                       <tr key={a.id} className={`hover:bg-gray-50 ${selAtribs.has(a.id)?"bg-blue-50":""}`}>
-                        <td className="px-4 py-2.5"><input type="checkbox" className="rounded" checked={selAtribs.has(a.id)} onChange={()=>toggleSelAtrib(a.id)}/></td>
+                        <td className="px-4 py-2.5"><input type="checkbox" className="rounded" aria-label={`Selecionar ${a.colaborador.nome}`} checked={selAtribs.has(a.id)} onChange={()=>toggleSelAtrib(a.id)}/></td>
                         <td className="px-4 py-2.5"><p className="font-medium text-gray-800">{a.colaborador.nome}</p><p className="text-xs text-gray-400">{a.colaborador.matricula}</p></td>
                         <td className="px-4 py-2.5 text-gray-700">{a.agrupamento.nome}</td>
                         <td className="px-4 py-2.5 font-medium text-gray-800">{a.pesoNaCesta}%</td>

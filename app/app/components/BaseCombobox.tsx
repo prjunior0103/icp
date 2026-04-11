@@ -71,11 +71,12 @@ export function BaseCombobox({
   }
 
   return (
-    <div ref={ref} className={`relative ${className}`}>
+    <div ref={ref} className={`relative ${className}`} role="combobox" aria-expanded={open} aria-haspopup="listbox">
       <button
         type="button"
         onClick={openDropdown}
         disabled={disabled}
+        aria-label={value || placeholder}
         className={`flex items-center gap-1.5 w-full border rounded-lg px-2.5 ${py} ${textSize} bg-white focus:outline-none transition-colors
           ${disabled ? "opacity-40 cursor-not-allowed border-gray-200" : "cursor-pointer"}
           ${open ? "border-blue-500 ring-1 ring-blue-500" : "border-gray-300 hover:border-gray-400"}`}

@@ -132,8 +132,9 @@ function AppShell({ children }: { children: React.ReactNode }) {
             onClick={handleLogout}
             className="flex items-center gap-1.5 text-blue-300 hover:text-white transition-colors text-sm"
             title="Sair"
+            aria-label="Sair do sistema"
           >
-            <LogOut size={16} />
+            <LogOut size={16} aria-hidden="true" />
           </button>
         </div>
       </header>
