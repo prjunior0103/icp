@@ -372,7 +372,7 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
   const [filtroColaborador, setFiltroColaborador] = useState("");
   const [filtroIndicador, setFiltroIndicador] = useState("");
   const [filtroArea, setFiltroArea] = useState<AreaFilters>(EMPTY_FILTERS);
-  const [expandido, setExpandido] = useState<Record<number,boolean>>({});
+  const [expandido, setExpandido] = useState<Record<string,boolean>>({});
 
   // Calcular nota de cada indicador — usa orçado como meta quando disponível
   const notasPorIndicador = new Map<number, number>();
@@ -402,6 +402,10 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
     }
   }
 
+  // Conta atribuições por colaborador para detectar movimentados
+  const atribsPorColab = new Map<number, number>();
+  for (const a of atribuicoes) atribsPorColab.set(a.colaboradorId, (atribsPorColab.get(a.colaboradorId) ?? 0) + 1);
+
   const colaboradoresMap = new Map<number, Colaborador>();
   for (const a of atribuicoes) colaboradoresMap.set(a.colaboradorId, a.colaborador);
   const colaboradores = Array.from(colaboradoresMap.values());
@@ -409,34 +413,28 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
   const gestoresIds = new Set(colaboradores.map(c => c.gestorId).filter(Boolean));
   const gestores = colaboradores.filter(c => gestoresIds.has(c.id));
 
-  const colabsFiltrados = colaboradores.filter(c => {
+  // Uma linha por atribuição — movimentados aparecem 2x
+  const atribuicoesFiltradas = atribuicoes.filter(a => {
+    const c = a.colaborador;
     if (filtroGestor && String(c.gestorId) !== filtroGestor) return false;
     if (filtroColaborador && !c.nome.toLowerCase().includes(filtroColaborador.toLowerCase())) return false;
     if (!matchesAreaFilter(c, filtroArea, areas)) return false;
     return true;
   });
 
-  // Resultado = soma(MIDs por agrupamento × pesoNaCesta/100)
-  // MID = nota × peso_indicador / 100
-  function calcResultadoColab(colaboradorId: number) {
-    const atribs = atribuicoes.filter(a => a.colaboradorId === colaboradorId);
-    let resultado = 0;
-    const detalhes: { agrupamento: Agrupamento; atingimento: number; pesoNaCesta: number; contribuicao: number; mids: { ind: Indicador; nota: number; peso: number; mid: number }[] }[] = [];
-    for (const at of atribs) {
-      const ag = at.agrupamento;
-      const mids: { ind: Indicador; nota: number; peso: number; mid: number }[] = [];
-      let atingAg = 0;
-      for (const ig of ag.indicadores) {
-        if (filtroIndicador && String(ig.indicadorId) !== filtroIndicador) continue;
-        const nota = notasPorIndicador.get(ig.indicadorId) ?? 0;
-        const mid = calcMID(nota, ig.peso);
-        mids.push({ ind: ig.indicador, nota, peso: ig.peso, mid });
-        atingAg += mid;
-      }
-      resultado += atingAg;
-      detalhes.push({ agrupamento: ag, atingimento: atingAg, pesoNaCesta: at.pesoNaCesta, contribuicao: atingAg, mids });
+  // Resultado = soma MIDs deste agrupamento
+  function calcResultadoAtrib(at: Atribuicao) {
+    const ag = at.agrupamento;
+    const mids: { ind: Indicador; nota: number; peso: number; mid: number }[] = [];
+    let atingAg = 0;
+    for (const ig of ag.indicadores) {
+      if (filtroIndicador && String(ig.indicadorId) !== filtroIndicador) continue;
+      const nota = notasPorIndicador.get(ig.indicadorId) ?? 0;
+      const mid = calcMID(nota, ig.peso);
+      mids.push({ ind: ig.indicador, nota, peso: ig.peso, mid });
+      atingAg += mid;
     }
-    return { resultado, detalhes };
+    return { resultado: atingAg, agrupamento: ag, pesoNaCesta: at.pesoNaCesta, mids };
   }
 
   return (
@@ -458,23 +456,29 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
         <HierarchicalAreaFilter areas={areas} value={filtroArea} onChange={setFiltroArea} />
       </div>
 
-      {colabsFiltrados.length === 0 ? (
+      {atribuicoesFiltradas.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-200 p-10 text-center text-gray-400">
           <BarChart3 size={36} className="mx-auto mb-2 text-gray-300"/>Nenhum resultado encontrado
         </div>
       ) : (
         <div className="space-y-2">
-          {colabsFiltrados.map(c => {
-            const { resultado, detalhes } = calcResultadoColab(c.id);
-            const aberto = expandido[c.id];
+          {atribuicoesFiltradas.map(at => {
+            const c = at.colaborador;
+            const { resultado, agrupamento, pesoNaCesta, mids } = calcResultadoAtrib(at);
+            const rowKey = `${at.colaboradorId}-${at.agrupamentoId}`;
+            const aberto = expandido[rowKey];
+            const movimentado = (atribsPorColab.get(at.colaboradorId) ?? 1) > 1;
             return (
-              <div key={c.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                <button onClick={()=>setExpandido(e=>({...e,[c.id]:!aberto}))}
+              <div key={rowKey} className={`bg-white rounded-xl border overflow-hidden ${movimentado ? "border-amber-200" : "border-gray-200"}`}>
+                <button onClick={()=>setExpandido(e=>({...e,[rowKey]:!aberto}))}
                   className="w-full flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition-colors">
                   <div className="flex items-center gap-4 text-left">
                     <div>
-                      <p className="font-semibold text-gray-800 text-sm">{c.nome}</p>
-                      <p className="text-xs text-gray-400">{c.matricula} · {c.cargo}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-gray-800 text-sm">{c.nome}</p>
+                        {movimentado && <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">MOVIMENTADO</span>}
+                      </div>
+                      <p className="text-xs text-gray-400">{c.matricula} · {c.cargo}{movimentado && ` · ${agrupamento.nome}`}</p>
                     </div>
                     {c.area?.nivel1 && <span className="text-xs text-gray-400 hidden sm:block">{c.area.nivel1}</span>}
                   </div>
@@ -491,39 +495,35 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
 
                 {aberto && (
                   <div className="border-t border-gray-100 px-5 py-3 space-y-3">
-                    {detalhes.map(d => (
-                      <div key={d.agrupamento.id}>
-                        <div className="flex items-center justify-between mb-1">
-                          <p className="text-xs font-semibold text-gray-600">
-                            {d.agrupamento.nome}
-                            <span className="font-normal text-gray-400"> ({d.pesoNaCesta}% na cesta)</span>
-                          </p>
-                          <div className="flex items-center gap-3 text-xs text-right">
-                            <span className="text-gray-500">Ating. <span className="font-semibold text-gray-700">{d.atingimento.toFixed(1)}%</span></span>
-                            <span className="text-gray-400">→</span>
-                            <span className="text-gray-500">Contrib. <span className="font-semibold text-blue-700">{d.contribuicao.toFixed(1)}%</span></span>
-                          </div>
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-xs font-semibold text-gray-600">
+                          {agrupamento.nome}
+                          <span className="font-normal text-gray-400"> ({pesoNaCesta}% na cesta)</span>
+                        </p>
+                        <div className="flex items-center gap-3 text-xs text-right">
+                          <span className="text-gray-500">Ating. <span className="font-semibold text-gray-700">{resultado.toFixed(1)}%</span></span>
                         </div>
-                        <table className="w-full text-xs">
-                          <thead><tr className="text-gray-400">
-                            <th className="text-left pb-1">Indicador</th>
-                            <th className="text-right pb-1">% Ating.</th>
-                            <th className="text-right pb-1">Peso</th>
-                            <th className="text-right pb-1">MID</th>
-                          </tr></thead>
-                          <tbody className="divide-y divide-gray-50">
-                            {d.mids.map(m => (
-                              <tr key={m.ind.id}>
-                                <td className="py-1 text-gray-700">{m.ind.codigo} — {m.ind.nome}</td>
-                                <td className="py-1 text-right font-medium">{m.nota.toFixed(1)}%</td>
-                                <td className="py-1 text-right text-gray-500">{m.peso}%</td>
-                                <td className="py-1 text-right font-semibold text-blue-700">{m.mid.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
                       </div>
-                    ))}
+                      <table className="w-full text-xs">
+                        <thead><tr className="text-gray-400">
+                          <th className="text-left pb-1">Indicador</th>
+                          <th className="text-right pb-1">% Ating.</th>
+                          <th className="text-right pb-1">Peso</th>
+                          <th className="text-right pb-1">MID</th>
+                        </tr></thead>
+                        <tbody className="divide-y divide-gray-50">
+                          {mids.map(m => (
+                            <tr key={m.ind.id}>
+                              <td className="py-1 text-gray-700">{m.ind.codigo} — {m.ind.nome}</td>
+                              <td className="py-1 text-right font-medium">{m.nota.toFixed(1)}%</td>
+                              <td className="py-1 text-right text-gray-500">{m.peso}%</td>
+                              <td className="py-1 text-right font-semibold text-blue-700">{m.mid.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 )}
               </div>

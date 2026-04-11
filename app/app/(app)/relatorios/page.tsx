@@ -76,33 +76,30 @@ function NotaBadge({ nota }: { nota: number | null | undefined }) {
 function RelatColaborador({ atribuicoes, notasMap, areas }: { atribuicoes: Atribuicao[]; notasMap: Map<number, number>; areas: {nivel1:string;nivel2?:string|null;nivel3?:string|null;nivel4?:string|null;nivel5?:string|null;centroCusto:string}[]; }) {
   const [busca, setBusca] = useState("");
   const [filtroArea, setFiltroArea] = useState<AreaFilters>(EMPTY_FILTERS);
-  const [expandido, setExpandido] = useState<Record<number, boolean>>({});
+  const [expandido, setExpandido] = useState<Record<string, boolean>>({});
 
-  const colabsMap = new Map<number, Colaborador>();
-  for (const a of atribuicoes) colabsMap.set(a.colaboradorId, a.colaborador);
-  const colabs = Array.from(colabsMap.values()).filter(c => {
+  // Conta atribuições por colaborador para detectar movimentados
+  const atribsPorColab = new Map<number, number>();
+  for (const a of atribuicoes) atribsPorColab.set(a.colaboradorId, (atribsPorColab.get(a.colaboradorId) ?? 0) + 1);
+
+  // Uma linha por atribuição — movimentados aparecem 2x
+  const atribuicoesFiltradas = atribuicoes.filter(a => {
+    const c = a.colaborador;
     if (busca && !c.nome.toLowerCase().includes(busca.toLowerCase()) && !c.matricula.includes(busca)) return false;
     if (!matchesAreaFilter(c, filtroArea, areas)) return false;
     return true;
   });
 
-  function calcColab(id: number) {
-    const atribs = atribuicoes.filter(a => a.colaboradorId === id);
-    let resultado = 0;
-    const grupos: { ag: Agrupamento; pesoNaCesta: number; mids: { ind: Indicador; nota: number; peso: number; mid: number }[]; ating: number }[] = [];
-    for (const at of atribs) {
-      const mids: { ind: Indicador; nota: number; peso: number; mid: number }[] = [];
-      let ating = 0;
-      for (const ig of at.agrupamento.indicadores) {
-        const nota = notasMap.get(ig.indicadorId) ?? 0;
-        const mid = calcMID(nota, ig.peso);
-        mids.push({ ind: ig.indicador, nota, peso: ig.peso, mid });
-        ating += mid;
-        resultado += mid;
-      }
-      grupos.push({ ag: at.agrupamento, pesoNaCesta: at.pesoNaCesta, mids, ating });
+  function calcAtrib(at: Atribuicao) {
+    const mids: { ind: Indicador; nota: number; peso: number; mid: number }[] = [];
+    let ating = 0;
+    for (const ig of at.agrupamento.indicadores) {
+      const nota = notasMap.get(ig.indicadorId) ?? 0;
+      const mid = calcMID(nota, ig.peso);
+      mids.push({ ind: ig.indicador, nota, peso: ig.peso, mid });
+      ating += mid;
     }
-    return { resultado, grupos };
+    return { resultado: ating, mids };
   }
 
   return (
@@ -116,16 +113,25 @@ function RelatColaborador({ atribuicoes, notasMap, areas }: { atribuicoes: Atrib
         <HierarchicalAreaFilter areas={areas} value={filtroArea} onChange={setFiltroArea} />
       </div>
 
-      {colabs.map(c => {
-        const { resultado, grupos } = calcColab(c.id);
-        const aberto = expandido[c.id];
+      {atribuicoesFiltradas.map(at => {
+        const c = at.colaborador;
+        const { resultado, mids } = calcAtrib(at);
+        const rowKey = `${at.colaboradorId}-${at.agrupamentoId}`;
+        const aberto = expandido[rowKey];
+        const movimentado = (atribsPorColab.get(at.colaboradorId) ?? 1) > 1;
         return (
-          <div key={c.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <button onClick={() => setExpandido(e => ({ ...e, [c.id]: !aberto }))}
+          <div key={rowKey} className={`bg-white rounded-xl border overflow-hidden ${movimentado ? "border-amber-200" : "border-gray-200"}`}>
+            <button onClick={() => setExpandido(e => ({ ...e, [rowKey]: !aberto }))}
               className="w-full flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition-colors">
               <div className="text-left">
-                <p className="font-semibold text-gray-800 text-sm">{c.nome}</p>
-                <p className="text-xs text-gray-400">{c.matricula} · {c.cargo} {c.area?.nivel1 ? `· ${c.area.nivel1}` : ""}</p>
+                <div className="flex items-center gap-2">
+                  <p className="font-semibold text-gray-800 text-sm">{c.nome}</p>
+                  {movimentado && <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">MOVIMENTADO</span>}
+                </div>
+                <p className="text-xs text-gray-400">
+                  {c.matricula} · {c.cargo}{c.area?.nivel1 ? ` · ${c.area.nivel1}` : ""}
+                  {movimentado && <span className="text-amber-600"> · {at.agrupamento.nome}</span>}
+                </p>
               </div>
               <div className="flex items-center gap-6">
                 <div className="text-right">
@@ -137,32 +143,30 @@ function RelatColaborador({ atribuicoes, notasMap, areas }: { atribuicoes: Atrib
             </button>
             {aberto && (
               <div className="border-t border-gray-100 px-5 py-3 space-y-4">
-                {grupos.map(g => (
-                  <div key={g.ag.id}>
-                    <div className="flex justify-between mb-1">
-                      <p className="text-xs font-semibold text-gray-600">{g.ag.nome} <span className="font-normal text-gray-400">({g.pesoNaCesta}% na cesta)</span></p>
-                      <p className="text-xs text-gray-600">Ating. <span className="font-semibold">{g.ating.toFixed(1)}%</span></p>
-                    </div>
-                    <table className="w-full text-xs">
-                      <thead><tr className="text-gray-400">
-                        <th className="text-left pb-1">Indicador</th>
-                        <th className="text-right pb-1">Nota</th>
-                        <th className="text-right pb-1">Peso</th>
-                        <th className="text-right pb-1">MID</th>
-                      </tr></thead>
-                      <tbody className="divide-y divide-gray-50">
-                        {g.mids.map(m => (
-                          <tr key={m.ind.id}>
-                            <td className="py-1 text-gray-700">{m.ind.codigo} — {m.ind.nome}</td>
-                            <td className="py-1 text-right"><NotaBadge nota={m.nota}/></td>
-                            <td className="py-1 text-right text-gray-500">{m.peso}%</td>
-                            <td className="py-1 text-right font-semibold text-blue-700">{m.mid.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                <div>
+                  <div className="flex justify-between mb-1">
+                    <p className="text-xs font-semibold text-gray-600">{at.agrupamento.nome} <span className="font-normal text-gray-400">({at.pesoNaCesta}% na cesta)</span></p>
+                    <p className="text-xs text-gray-600">Ating. <span className="font-semibold">{resultado.toFixed(1)}%</span></p>
                   </div>
-                ))}
+                  <table className="w-full text-xs">
+                    <thead><tr className="text-gray-400">
+                      <th className="text-left pb-1">Indicador</th>
+                      <th className="text-right pb-1">Nota</th>
+                      <th className="text-right pb-1">Peso</th>
+                      <th className="text-right pb-1">MID</th>
+                    </tr></thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {mids.map(m => (
+                        <tr key={m.ind.id}>
+                          <td className="py-1 text-gray-700">{m.ind.codigo} — {m.ind.nome}</td>
+                          <td className="py-1 text-right"><NotaBadge nota={m.nota}/></td>
+                          <td className="py-1 text-right text-gray-500">{m.peso}%</td>
+                          <td className="py-1 text-right font-semibold text-blue-700">{m.mid.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
           </div>
