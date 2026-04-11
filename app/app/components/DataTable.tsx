@@ -50,7 +50,7 @@ export function DataTable<T>({
             <tr>
               <td
                 colSpan={columns.length}
-                className="px-4 py-8 text-center text-sm text-gray-400"
+                className="px-4 py-8 text-center text-sm text-gray-500"
               >
                 {emptyMessage}
               </td>
@@ -66,6 +66,13 @@ export function DataTable<T>({
                   key={keyFn(row, i)}
                   className={`${trCls} ${onRowClick ? "cursor-pointer" : ""}`}
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
+                  {...(onRowClick ? {
+                    role: "button",
+                    tabIndex: 0,
+                    onKeyDown: (e: React.KeyboardEvent) => {
+                      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onRowClick(row); }
+                    },
+                  } : {})}
                 >
                   {columns.map((col, j) => (
                     <td key={j} className={`${TD_DEFAULT} ${col.className ?? ""}`}>

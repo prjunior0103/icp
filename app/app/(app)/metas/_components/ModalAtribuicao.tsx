@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { X, Upload, CheckCircle2, AlertCircle, Plus } from "lucide-react";
+import { Upload, CheckCircle2, AlertCircle, Plus } from "lucide-react";
 import { HierarchicalAreaFilter, matchesAreaFilter, EMPTY_FILTERS, type AreaFilters } from "@/app/components/HierarchicalAreaFilter";
+import { ModalWrapper } from "@/app/components/ModalWrapper";
 import type { Indicador, Agrupamento, Colaborador, Atribuicao } from "./types";
 
 // ─── Modal Importação ─────────────────────────────────────
@@ -18,12 +19,7 @@ export function ModalImport({ cicloId, onDone, onClose }: { cicloId: number; onD
     if (data.criados > 0) onDone();
   }
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-gray-900">Importar Indicadores</h3>
-          <button onClick={onClose}><X size={20} className="text-gray-400"/></button>
-        </div>
+    <ModalWrapper title="Importar Indicadores" onClose={onClose} size="md">
         {!resultado ? (
           <div className="space-y-4">
             <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
@@ -43,8 +39,7 @@ export function ModalImport({ cicloId, onDone, onClose }: { cicloId: number; onD
             <button onClick={onClose} className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm py-2 rounded-lg">Fechar</button>
           </div>
         )}
-      </div>
-    </div>
+    </ModalWrapper>
   );
 }
 
@@ -174,13 +169,7 @@ export function ModalAtribuicao({ cicloId, agrupamentos, atrib, colaboradores, a
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-gray-900">{editando ? "Editar Atribuição" : "Nova Atribuição"}</h3>
-          <button onClick={onClose}><X size={20} className="text-gray-400"/></button>
-        </div>
-
+    <ModalWrapper title={editando ? "Editar Atribuição" : "Nova Atribuição"} onClose={onClose} size="lg">
         <form onSubmit={salvar} className="space-y-4">
           {/* Seletor de modo — só para novo */}
           {!editando && (
@@ -217,7 +206,7 @@ export function ModalAtribuicao({ cicloId, agrupamentos, atrib, colaboradores, a
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Grade *</label>
               {grades.length === 0
-                ? <p className="text-xs text-gray-400">Nenhum grade cadastrado nos colaboradores</p>
+                ? <p className="text-xs text-gray-500">Nenhum grade cadastrado nos colaboradores</p>
                 : <select value={grade} onChange={e => setGrade(e.target.value)}
                     className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                     <option value="">Selecionar...</option>
@@ -245,7 +234,7 @@ export function ModalAtribuicao({ cicloId, agrupamentos, atrib, colaboradores, a
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Gestor *</label>
                 {gestores.length === 0
-                  ? <p className="text-xs text-gray-400">Nenhum gestor identificado (colaboradores sem subordinados)</p>
+                  ? <p className="text-xs text-gray-500">Nenhum gestor identificado (colaboradores sem subordinados)</p>
                   : <select value={gestorId} onChange={e => setGestorId(e.target.value)}
                       className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                       <option value="">Selecionar...</option>
@@ -266,7 +255,7 @@ export function ModalAtribuicao({ cicloId, agrupamentos, atrib, colaboradores, a
 
           {/* Prévia de impactados — só contagem */}
           {!editando && (
-            <div className={`rounded-lg px-3 py-2 text-sm ${impactados.length > 0 ? "bg-blue-50 text-blue-700" : "bg-gray-50 text-gray-400 italic"}`}>
+            <div className={`rounded-lg px-3 py-2 text-sm ${impactados.length > 0 ? "bg-blue-50 text-blue-700" : "bg-gray-50 text-gray-500 italic"}`}>
               {impactados.length > 0
                 ? `${impactados.length} colaborador${impactados.length !== 1 ? "es" : ""} serão impactados`
                 : "Nenhum colaborador selecionado"}
@@ -288,7 +277,7 @@ export function ModalAtribuicao({ cicloId, agrupamentos, atrib, colaboradores, a
                       className="rounded" />
                     <div className="flex-1">
                       <p className="text-sm text-gray-800">{ag.nome}</p>
-                      <p className="text-xs text-gray-400">{ag.tipo} — {somaPeso.toFixed(2)}%</p>
+                      <p className="text-xs text-gray-500">{ag.tipo} — {somaPeso.toFixed(2)}%</p>
                     </div>
                     {sel && (
                       <input type="number" min="0" max="100" step="0.01"
@@ -300,7 +289,7 @@ export function ModalAtribuicao({ cicloId, agrupamentos, atrib, colaboradores, a
                   </div>
                 );
               })}
-              {agrupamentos.length === 0 && <p className="text-xs text-gray-400 p-3">Nenhum agrupamento cadastrado</p>}
+              {agrupamentos.length === 0 && <p className="text-xs text-gray-500 p-3">Nenhum agrupamento cadastrado</p>}
             </div>
           </div>
 
@@ -317,7 +306,6 @@ export function ModalAtribuicao({ cicloId, agrupamentos, atrib, colaboradores, a
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </ModalWrapper>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { X } from "lucide-react";
 
 const WIDTHS = {
@@ -20,6 +20,8 @@ interface Props {
   closeOnBackdrop?: boolean;
 }
 
+const FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+
 export function ModalWrapper({
   title,
   onClose,
@@ -27,28 +29,69 @@ export function ModalWrapper({
   size = "md",
   closeOnBackdrop = true,
 }: Props) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = ""; };
   }, []);
 
+  const stableClose = useCallback(() => onClose(), [onClose]);
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") stableClose();
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [stableClose]);
+
+  // Focus trap
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+
+    const previouslyFocused = document.activeElement as HTMLElement;
+
+    // Focus first focusable element
+    requestAnimationFrame(() => {
+      const first = dialog.querySelector<HTMLElement>(FOCUSABLE);
+      first?.focus();
+    });
+
+    function handleTab(e: KeyboardEvent) {
+      if (e.key !== "Tab" || !dialog) return;
+      const focusable = dialog.querySelectorAll<HTMLElement>(FOCUSABLE);
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+
+    dialog.addEventListener("keydown", handleTab);
+    return () => {
+      dialog.removeEventListener("keydown", handleTab);
+      previouslyFocused?.focus();
+    };
+  }, []);
 
   return (
     <div
       className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
-      onClick={closeOnBackdrop ? onClose : undefined}
+      onClick={closeOnBackdrop ? stableClose : undefined}
       role="dialog"
       aria-modal="true"
       aria-label={title}
     >
       <div
+        ref={dialogRef}
         className={`bg-white rounded-xl shadow-xl w-full ${WIDTHS[size]} max-h-[90vh] overflow-y-auto`}
         onClick={e => e.stopPropagation()}
       >
@@ -56,9 +99,9 @@ export function ModalWrapper({
           <div className="flex items-center justify-between px-6 pt-5 pb-0">
             <h3 className="text-lg font-bold text-gray-900">{title}</h3>
             <button
-              onClick={onClose}
+              onClick={stableClose}
               aria-label="Fechar"
-              className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100"
+              className="text-gray-400 hover:text-gray-600 min-w-[44px] min-h-[44px] inline-flex items-center justify-center rounded-lg hover:bg-gray-100"
             >
               <X size={18} />
             </button>

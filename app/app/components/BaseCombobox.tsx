@@ -82,7 +82,7 @@ export function BaseCombobox({
           ${open ? "border-blue-500 ring-1 ring-blue-500" : "border-gray-300 hover:border-gray-400"}`}
       >
         {label && (
-          <span className="text-[10px] text-gray-400 shrink-0 mr-0.5">{label}</span>
+          <span className="text-[10px] text-gray-500 shrink-0 mr-0.5">{label}</span>
         )}
         {value ? (
           <>
@@ -93,7 +93,7 @@ export function BaseCombobox({
           </>
         ) : (
           <>
-            <span className="flex-1 text-left text-gray-400">{placeholder}</span>
+            <span className="flex-1 text-left text-gray-500">{placeholder}</span>
             <ChevronDown size={10} className="text-gray-400 shrink-0" />
           </>
         )}
@@ -120,7 +120,7 @@ export function BaseCombobox({
             {!busca && (
               <button
                 type="button"
-                className="w-full text-left px-3 py-1.5 text-xs text-gray-400 hover:bg-gray-50"
+                className="w-full text-left px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-50"
                 onClick={() => select("")}
               >
                 {clearLabel ?? placeholder}
@@ -138,7 +138,7 @@ export function BaseCombobox({
               </button>
             ))}
             {filtered.length === 0 && (
-              <div className="px-3 py-4 text-xs text-gray-400 text-center">Sem resultados</div>
+              <div className="px-3 py-4 text-xs text-gray-500 text-center">Sem resultados</div>
             )}
           </div>
         </div>

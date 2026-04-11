@@ -1,33 +1,85 @@
 ## 🔁 ESTADO DA SESSÃO ANTERIOR — LEIA ANTES DE TUDO
 
 # Estado Persistente — ICP
-> Atualizado por: Coordenador ICP | Última atualização: 2026-04-11T18:00
+> Atualizado: 2026-04-11 18:50
 
 ## Task em progresso
-Audit/Refactor — Fase 6 (próxima a executar)
+Revisão UI/UX Pro Max — Fase 1 parcialmente concluída
 
-## Plano de Refactor — Design System (6 Fases)
-- ✅ Fase 0: Foundation — tipos, utils, fetch wrapper (commit d2fd98d)
-- ✅ Fase 1: Bugs críticos — error handling, sort mutation, stale closure (commit 7439e69)
-- ✅ Fase 2: Componentes UI — ConfirmModal, ModalWrapper, SearchInput, FormField, DataTable, BaseCombobox (commit c197d15)
-- ✅ Fase 3+4: UX gaps + consistência visual (commit 88829ae)
-- ✅ Fase 5: Acessibilidade — ARIA, keyboard nav, aria-label, checkbox labels (commit ccda6f5)
-- ⏳ Fase 6: Arquitetura — split files grandes, AbortController, ADR (6 items) — ÚLTIMA
+## Revisão UI/UX — Plano (4 Fases)
+- 🔄 Fase 1: Acessibilidade Foundation (HIGH)
+  - ✅ 1A: Contraste — `--ink-muted` atualizado para #64748b, text-gray-400 → text-gray-500 em ~80 instâncias de texto legível (25+ arquivos)
+  - ✅ 1B: FormField.tsx — useId() + htmlFor + cloneElement para associar labels
+  - ✅ 1C parte 1: ModalWrapper.tsx — focus trap implementado (Tab/Shift+Tab, restore focus)
+  - ✅ 1C parte 1: ModalWrapper.tsx — close button com touch target 44px
+  - ⏳ 1C parte 2: Migrar 14 modais inline para usar ModalWrapper (NÃO FEITO AINDA)
+- ⏳ Fase 2: Loading States e Feedback (MEDIUM) — NÃO INICIADA
+  - Criar LoadingSpinner.tsx (Loader2 + animate-spin)
+  - Substituir 5x "Carregando..." plain text
+  - Eliminar alert() em metas/page.tsx:79,94
+  - Fix tela branca auth loading em layout.tsx:50
+- ⏳ Fase 3: Keyboard e Touch Targets (MEDIUM) — NÃO INICIADA
+  - DataTable.tsx: role="button", tabIndex, onKeyDown em rows clicáveis
+  - Touch targets 44px em icon buttons (configuracoes, layout, etc.)
+  - Nav buttons → Next.js Link em layout.tsx:162-174
+- ⏳ Fase 4: Polish (LOW) — NÃO INICIADA
+  - Emojis → ícones Lucide em 3 relatórios
 
-## Fase 6 — Escopo
-- Split de files grandes (colaboradores ~1290 linhas, metas ~970 linhas, relatorios ~850 linhas)
-- AbortController nos fetches (cancelar requests em andamento ao trocar ciclo)
-- ADR para mudanças no motor de cálculo
-- Arquitetura: extrair lógica de negócio para hooks customizados
+## Arquivos modificados (sessão atual)
+- globals.css — --ink-muted #94a3b8 → #64748b
+- FormField.tsx — useId() + htmlFor + cloneElement
+- ModalWrapper.tsx — focus trap + touch target close button
+- DataTable.tsx — empty state text-gray-500
+- login/page.tsx — footer text contrast
+- configuracoes/page.tsx — 5 instâncias text contrast
+- auditoria/page.tsx — 6 instâncias text contrast
+- page.tsx (dashboard) — 4 instâncias text contrast
+- metas/page.tsx — 8 instâncias text contrast
+- colaboradores/page.tsx — empty state contrast
+- relatorios/page.tsx — empty state contrast
+- apuracao/page.tsx — 8 instâncias text contrast
+- AbaColaboradores.tsx — 6 instâncias text contrast
+- AbaMovimentacoes.tsx — 8 instâncias text contrast
+- AbaAreas.tsx — empty state contrast
+- RelatSemPainel.tsx — empty state contrast
+- RelatMovimentacoes.tsx — 3 instâncias text contrast
+- RelatPendencias.tsx — 2 instâncias text contrast
+- RelatGestor.tsx — empty state contrast
+- RelatNaoApurados.tsx — empty state contrast
+- RelatColaborador.tsx — 4 instâncias text contrast
+- RelatCalibracao.tsx — hint text contrast
+- ModalAtribuicao.tsx — 5 instâncias text contrast
+- ModalAgrupamento.tsx — 1 instância text contrast
+- ModalIndicador.tsx — 2 instâncias text contrast
+- AbaFormulas.tsx — 7 instâncias text contrast
+- BaseCombobox.tsx — 4 instâncias text contrast
+- AreaCCCombobox.tsx — 3 instâncias text contrast
+- HierarchicalAreaFilter.tsx — 4 instâncias text contrast
 
-## Branch e commits recentes
+## Decisões técnicas recentes
+- text-gray-400 mantido em ícones decorativos e botões icon-only com hover state
+- text-gray-400 → text-gray-500 apenas em texto legível (labels, hints, empty states, loading)
+- --ink-muted atualizado para #64748b (slate-500) — ratio 5.4:1 no branco
+- FormField usa useId() + cloneElement (preserva layout label-acima-input)
+- ModalWrapper focus trap: querySelectorAll focusable, Tab wrap, restore previouslyFocused
+
+## Próximos passos
+1. Migrar 14 modais inline para ModalWrapper (1C parte 2)
+2. Fase 2: LoadingSpinner + eliminar alert() + fix auth loading
+3. Fase 3: DataTable keyboard + touch targets + nav Link
+4. Fase 4: Emojis → ícones
+
+## Branch e commits
 - Branch: rebuild/m1
-- Commits: d2fd98d → 7439e69 → c197d15 → 88829ae → ccda6f5
+- Último commit: 6fa58ef (fase 6 — deploy atual)
+- Mudanças atuais: NÃO COMMITADAS (aguardando conclusão da revisão)
+
+## Plano detalhado
+- Arquivo: /Users/paulorjunior/.claude/plans/expressive-knitting-crab.md
 
 ## Deploy (VPS)
 - VPS: root@187.77.34.25 | senha: F4x1n3r0D0C40s&
 - App: /home/app/ICP/app | Porta: 3003 | Serviço: icp.service | DB: dev.db
-- Deploy: git pull + npm run build + systemctl restart icp
 
 ## Tasks pendentes no ICP
 - TASK-066 [MEDIA] Carta PDF + configuração de Regulador do Pool

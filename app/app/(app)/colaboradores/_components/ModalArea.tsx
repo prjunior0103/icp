@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { X } from "lucide-react";
 import type { Area } from "./types";
+import { ModalWrapper } from "@/app/components/ModalWrapper";
 
 export function ModalArea({ area, cicloId, onSave, onClose }: {
   area: Area | null; cicloId: number; onSave: () => void; onClose: () => void;
@@ -33,12 +33,7 @@ export function ModalArea({ area, cicloId, onSave, onClose }: {
   );
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-gray-900">{area ? "Editar Área" : "Nova Área"}</h3>
-          <button onClick={onClose} aria-label="Fechar"><X size={20} className="text-gray-400" /></button>
-        </div>
+    <ModalWrapper title={area ? "Editar Área" : "Nova Área"} onClose={onClose} size="lg">
         <form onSubmit={salvar} className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             {campo("Centro de Custo", "centroCusto", true)}
@@ -57,7 +52,6 @@ export function ModalArea({ area, cicloId, onSave, onClose }: {
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </ModalWrapper>
   );
 }

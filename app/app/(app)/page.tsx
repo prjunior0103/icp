@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Plus, X, Building2, Calendar, LayoutDashboard, Pencil, Trash2, Users, Target, BarChart3, UserX, AlertCircle, TrendingUp, FileText, Shield, ArrowRight } from "lucide-react";
+import { Plus, Building2, Calendar, LayoutDashboard, Pencil, Trash2, Users, Target, BarChart3, UserX, AlertCircle, TrendingUp, FileText, Shield, ArrowRight } from "lucide-react";
+import { ModalWrapper } from "@/app/components/ModalWrapper";
 import { useCiclo } from "@/app/lib/ciclo-context";
 import { calcNota, calcMID, gerarPeriodos, agregarRealizacoes } from "@/app/lib/calc";
 import { STATUS_COLOR, STATUS_LABEL } from "@/app/lib/status";
@@ -211,7 +212,7 @@ export default function DashboardPage() {
                   {STATUS_LABEL[cicloAtivo.status] ?? cicloAtivo.status}
                 </span>
               </div>
-              <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
+              <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
                 <Calendar size={11}/>
                 {MESES[cicloAtivo.mesInicio - 1]}/{cicloAtivo.anoFiscal} — {MESES[cicloAtivo.mesFim - 1]}/{cicloAtivo.anoFiscal}
               </p>
@@ -250,7 +251,7 @@ export default function DashboardPage() {
                   <p className="text-2xl font-bold text-gray-900">{stats.atribuidos}</p>
                   <p className="text-xs text-gray-500 mt-0.5">Atribuídos</p>
                   {stats.totalColabs > 0 && (
-                    <p className="text-2xs text-gray-400 mt-0.5">{Math.round(stats.atribuidos/stats.totalColabs*100)}% do total</p>
+                    <p className="text-2xs text-gray-500 mt-0.5">{Math.round(stats.atribuidos/stats.totalColabs*100)}% do total</p>
                   )}
                 </button>
 
@@ -285,10 +286,10 @@ export default function DashboardPage() {
                   {stats.midMedio != null ? (
                     <>
                       <p className="text-4xl font-bold text-blue-700">{stats.midMedio.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%</p>
-                      <p className="text-xs text-gray-400 mt-1">Média de todos os colaboradores atribuídos</p>
+                      <p className="text-xs text-gray-500 mt-1">Média de todos os colaboradores atribuídos</p>
                     </>
                   ) : (
-                    <p className="text-gray-400 text-sm">Sem dados de apuração ainda</p>
+                    <p className="text-gray-500 text-sm">Sem dados de apuração ainda</p>
                   )}
                 </div>
 
@@ -353,11 +354,11 @@ export default function DashboardPage() {
                 </button>
                 {role === "GUARDIAO" && (
                   <div className="flex items-center gap-1">
-                    <button onClick={() => abrirEditar(c)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors">
+                    <button onClick={() => abrirEditar(c)} className="min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
                       <Pencil size={14}/>
                     </button>
                     <button onClick={() => excluirCiclo(c.id)} disabled={excluindo === c.id}
-                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-40">
+                      className="min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40">
                       <Trash2 size={14}/>
                     </button>
                   </div>
@@ -370,12 +371,7 @@ export default function DashboardPage() {
 
       {/* Modal criar/editar ciclo */}
       {modalOpen && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-lg font-bold text-gray-900">{editando ? `Editar Ciclo ${editando.anoFiscal}` : "Novo Ciclo ICP"}</h3>
-              <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X size={20}/></button>
-            </div>
+        <ModalWrapper title={editando ? `Editar Ciclo ${editando.anoFiscal}` : "Novo Ciclo ICP"} onClose={() => setModalOpen(false)} size="sm">
             <form onSubmit={salvarCiclo} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Ano Fiscal</label>
@@ -421,8 +417,7 @@ export default function DashboardPage() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+        </ModalWrapper>
       )}
       {confirm.modal}
     </div>

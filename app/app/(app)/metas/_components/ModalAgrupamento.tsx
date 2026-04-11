@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { X, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import type { Indicador, Agrupamento } from "./types";
+import { ModalWrapper } from "@/app/components/ModalWrapper";
 
 export function ModalAgrupamento({ ag, cicloId, indicadores, onSave, onClose }: {
   ag: Agrupamento | null; cicloId: number; indicadores: Indicador[]; onSave: () => void; onClose: () => void;
@@ -33,12 +34,7 @@ export function ModalAgrupamento({ ag, cicloId, indicadores, onSave, onClose }: 
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-gray-900">{ag?"Editar Agrupamento":"Novo Agrupamento"}</h3>
-          <button onClick={onClose}><X size={20} className="text-gray-400"/></button>
-        </div>
+    <ModalWrapper title={ag ? "Editar Agrupamento" : "Novo Agrupamento"} onClose={onClose} size="lg">
         <form onSubmit={salvar} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div><label className="block text-xs font-medium text-gray-600 mb-1">Nome *</label>
@@ -67,7 +63,7 @@ export function ModalAgrupamento({ ag, cicloId, indicadores, onSave, onClose }: 
                   </div>
                 );
               })}
-              {indicadores.length===0 && <p className="text-xs text-gray-400 p-2">Nenhum indicador cadastrado</p>}
+              {indicadores.length===0 && <p className="text-xs text-gray-500 p-2">Nenhum indicador cadastrado</p>}
             </div>
           </div>
           <div className="flex gap-3">
@@ -75,7 +71,6 @@ export function ModalAgrupamento({ ag, cicloId, indicadores, onSave, onClose }: 
             <button type="submit" disabled={salvando} className="flex-1 bg-blue-700 hover:bg-blue-800 disabled:bg-blue-400 text-white text-sm py-2 rounded-lg">{salvando?"Salvando...":"Salvar"}</button>
           </div>
         </form>
-      </div>
-    </div>
+    </ModalWrapper>
   );
 }

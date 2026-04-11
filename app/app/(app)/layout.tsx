@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter, usePathname } from "next/navigation";
+import Link from "next/link";
 import {
   LayoutDashboard,
   Target,
@@ -18,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { CicloProvider, useCiclo } from "@/app/lib/ciclo-context";
+import { LoadingSpinner } from "@/app/components/LoadingSpinner";
 import { STATUS_BADGE, STATUS_LABEL } from "@/app/lib/status";
 
 const NAV_ITEMS = [
@@ -47,7 +49,11 @@ function AppShell({ children }: { children: React.ReactNode }) {
     if (status === "unauthenticated") router.push("/login");
   }, [status, router]);
 
-  if (status === "loading" || status === "unauthenticated") return null;
+  if (status === "loading" || status === "unauthenticated") return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <LoadingSpinner size={32} text="Carregando..." />
+    </div>
+  );
 
   async function handleLogout() {
     await signOut({ redirect: false });
@@ -159,9 +165,10 @@ function AppShell({ children }: { children: React.ReactNode }) {
             {[...NAV_ITEMS.filter(item => item.roles.includes(role ?? "COLABORADOR")), ...(role === "GUARDIAO" ? NAV_GUARDIAO : [])].map(({ href, label, icon: Icon }) => {
               const active = pathname === href;
               return (
-                <button
+                <Link
                   key={href}
-                  onClick={() => { router.push(href); setSidebarOpen(false); }}
+                  href={href}
+                  onClick={() => setSidebarOpen(false)}
                   className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
                     active
                       ? "bg-blue-50 text-blue-700 font-medium"
@@ -170,7 +177,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
                 >
                   <Icon size={16} />
                   {label}
-                </button>
+                </Link>
               );
             })}
           </nav>

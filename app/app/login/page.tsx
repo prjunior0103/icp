@@ -106,7 +106,7 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p className="mt-6 text-center text-xs text-gray-400">
+          <p className="mt-6 text-center text-xs text-gray-500">
             Sistema ICP — Incentivo de Curto Prazo
           </p>
         </div>

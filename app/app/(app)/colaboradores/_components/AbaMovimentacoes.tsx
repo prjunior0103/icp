@@ -2,8 +2,10 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { X, Upload, CheckCircle2, AlertCircle, ArrowLeftRight, ArrowRight, UserX, Search, FileDown, FileUp, Settings, Plus } from "lucide-react";
+import { Upload, CheckCircle2, AlertCircle, ArrowLeftRight, ArrowRight, UserX, Search, FileDown, FileUp, Settings, Plus } from "lucide-react";
 import { fmtData } from "@/app/lib/format";
+import { ModalWrapper } from "@/app/components/ModalWrapper";
+import { LoadingSpinner } from "@/app/components/LoadingSpinner";
 
 const TIPO_COR: Record<string, string> = {
   ADMISSAO:              "bg-green-100 text-green-700",
@@ -77,12 +79,7 @@ function ModalConfigCampos({ cicloId, onClose }: { cicloId: number; onClose: () 
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-gray-900">Campos de Movimentação</h3>
-          <button onClick={onClose} aria-label="Fechar" className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
-        </div>
+    <ModalWrapper title="Campos de Movimentação" onClose={onClose} size="sm">
         <p className="text-xs text-gray-500 mb-4">Selecione quais campos, ao mudar entre imports, constituem uma movimentação:</p>
         <div className="space-y-2 mb-5">
           {disponiveis.map(c => (
@@ -99,8 +96,7 @@ function ModalConfigCampos({ cicloId, onClose }: { cicloId: number; onClose: () 
             {salvando ? "Salvando..." : "Salvar"}
           </button>
         </div>
-      </div>
-    </div>
+    </ModalWrapper>
   );
 }
 
@@ -126,14 +122,9 @@ function ModalDesligamento({ mov, onSave, onClose }: { mov: Movimentacao; onSave
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-gray-900">Confirmar Desligamento</h3>
-          <button onClick={onClose} aria-label="Fechar" className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
-        </div>
+    <ModalWrapper title="Confirmar Desligamento" onClose={onClose} size="sm">
         <p className="text-sm text-gray-600 mb-1"><strong>{mov.nomeColaborador}</strong></p>
-        <p className="text-xs text-gray-400 mb-4">Matrícula: {mov.matricula}</p>
+        <p className="text-xs text-gray-500 mb-4">Matrícula: {mov.matricula}</p>
         <form onSubmit={confirmar} className="space-y-3">
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Data de Desligamento *</label>
@@ -156,8 +147,7 @@ function ModalDesligamento({ mov, onSave, onClose }: { mov: Movimentacao; onSave
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </ModalWrapper>
   );
 }
 
@@ -181,16 +171,11 @@ function ModalImportDesligamentos({ cicloId, onDone, onClose }: { cicloId: numbe
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-gray-900">Importar Desligamentos</h3>
-          <button onClick={onClose} aria-label="Fechar" className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
-        </div>
+    <ModalWrapper title="Importar Desligamentos" onClose={onClose} size="md">
         {!resultado ? (
           <div className="space-y-4">
             <p className="text-xs text-gray-500">Baixe a planilha de pendentes, preencha <strong>dataDesligamento</strong> e <strong>tipoDesligamento</strong>, depois carregue aqui.</p>
-            <p className="text-xs text-gray-400">Tipos válidos: VOLUNTARIO, INVOLUNTARIO, TERMINO_CONTRATO, APOSENTADORIA, FALECIMENTO, OUTROS</p>
+            <p className="text-xs text-gray-500">Tipos válidos: VOLUNTARIO, INVOLUNTARIO, TERMINO_CONTRATO, APOSENTADORIA, FALECIMENTO, OUTROS</p>
             <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
               <Upload size={32} className="text-gray-300 mx-auto mb-2" />
               <input type="file" accept=".xlsx" onChange={e => setFile(e.target.files?.[0] ?? null)} className="text-sm text-gray-600" />
@@ -219,8 +204,7 @@ function ModalImportDesligamentos({ cicloId, onDone, onClose }: { cicloId: numbe
             <button onClick={onClose} className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm py-2 rounded-lg">Fechar</button>
           </div>
         )}
-      </div>
-    </div>
+    </ModalWrapper>
   );
 }
 
@@ -283,14 +267,9 @@ function ModalAtribuirPainel({ mov, cicloId, agrupamentos, onSave, onClose }: {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-gray-900">Atribuir Novo Painel</h3>
-          <button onClick={onClose} aria-label="Fechar" className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
-        </div>
+    <ModalWrapper title="Atribuir Novo Painel" onClose={onClose} size="md">
         <p className="text-sm text-gray-600 mb-1"><strong>{mov.nomeColaborador}</strong></p>
-        <p className="text-xs text-gray-400 mb-1">Matrícula: {mov.matricula}</p>
+        <p className="text-xs text-gray-500 mb-1">Matrícula: {mov.matricula}</p>
         {mov.painelAnteriorNome && (
           <p className="text-xs text-amber-600 mb-4">Painel anterior: <span className="font-medium">{mov.painelAnteriorNome}</span> — permanece ativo</p>
         )}
@@ -336,8 +315,7 @@ function ModalAtribuirPainel({ mov, cicloId, agrupamentos, onSave, onClose }: {
             {salvando ? "Salvando..." : `Atribuir ${selecionados.size > 0 ? `(${selecionados.size})` : ""}`}
           </button>
         </div>
-      </div>
-    </div>
+    </ModalWrapper>
   );
 }
 
@@ -458,9 +436,9 @@ export function AbaMovimentacoes({ cicloId }: { cicloId: number }) {
 
       {/* Tabela */}
       {loading ? (
-        <div className="text-center py-10 text-gray-400 text-sm">Carregando...</div>
+        <LoadingSpinner text="Carregando..." />
       ) : movs.length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-48 text-gray-400">
+        <div className="flex flex-col items-center justify-center h-48 text-gray-500">
           <ArrowLeftRight size={32} className="mb-2 text-gray-300" />
           <p className="text-sm">Nenhuma movimentação registrada</p>
           <p className="text-xs mt-1">As movimentações são detectadas automaticamente no import</p>
@@ -488,7 +466,7 @@ export function AbaMovimentacoes({ cicloId }: { cicloId: number }) {
                     <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{fmtData(m.dataEfetiva)}</td>
                     <td className="px-4 py-3">
                       <p className="text-sm font-medium text-gray-800">{m.nomeColaborador ?? "—"}</p>
-                      <p className="text-xs font-mono text-gray-400">{m.matricula}</p>
+                      <p className="text-xs font-mono text-gray-500">{m.matricula}</p>
                     </td>
                     <td className="px-4 py-3">
                       <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${TIPO_COR[m.tipo] ?? "bg-gray-100 text-gray-600"}`}>
@@ -501,14 +479,14 @@ export function AbaMovimentacoes({ cicloId }: { cicloId: number }) {
                     <td className="px-4 py-3 text-xs">
                       {keys.length === 0 ? <span className="text-gray-400">—</span> : keys.map(k => (
                         <div key={k} className="mb-0.5">
-                          <span className="text-gray-400 mr-1">{LABEL_MAP[k] ?? k}:</span>
+                          <span className="text-gray-500 mr-1">{LABEL_MAP[k] ?? k}:</span>
                           {ant?.[k] != null && <span className="text-red-600 line-through mr-1">{String(ant[k])}</span>}
                           {nov?.[k] != null && <span className="text-green-700 font-medium">{String(nov[k])}</span>}
                         </div>
                       ))}
                       {m.painelAnteriorNome && (
                         <div className="mt-1 text-[11px]">
-                          <span className="text-gray-400">Painel: </span>
+                          <span className="text-gray-500">Painel: </span>
                           <span className="text-red-600 line-through mr-1">{m.painelAnteriorNome}</span>
                           {m.painelNovoNome && <><ArrowRight size={10} className="inline text-gray-400 mx-0.5" /><span className="text-green-700 font-medium">{m.painelNovoNome}</span></>}
                         </div>

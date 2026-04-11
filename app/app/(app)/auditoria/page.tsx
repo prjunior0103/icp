@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Shield, Search, ChevronDown, ChevronRight, X } from "lucide-react";
 import { fmtDataHora } from "@/app/lib/format";
+import { LoadingSpinner } from "@/app/components/LoadingSpinner";
 
 interface AuditLog {
   id: number;
@@ -87,7 +88,7 @@ export default function AuditoriaPage() {
         <div className="flex items-center gap-2">
           <Shield size={20} className="text-gray-600" />
           <h1 className="text-lg font-semibold text-gray-800">Auditoria</h1>
-          {total > 0 && <span className="text-xs text-gray-400">{total} registro{total !== 1 ? "s" : ""}</span>}
+          {total > 0 && <span className="text-xs text-gray-500">{total} registro{total !== 1 ? "s" : ""}</span>}
         </div>
       </div>
 
@@ -114,7 +115,7 @@ export default function AuditoriaPage() {
         </select>
         {hasFilter && (
           <button onClick={() => { setBusca(""); setFiltroAcao(""); setFiltroEntidade(""); }}
-            className="flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 px-2 py-1.5 rounded hover:bg-red-50 transition-colors">
+            className="flex items-center gap-1 text-xs text-gray-500 hover:text-red-500 px-2 py-1.5 rounded hover:bg-red-50 transition-colors">
             <X size={11} /> Limpar
           </button>
         )}
@@ -123,9 +124,9 @@ export default function AuditoriaPage() {
       {/* Tabela */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         {loading ? (
-          <div className="flex items-center justify-center h-48 text-gray-400 text-sm">Carregando...</div>
+          <LoadingSpinner text="Carregando..." />
         ) : logs.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-48 text-gray-400">
+          <div className="flex flex-col items-center justify-center h-48 text-gray-500">
             <Shield size={32} className="mb-2 text-gray-300" />
             <p className="text-sm">Nenhum registro encontrado</p>
           </div>
@@ -153,7 +154,7 @@ export default function AuditoriaPage() {
                     </td>
                     <td className="px-4 py-2.5">
                       <span className="text-xs text-gray-600">{log.entidade}</span>
-                      {log.entidadeId && <span className="text-xs text-gray-400 ml-1">#{log.entidadeId}</span>}
+                      {log.entidadeId && <span className="text-xs text-gray-500 ml-1">#{log.entidadeId}</span>}
                     </td>
                     <td className="px-4 py-2.5 text-xs text-gray-700">
                       {log.descricao}
@@ -168,7 +169,7 @@ export default function AuditoriaPage() {
             {/* Paginação */}
             {total > limit && (
               <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
-                <span className="text-xs text-gray-400">
+                <span className="text-xs text-gray-500">
                   {offset + 1}–{Math.min(offset + limit, total)} de {total}
                 </span>
                 <div className="flex gap-2">

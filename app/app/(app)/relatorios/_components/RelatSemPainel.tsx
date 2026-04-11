@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Search, UserX, Plus, X } from "lucide-react";
+import { Search, UserX, Plus } from "lucide-react";
 import type { ColaboradorBasico, AgrupamentoBasico, Atribuicao } from "./types";
+import { ModalWrapper } from "@/app/components/ModalWrapper";
 
 export function RelatSemPainel({
   colaboradoresAll,
@@ -76,7 +77,7 @@ export function RelatSemPainel({
           <tbody className="divide-y divide-gray-100">
             {filtrados.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-10 text-center text-gray-400 text-sm">
+                <td colSpan={5} className="px-4 py-10 text-center text-gray-500 text-sm">
                   {semPainel.length === 0 ? "Todos os colaboradores têm painel atribuído 🎉" : "Nenhum resultado"}
                 </td>
               </tr>
@@ -103,12 +104,7 @@ export function RelatSemPainel({
       </div>
 
       {modal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900">Atribuir Painel</h3>
-              <button onClick={() => setModal(null)} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
-            </div>
+        <ModalWrapper title="Atribuir Painel" onClose={() => setModal(null)} size="md">
             <p className="text-sm text-gray-600">{modal.nome} · {modal.matricula}</p>
             <div className="space-y-3">
               <div>
@@ -144,8 +140,7 @@ export function RelatSemPainel({
                 {salvando ? "Salvando..." : "Atribuir"}
               </button>
             </div>
-          </div>
-        </div>
+        </ModalWrapper>
       )}
     </div>
   );

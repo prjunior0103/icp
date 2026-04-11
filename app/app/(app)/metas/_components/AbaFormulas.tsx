@@ -54,7 +54,7 @@ export function AbaFormulas({ indicadores, todosIndicadores }: { indicadores: In
       </div>
 
       {inds.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-10 text-center text-gray-400">
+        <div className="bg-white rounded-xl border border-gray-200 p-10 text-center text-gray-500">
           <Target size={36} className="mx-auto mb-2 text-gray-300"/>Nenhum indicador encontrado
         </div>
       ) : (
@@ -66,7 +66,7 @@ export function AbaFormulas({ indicadores, todosIndicadores }: { indicadores: In
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <p className="font-semibold text-gray-800 text-sm leading-tight">{ind.nome}</p>
-                    <p className="text-xs font-mono text-gray-400 mt-0.5">{ind.codigo}</p>
+                    <p className="text-xs font-mono text-gray-500 mt-0.5">{ind.codigo}</p>
                   </div>
                   <span className={`text-2xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${TIPO_COLOR[ind.tipo] ?? "bg-gray-100 text-gray-600"}`}>
                     {TIPO_LABEL[ind.tipo] ?? ind.tipo}
@@ -74,14 +74,14 @@ export function AbaFormulas({ indicadores, todosIndicadores }: { indicadores: In
                 </div>
 
                 <div className="bg-gray-50 rounded-lg px-3 py-2">
-                  <p className="text-2xs text-gray-400 font-semibold uppercase tracking-wide mb-0.5">Fórmula</p>
+                  <p className="text-2xs text-gray-500 font-semibold uppercase tracking-wide mb-0.5">Fórmula</p>
                   <p className="text-xs text-gray-700 font-mono">{descricaoFormula(ind)}</p>
                 </div>
 
                 <div className="grid grid-cols-3 gap-1 text-center">
                   {[["Mínima", ind.metaMinima], ["Alvo", ind.metaAlvo], ["Máxima", ind.metaMaxima]].map(([label, val]) => (
                     <div key={label as string} className="bg-gray-50 rounded px-2 py-1.5">
-                      <p className="text-[9px] text-gray-400 uppercase tracking-wide">{label as string}</p>
+                      <p className="text-[9px] text-gray-500 uppercase tracking-wide">{label as string}</p>
                       <p className="text-xs font-semibold text-gray-700">{val != null ? fmtValor(val as number, ind.unidade) : "—"}</p>
                     </div>
                   ))}
@@ -89,9 +89,9 @@ export function AbaFormulas({ indicadores, todosIndicadores }: { indicadores: In
 
                 {faixas.length > 0 && (
                   <div>
-                    <p className="text-2xs text-gray-400 font-semibold uppercase tracking-wide mb-1">Faixas</p>
+                    <p className="text-2xs text-gray-500 font-semibold uppercase tracking-wide mb-1">Faixas</p>
                     <table className="w-full text-xs">
-                      <thead><tr className="text-gray-400">
+                      <thead><tr className="text-gray-500">
                         <th className="text-left pb-0.5">De</th><th className="text-left pb-0.5">Até</th><th className="text-left pb-0.5">Nota</th>
                       </tr></thead>
                       <tbody className="divide-y divide-gray-100">
@@ -107,7 +107,7 @@ export function AbaFormulas({ indicadores, todosIndicadores }: { indicadores: In
                   </div>
                 )}
 
-                <div className="flex gap-2 text-2xs text-gray-400 border-t border-gray-100 pt-2">
+                <div className="flex gap-2 text-2xs text-gray-500 border-t border-gray-100 pt-2">
                   <span>Teto: <strong className="text-gray-600">120%</strong></span>
                   <span>·</span>
                   <span>Piso: <strong className="text-gray-600">0%</strong> abaixo do mínimo</span>

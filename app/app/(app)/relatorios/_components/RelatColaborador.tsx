@@ -90,7 +90,7 @@ export function RelatColaborador({
                     <span className="text-2xs font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">MOVIMENTADO</span>
                   )}
                 </div>
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-gray-500">
                   {c.matricula} · {c.cargo}{c.area?.nivel1 ? ` · ${c.area.nivel1}` : ""}
                   {row.movimentado && row.atribs[0] && (
                     <span className="text-amber-600"> · {row.atribs[0].agrupamento.nome}</span>
@@ -99,7 +99,7 @@ export function RelatColaborador({
               </div>
               <div className="flex items-center gap-6">
                 <div className="text-right">
-                  <p className="text-xs text-gray-400">Resultado</p>
+                  <p className="text-xs text-gray-500">Resultado</p>
                   <NotaBadge nota={resultado} />
                 </div>
                 {aberto ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
@@ -111,7 +111,7 @@ export function RelatColaborador({
                   <div key={g.ag.id}>
                     <div className="flex justify-between mb-1">
                       <p className="text-xs font-semibold text-gray-600">
-                        {g.ag.nome} <span className="font-normal text-gray-400">({g.pesoNaCesta}% na cesta)</span>
+                        {g.ag.nome} <span className="font-normal text-gray-500">({g.pesoNaCesta}% na cesta)</span>
                       </p>
                       <p className="text-xs text-gray-600">
                         Ating. <span className="font-semibold">{g.ating.toFixed(1)}%</span>
@@ -119,7 +119,7 @@ export function RelatColaborador({
                     </div>
                     <table className="w-full text-xs">
                       <thead>
-                        <tr className="text-gray-400">
+                        <tr className="text-gray-500">
                           <th className="text-left pb-1">Indicador</th>
                           <th className="text-right pb-1">Nota</th>
                           <th className="text-right pb-1">Peso</th>

@@ -125,7 +125,7 @@ export default function RelatoriosPage() {
   );
 
   if (!cicloAtivo) return (
-    <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+    <div className="flex flex-col items-center justify-center h-64 text-gray-500">
       <FileText size={40} className="mb-3 text-gray-300" />
       <p className="font-medium">Selecione um ciclo para ver os relatórios</p>
     </div>

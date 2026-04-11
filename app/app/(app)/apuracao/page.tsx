@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { useCiclo } from "@/app/lib/ciclo-context";
 import { calcNota, calcMID, gerarPeriodos, agregarRealizacoes } from "@/app/lib/calc";
-import { ClipboardList, BarChart3, Search, Save, ChevronDown, ChevronUp, Paperclip, X } from "lucide-react";
+import { ClipboardList, BarChart3, Search, Save, ChevronDown, ChevronUp, Paperclip } from "lucide-react";
+import { ModalWrapper } from "@/app/components/ModalWrapper";
 import { HierarchicalAreaFilter, EMPTY_FILTERS, matchesAreaFilter, type AreaFilters } from "@/app/components/HierarchicalAreaFilter";
 import { MESES, labelPeriodo } from "@/app/lib/format";
 import { SearchInput } from "@/app/components/SearchInput";
@@ -80,14 +81,12 @@ function ModalEvidencia({ cicloId, target, realizacoes, onClose, onSaved }: {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
-        <div className="flex items-center justify-between mb-4">
+    <ModalWrapper onClose={onClose} size="md">
+        <div className="flex items-center justify-between mb-4 -mt-2">
           <div>
             <h3 className="text-base font-bold text-gray-900">Evidência de Envio</h3>
             <p className="text-xs text-gray-500 mt-0.5">{target.nome} — {target.periodo}</p>
           </div>
-          <button onClick={onClose} aria-label="Fechar" className="text-gray-400 hover:text-gray-600"><X size={20}/></button>
         </div>
         <div className="space-y-4">
           <div>
@@ -123,8 +122,7 @@ function ModalEvidencia({ cicloId, target, realizacoes, onClose, onSaved }: {
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </ModalWrapper>
   );
 }
 
@@ -191,7 +189,7 @@ function AbaPreenchimento({ cicloId, anoFiscal, mesInicio, mesFim, indicadores, 
       </div>
 
       {inds.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-10 text-center text-gray-400">
+        <div className="bg-white rounded-xl border border-gray-200 p-10 text-center text-gray-500">
           <ClipboardList size={36} className="mx-auto mb-2 text-gray-300"/>Nenhum indicador encontrado
         </div>
       ) : (
@@ -265,7 +263,7 @@ function AbaPreenchimento({ cicloId, anoFiscal, mesInicio, mesFim, indicadores, 
                   <tr key={ind.id} className={`border-b border-gray-100 ${idx % 2 === 0 ? "bg-white" : "bg-gray-50/40"}`}>
                     <td className="px-4 py-2.5">
                       <p className="font-medium text-gray-800 text-sm">{ind.nome}</p>
-                      <p className="text-xs text-gray-400 font-mono">{ind.codigo}</p>
+                      <p className="text-xs text-gray-500 font-mono">{ind.codigo}</p>
                     </td>
                     <td className="px-4 py-2.5 text-xs text-gray-600 whitespace-nowrap">{ind.tipo}</td>
                     <td className="px-4 py-2.5">
@@ -460,7 +458,7 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
       </div>
 
       {rows.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-10 text-center text-gray-400">
+        <div className="bg-white rounded-xl border border-gray-200 p-10 text-center text-gray-500">
           <BarChart3 size={36} className="mx-auto mb-2 text-gray-300"/>Nenhum resultado encontrado
         </div>
       ) : (
@@ -479,16 +477,16 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
                         <p className="font-semibold text-gray-800 text-sm">{c.nome}</p>
                         {row.movimentado && <span className="text-2xs font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">MOVIMENTADO</span>}
                       </div>
-                      <p className="text-xs text-gray-400">
+                      <p className="text-xs text-gray-500">
                         {c.matricula} · {c.cargo}
                         {row.movimentado && row.atribs[0] && <span className="text-amber-600"> · {row.atribs[0].agrupamento.nome}</span>}
                       </p>
                     </div>
-                    {c.area?.nivel1 && <span className="text-xs text-gray-400 hidden sm:block">{c.area.nivel1}</span>}
+                    {c.area?.nivel1 && <span className="text-xs text-gray-500 hidden sm:block">{c.area.nivel1}</span>}
                   </div>
                   <div className="flex items-center gap-6">
                     <div className="text-right">
-                      <p className="text-xs text-gray-400">Resultado</p>
+                      <p className="text-xs text-gray-500">Resultado</p>
                       <p className={`text-sm font-bold ${resultado >= 100 ? "text-green-600" : resultado > 0 ? "text-yellow-600" : "text-gray-400"}`}>
                         {resultado.toFixed(1)}%
                       </p>
@@ -504,14 +502,14 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
                         <div className="flex items-center justify-between mb-1">
                           <p className="text-xs font-semibold text-gray-600">
                             {d.agrupamento.nome}
-                            <span className="font-normal text-gray-400"> ({d.pesoNaCesta}% na cesta)</span>
+                            <span className="font-normal text-gray-500"> ({d.pesoNaCesta}% na cesta)</span>
                           </p>
                           <div className="flex items-center gap-3 text-xs text-right">
                             <span className="text-gray-500">Ating. <span className="font-semibold text-gray-700">{d.atingimento.toFixed(1)}%</span></span>
                           </div>
                         </div>
                         <table className="w-full text-xs">
-                          <thead><tr className="text-gray-400">
+                          <thead><tr className="text-gray-500">
                             <th className="text-left pb-1">Indicador</th>
                             <th className="text-right pb-1">% Ating.</th>
                             <th className="text-right pb-1">Peso</th>
@@ -579,7 +577,7 @@ export default function ApuracaoPage() {
   useEffect(() => { carregar(); }, [carregar]);
 
   if (!cicloAtivo) return (
-    <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+    <div className="flex flex-col items-center justify-center h-64 text-gray-500">
       <ClipboardList size={40} className="mb-3 text-gray-300"/>
       <p className="font-medium">Selecione um ciclo no header para continuar</p>
     </div>

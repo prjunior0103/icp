@@ -88,7 +88,7 @@ export function AreaCCCombobox({ areas, value, onChange, className = "", size = 
           </>
         ) : (
           <>
-            <span className="flex-1 text-left text-gray-400">Todas as áreas / CC</span>
+            <span className="flex-1 text-left text-gray-500">Todas as áreas / CC</span>
             <ChevronDown size={11} className="text-gray-400 shrink-0" />
           </>
         )}
@@ -121,7 +121,7 @@ export function AreaCCCombobox({ areas, value, onChange, className = "", size = 
             )}
             {gruposFiltrados.map(g => (
               <div key={g.label}>
-                <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400 bg-gray-50 select-none">
+                <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-gray-500 bg-gray-50 select-none">
                   {g.label}
                 </div>
                 {[...g.values].sort().map(v => (
@@ -141,7 +141,7 @@ export function AreaCCCombobox({ areas, value, onChange, className = "", size = 
               </div>
             ))}
             {gruposFiltrados.length === 0 && (
-              <div className="px-3 py-4 text-xs text-gray-400 text-center">Nenhum resultado</div>
+              <div className="px-3 py-4 text-xs text-gray-500 text-center">Nenhum resultado</div>
             )}
           </div>
         </div>

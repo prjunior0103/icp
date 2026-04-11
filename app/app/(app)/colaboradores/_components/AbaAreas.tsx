@@ -48,7 +48,7 @@ export function AbaAreas({ cicloId }: { cicloId: number }) {
       </div>
 
       {areas.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-10 text-center text-gray-400">
+        <div className="bg-white rounded-xl border border-gray-200 p-10 text-center text-gray-500">
           <Building2 size={36} className="mx-auto mb-2 text-gray-300" />
           Nenhuma área cadastrada neste ciclo
         </div>
@@ -72,8 +72,8 @@ export function AbaAreas({ cicloId }: { cicloId: number }) {
                   <td className="px-4 py-2.5 text-gray-500">{a.nivel3 ?? "—"}</td>
                   <td className="px-4 py-2.5">
                     <div className="flex items-center gap-1 justify-end">
-                      <button onClick={() => setModalArea(a)} aria-label="Editar área" className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"><Pencil size={14} /></button>
-                      <button onClick={() => excluir(a.id)} disabled={excluindo === a.id} aria-label="Excluir área" className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded disabled:opacity-40"><Trash2 size={14} /></button>
+                      <button onClick={() => setModalArea(a)} aria-label="Editar área" className="min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Pencil size={14} /></button>
+                      <button onClick={() => excluir(a.id)} disabled={excluindo === a.id} aria-label="Excluir área" className="min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg disabled:opacity-40"><Trash2 size={14} /></button>
                     </div>
                   </td>
                 </tr>

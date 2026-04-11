@@ -75,7 +75,7 @@ export function RelatPendencias({
           />
           Apenas pendentes
         </label>
-        <span className="text-xs text-gray-400 ml-auto">{totalPendentes} pendente(s) de {totalLinhas}</span>
+        <span className="text-xs text-gray-500 ml-auto">{totalPendentes} pendente(s) de {totalLinhas}</span>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
@@ -90,7 +90,7 @@ export function RelatPendencias({
           <tbody className="divide-y divide-gray-100">
             {linhasFiltradas.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-10 text-center text-gray-400 text-sm">
+                <td colSpan={5} className="px-4 py-10 text-center text-gray-500 text-sm">
                   {apenasPendentes ? "Nenhuma pendência encontrada 🎉" : "Nenhum resultado"}
                 </td>
               </tr>

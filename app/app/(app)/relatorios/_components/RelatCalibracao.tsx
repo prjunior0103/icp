@@ -65,7 +65,7 @@ export function RelatCalibracao({
           <option value="">Todas as áreas</option>
           {areas.map(a => <option key={a} value={a}>{a}</option>)}
         </select>
-        <p className="text-xs text-gray-400">Clique nos nomes para selecionar quem comparar (máx. recomendado: 6)</p>
+        <p className="text-xs text-gray-500">Clique nos nomes para selecionar quem comparar (máx. recomendado: 6)</p>
       </div>
       <div className="flex flex-wrap gap-2">
         {linhasFiltradas.map(l => (

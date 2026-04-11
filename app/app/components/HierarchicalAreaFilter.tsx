@@ -116,7 +116,7 @@ function MiniCombo({
           ${disabled ? "opacity-40 cursor-not-allowed border-gray-200" : "cursor-pointer"}
           ${open ? "border-blue-500 ring-1 ring-blue-500" : "border-gray-300 hover:border-gray-400"}`}
       >
-        <span className="text-[10px] text-gray-400 shrink-0 mr-0.5">{label}</span>
+        <span className="text-[10px] text-gray-500 shrink-0 mr-0.5">{label}</span>
         {value ? (
           <>
             <span className="flex-1 text-left truncate text-gray-800 font-medium">{value}</span>
@@ -129,7 +129,7 @@ function MiniCombo({
           </>
         ) : (
           <>
-            <span className="flex-1 text-left text-gray-400">Todos</span>
+            <span className="flex-1 text-left text-gray-500">Todos</span>
             <ChevronDown size={10} className="text-gray-400 shrink-0" />
           </>
         )}
@@ -152,7 +152,7 @@ function MiniCombo({
           </div>
           <div className="max-h-44 overflow-y-auto">
             {!busca && (
-              <button type="button" className="w-full text-left px-3 py-1.5 text-xs text-gray-400 hover:bg-gray-50"
+              <button type="button" className="w-full text-left px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-50"
                 onClick={() => select("")}>Todos</button>
             )}
             {[...filtered].sort().map(o => (
@@ -163,7 +163,7 @@ function MiniCombo({
               >{o}</button>
             ))}
             {filtered.length === 0 && (
-              <div className="px-3 py-3 text-xs text-gray-400 text-center">Sem resultados</div>
+              <div className="px-3 py-3 text-xs text-gray-500 text-center">Sem resultados</div>
             )}
           </div>
         </div>

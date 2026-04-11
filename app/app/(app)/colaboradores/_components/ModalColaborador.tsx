@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { X } from "lucide-react";
 import type { Colaborador, Area } from "./types";
+import { ModalWrapper } from "@/app/components/ModalWrapper";
 
 export function ModalColaborador({ colab, cicloId, areas, onSave, onClose }: {
   colab: Colaborador | null; cicloId: number; areas: Area[]; onSave: () => void; onClose: () => void;
@@ -34,12 +34,7 @@ export function ModalColaborador({ colab, cicloId, areas, onSave, onClose }: {
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setForm(f => ({ ...f, [k]: e.target.value }));
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-gray-900">{colab ? "Editar Colaborador" : "Novo Colaborador"}</h3>
-          <button onClick={onClose} aria-label="Fechar" className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
-        </div>
+    <ModalWrapper title={colab ? "Editar Colaborador" : "Novo Colaborador"} onClose={onClose} size="lg">
         <form onSubmit={salvar} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2">
@@ -84,7 +79,6 @@ export function ModalColaborador({ colab, cicloId, areas, onSave, onClose }: {
             <button type="submit" disabled={salvando} className="flex-1 bg-blue-700 hover:bg-blue-800 disabled:bg-blue-400 text-white text-sm py-2 rounded-lg">{salvando ? "Salvando..." : "Salvar"}</button>
           </div>
         </form>
-      </div>
-    </div>
+    </ModalWrapper>
   );
 }

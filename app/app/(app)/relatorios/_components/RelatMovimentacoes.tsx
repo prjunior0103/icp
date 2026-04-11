@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Download } from "lucide-react";
 import type { MovRel } from "./types";
 import { MOV_TIPO_LABEL, MOV_TIPO_COR } from "./types";
+import { LoadingSpinner } from "@/app/components/LoadingSpinner";
 
 export function RelatMovimentacoes({ cicloId }: { cicloId: number }) {
   const [movs, setMovs] = useState<MovRel[]>([]);
@@ -18,7 +19,7 @@ export function RelatMovimentacoes({ cicloId }: { cicloId: number }) {
       });
   }, [cicloId]);
 
-  if (loading) return <div className="text-center py-10 text-gray-400 text-sm">Carregando...</div>;
+  if (loading) return <LoadingSpinner text="Carregando..." />;
 
   const porTipo = new Map<string, number>();
   for (const m of movs) porTipo.set(m.tipo, (porTipo.get(m.tipo) ?? 0) + 1);
@@ -89,7 +90,7 @@ export function RelatMovimentacoes({ cicloId }: { cicloId: number }) {
                         ? <span className="text-green-700 font-medium">{m.painelNovoNome}</span>
                         : <span className="text-amber-600 font-medium">Pendente</span>}
                     </div>
-                  ) : <span className="text-gray-400">—</span>}
+                  ) : <span className="text-gray-500">—</span>}
                 </td>
                 <td className="px-4 py-2.5">
                   <span className={`text-2xs font-semibold px-1.5 py-0.5 rounded-full ${
@@ -103,7 +104,7 @@ export function RelatMovimentacoes({ cicloId }: { cicloId: number }) {
             ))}
             {movs.filter(m => m.tipo !== "ADMISSAO").length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-gray-400 text-sm">
+                <td colSpan={6} className="px-4 py-10 text-center text-gray-500 text-sm">
                   Nenhuma movimentação (exceto admissões do primeiro import)
                 </td>
               </tr>

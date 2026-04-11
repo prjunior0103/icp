@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, X, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import type { Indicador, FaixaIndicador, Colaborador } from "./types";
+import { ModalWrapper } from "@/app/components/ModalWrapper";
 import { TIPOS, ABRANGENCIA, PERIODICIDADE, CRITERIO, UNIDADES } from "./types";
 
 export function ModalIndicador({ ind, cicloId, colaboradores, todosIndicadores, onSave, onClose }: {
@@ -56,12 +57,7 @@ export function ModalIndicador({ ind, cicloId, colaboradores, todosIndicadores, 
   const outrosInds = todosIndicadores.filter(i => i.id !== ind?.id);
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-gray-900">{ind ? "Editar Indicador" : "Novo Indicador"}</h3>
-          <button onClick={onClose}><X size={20} className="text-gray-400"/></button>
-        </div>
+    <ModalWrapper title={ind ? "Editar Indicador" : "Novo Indicador"} onClose={onClose} size="lg">
         <form onSubmit={salvar} className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             {ind && (
@@ -93,7 +89,7 @@ export function ModalIndicador({ ind, cicloId, colaboradores, todosIndicadores, 
           {/* Indicador Composto */}
           <div className="border border-gray-200 rounded-lg p-3 space-y-2">
             <p className="text-xs font-semibold text-gray-600">Indicador Composto (opcional)</p>
-            <p className="text-xs text-gray-400">Se preenchido, valor = Numerador ÷ Divisor</p>
+            <p className="text-xs text-gray-500">Se preenchido, valor = Numerador ÷ Divisor</p>
             <div className="grid grid-cols-2 gap-3">
               <div><label className="block text-xs font-medium text-gray-600 mb-1">Numerador</label>
               <select value={form.numeradorId} onChange={set("numeradorId")} className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -129,7 +125,7 @@ export function ModalIndicador({ ind, cicloId, colaboradores, todosIndicadores, 
                 ))}
               </div>
             )}
-            {faixas.length === 0 && <p className="text-xs text-gray-400">Sem faixas — usa cálculo linear</p>}
+            {faixas.length === 0 && <p className="text-xs text-gray-500">Sem faixas — usa cálculo linear</p>}
           </div>
 
           <div><label className="block text-xs font-medium text-gray-600 mb-1">Descrição</label>
@@ -140,7 +136,6 @@ export function ModalIndicador({ ind, cicloId, colaboradores, todosIndicadores, 
             <button type="submit" disabled={salvando} className="flex-1 bg-blue-700 hover:bg-blue-800 disabled:bg-blue-400 text-white text-sm py-2 rounded-lg">{salvando?"Salvando...":"Salvar"}</button>
           </div>
         </form>
-      </div>
-    </div>
+    </ModalWrapper>
   );
 }

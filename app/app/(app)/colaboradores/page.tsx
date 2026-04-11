@@ -13,7 +13,7 @@ export default function ColaboradoresPage() {
 
   if (!cicloAtivo) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+      <div className="flex flex-col items-center justify-center h-64 text-gray-500">
         <Users size={40} className="mb-3 text-gray-300" />
         <p className="font-medium">Selecione um ciclo no header para continuar</p>
       </div>

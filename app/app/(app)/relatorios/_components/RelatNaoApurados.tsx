@@ -55,7 +55,7 @@ export function RelatNaoApurados({
           <tbody className="divide-y divide-gray-100">
             {linhas.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-10 text-center text-gray-400 text-sm">
+                <td colSpan={5} className="px-4 py-10 text-center text-gray-500 text-sm">
                   Todos os indicadores estão apurados em {labelPeriodo(periodoRef)} 🎉
                 </td>
               </tr>

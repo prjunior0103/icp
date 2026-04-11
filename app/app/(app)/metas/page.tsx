@@ -7,6 +7,7 @@ import { HierarchicalAreaFilter, EMPTY_FILTERS, matchesAreaFilter, type AreaFilt
 import { fmtValor } from "@/app/lib/format";
 import { useConfirm } from "@/app/components/ConfirmModal";
 import { SearchInput } from "@/app/components/SearchInput";
+import { LoadingSpinner } from "@/app/components/LoadingSpinner";
 import { ModalIndicador } from "./_components/ModalIndicador";
 import { ModalAgrupamento } from "./_components/ModalAgrupamento";
 import { ModalAtribuicao, ModalImport } from "./_components/ModalAtribuicao";
@@ -34,6 +35,11 @@ export default function MetasPage() {
   const [excluindoAtribs, setExcluindoAtribs] = useState(false);
   const [atribuindoAg, setAtribuindoAg] = useState<Set<number>>(new Set());
   const [filtroAreaAtrib, setFiltroAreaAtrib] = useState<AreaFilters>(EMPTY_FILTERS);
+  const [toast, setToast] = useState<{ msg: string; tipo: "error" | "info" } | null>(null);
+  function showToast(msg: string, tipo: "error" | "info" = "error") {
+    setToast({ msg, tipo });
+    setTimeout(() => setToast(null), 4000);
+  }
 
   const carregarInds = useCallback(() => {
     if (!cicloAtivo) return;
@@ -76,7 +82,7 @@ export default function MetasPage() {
   function excluirInd(id: number) {
     confirm.request("Excluir indicador?", async () => {
       const res = await fetch(`/api/indicadores?id=${id}`,{method:"DELETE"});
-      if (!res.ok) { const d = await res.json(); alert(d.error ?? "Erro ao excluir"); return; }
+      if (!res.ok) { const d = await res.json(); showToast(d.error ?? "Erro ao excluir"); return; }
       carregarInds();
     }, { confirmLabel: "Excluir", variant: "danger" });
   }
@@ -91,7 +97,7 @@ export default function MetasPage() {
     }, { confirmLabel: "Remover", variant: "danger" });
   }
   function atribuirATodos(ag: Agrupamento) {
-    if (colaboradores.length === 0) { alert("Nenhum colaborador neste ciclo."); return; }
+    if (colaboradores.length === 0) { showToast("Nenhum colaborador neste ciclo.", "info"); return; }
     const peso = Math.round(ag.indicadores.reduce((s, i) => s + i.peso, 0) * 100) / 100;
     confirm.request(
       `Atribuir "${ag.nome}" a ${colaboradores.length} colaborador(es) com peso ${peso}%?`,
@@ -126,7 +132,7 @@ export default function MetasPage() {
   }
 
   if (!cicloAtivo) return (
-    <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+    <div className="flex flex-col items-center justify-center h-64 text-gray-500">
       <Target size={40} className="mb-3 text-gray-300"/>
       <p className="font-medium">Selecione um ciclo no header para continuar</p>
     </div>
@@ -155,7 +161,7 @@ export default function MetasPage() {
       </div>
 
       {loading && (
-        <div className="p-8 text-center text-gray-400 text-sm">Carregando...</div>
+        <LoadingSpinner text="Carregando..." />
       )}
 
       {/* ── ABA INDICADORES ── */}
@@ -174,7 +180,7 @@ export default function MetasPage() {
             <button onClick={()=>setModalInd("new")} className="flex items-center gap-2 bg-blue-700 hover:bg-blue-800 text-white text-sm px-3 py-2 rounded-lg"><Plus size={15}/>Novo</button>
           </div>
           {indsFiltrados.length===0 ? (
-            <div className="bg-white rounded-xl border border-gray-200 p-10 text-center text-gray-400"><Target size={36} className="mx-auto mb-2 text-gray-300"/>Nenhum indicador cadastrado</div>
+            <div className="bg-white rounded-xl border border-gray-200 p-10 text-center text-gray-500"><Target size={36} className="mx-auto mb-2 text-gray-300"/>Nenhum indicador cadastrado</div>
           ) : (
             <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
               <table className="w-full text-sm">
@@ -185,12 +191,12 @@ export default function MetasPage() {
                   {indsFiltrados.map(i=>(
                     <tr key={i.id} className="hover:bg-gray-50">
                       <td className="px-4 py-2.5 font-mono text-xs text-gray-600">{i.codigo}</td>
-                      <td className="px-4 py-2.5"><p className="font-medium text-gray-800">{i.nome}</p>{i.metrica&&<p className="text-xs text-gray-400">{i.metrica}</p>}</td>
+                      <td className="px-4 py-2.5"><p className="font-medium text-gray-800">{i.nome}</p>{i.metrica&&<p className="text-xs text-gray-500">{i.metrica}</p>}</td>
                       <td className="px-4 py-2.5 text-xs text-gray-600">{i.tipo}</td>
                       <td className="px-4 py-2.5 text-gray-700">{fmtValor(i.metaAlvo, i.unidade)}</td>
                       <td className="px-4 py-2.5"><span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_JANELA_COLOR[i.statusJanela]??""}`}>{i.statusJanela}</span></td>
                       <td className="px-4 py-2.5"><span className={`text-xs px-2 py-0.5 rounded-full ${i.status==="ATIVO"?"bg-green-100 text-green-700":"bg-gray-100 text-gray-500"}`}>{i.status}</span></td>
-                      <td className="px-4 py-2.5"><div className="flex gap-1 justify-end"><button onClick={()=>setModalInd(i)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"><Pencil size={14}/></button><button onClick={()=>excluirInd(i.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"><Trash2 size={14}/></button></div></td>
+                      <td className="px-4 py-2.5"><div className="flex gap-1 justify-end"><button onClick={()=>setModalInd(i)} className="min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Pencil size={14}/></button><button onClick={()=>excluirInd(i.id)} className="min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={14}/></button></div></td>
                     </tr>
                   ))}
                 </tbody>
@@ -205,7 +211,7 @@ export default function MetasPage() {
         <div className="space-y-4">
           <div className="flex justify-end"><button onClick={()=>setModalAg("new")} className="flex items-center gap-2 bg-blue-700 hover:bg-blue-800 text-white text-sm px-3 py-2 rounded-lg"><Plus size={15}/>Novo Agrupamento</button></div>
           {agrupamentos.length===0 ? (
-            <div className="bg-white rounded-xl border border-gray-200 p-10 text-center text-gray-400"><BarChart3 size={36} className="mx-auto mb-2 text-gray-300"/>Nenhum agrupamento cadastrado</div>
+            <div className="bg-white rounded-xl border border-gray-200 p-10 text-center text-gray-500"><BarChart3 size={36} className="mx-auto mb-2 text-gray-300"/>Nenhum agrupamento cadastrado</div>
           ) : (
             <div className="space-y-3">
               {agrupamentos.map(ag=>(
@@ -214,7 +220,7 @@ export default function MetasPage() {
                     <div>
                       <p className="font-semibold text-gray-800">{ag.nome}</p>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-xs text-gray-400">{ag.tipo}</span>
+                        <span className="text-xs text-gray-500">{ag.tipo}</span>
                         {ag.indicadores.length>0 && (() => {
                           const total = ag.indicadores.reduce((s,i)=>s+i.peso,0);
                           const cor = Math.abs(total-100)<0.01 ? "text-green-600 bg-green-50" : total>100 ? "text-red-600 bg-red-50" : "text-orange-600 bg-orange-50";
@@ -227,13 +233,13 @@ export default function MetasPage() {
                         className="flex items-center gap-1 text-xs px-2 py-1 border border-blue-600 text-blue-700 hover:bg-blue-50 disabled:opacity-50 rounded">
                         <Users size={12}/>{atribuindoAg.has(ag.id) ? "Atribuindo..." : "Atribuir a Todos"}
                       </button>
-                      <button onClick={()=>setModalAg(ag)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"><Pencil size={14}/></button>
-                      <button onClick={()=>excluirAg(ag.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"><Trash2 size={14}/></button>
+                      <button onClick={()=>setModalAg(ag)} className="min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Pencil size={14}/></button>
+                      <button onClick={()=>excluirAg(ag.id)} className="min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={14}/></button>
                     </div>
                   </div>
                   {ag.indicadores.length>0 ? (
                     <div className="flex flex-wrap gap-2">{ag.indicadores.map(i=><span key={i.id} className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">{i.indicador.codigo} — {i.peso}%</span>)}</div>
-                  ) : <p className="text-xs text-gray-400">Nenhum indicador vinculado</p>}
+                  ) : <p className="text-xs text-gray-500">Nenhum indicador vinculado</p>}
                 </div>
               ))}
             </div>
@@ -256,7 +262,7 @@ export default function MetasPage() {
             <button onClick={()=>setModalAtrib("new")} className="flex items-center gap-2 bg-blue-700 hover:bg-blue-800 text-white text-sm px-3 py-2 rounded-lg"><Plus size={15}/>Nova Atribuição</button>
           </div>
           {atribuicoes.length===0 ? (
-            <div className="bg-white rounded-xl border border-gray-200 p-10 text-center text-gray-400"><Users size={36} className="mx-auto mb-2 text-gray-300"/>Nenhuma atribuição cadastrada</div>
+            <div className="bg-white rounded-xl border border-gray-200 p-10 text-center text-gray-500"><Users size={36} className="mx-auto mb-2 text-gray-300"/>Nenhuma atribuição cadastrada</div>
           ) : (
             <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
               <table className="w-full text-sm">
@@ -276,12 +282,12 @@ export default function MetasPage() {
                     return (
                       <tr key={a.id} className={`hover:bg-gray-50 ${selAtribs.has(a.id)?"bg-blue-50":""}`}>
                         <td className="px-4 py-2.5"><input type="checkbox" className="rounded" aria-label={`Selecionar ${a.colaborador.nome}`} checked={selAtribs.has(a.id)} onChange={()=>toggleSelAtrib(a.id)}/></td>
-                        <td className="px-4 py-2.5"><p className="font-medium text-gray-800">{a.colaborador.nome}</p><p className="text-xs text-gray-400">{a.colaborador.matricula}</p></td>
+                        <td className="px-4 py-2.5"><p className="font-medium text-gray-800">{a.colaborador.nome}</p><p className="text-xs text-gray-500">{a.colaborador.matricula}</p></td>
                         <td className="px-4 py-2.5 text-gray-700">{a.agrupamento.nome}</td>
                         <td className="px-4 py-2.5 font-medium text-gray-800">{a.pesoNaCesta}%</td>
                         <td className="px-4 py-2.5 text-xs text-gray-500">{a.cascata}</td>
                         <td className="px-4 py-2.5"><span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${soma===100?"bg-green-100 text-green-700":"bg-yellow-100 text-yellow-700"}`}>{soma}%</span></td>
-                        <td className="px-4 py-2.5"><div className="flex gap-1"><button onClick={()=>setModalAtrib(a)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"><Pencil size={14}/></button><button onClick={()=>excluirAtrib(a.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"><Trash2 size={14}/></button></div></td>
+                        <td className="px-4 py-2.5"><div className="flex gap-1"><button onClick={()=>setModalAtrib(a)} className="min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Pencil size={14}/></button><button onClick={()=>excluirAtrib(a.id)} className="min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={14}/></button></div></td>
                       </tr>
                     );
                   })}
@@ -299,6 +305,13 @@ export default function MetasPage() {
       {modalAg!==null && <ModalAgrupamento ag={modalAg==="new"?null:modalAg} cicloId={cicloAtivo.id} indicadores={indicadores} onSave={carregarAgs} onClose={()=>setModalAg(null)}/>}
       {modalAtrib!==null && <ModalAtribuicao cicloId={cicloAtivo.id} agrupamentos={agrupamentos} atrib={modalAtrib==="new"?null:modalAtrib} colaboradores={colaboradores} areas={areas} onSave={carregarAtribs} onClose={()=>setModalAtrib(null)}/>}
       {modalImport && <ModalImport cicloId={cicloAtivo.id} onDone={carregarInds} onClose={()=>setModalImport(false)}/>}
+      {toast && (
+        <div className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-lg shadow-lg text-sm font-medium transition-opacity ${
+          toast.tipo === "error" ? "bg-red-600 text-white" : "bg-gray-800 text-white"
+        }`}>
+          {toast.msg}
+        </div>
+      )}
     </div>
   );
 }

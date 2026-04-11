@@ -141,7 +141,7 @@ export function AbaColaboradores({ cicloId }: { cicloId: number }) {
       </div>
 
       {linhas.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-10 text-center text-gray-400">
+        <div className="bg-white rounded-xl border border-gray-200 p-10 text-center text-gray-500">
           <Users size={36} className="mx-auto mb-2 text-gray-300" />
           Nenhum colaborador neste ciclo
         </div>
@@ -173,15 +173,15 @@ export function AbaColaboradores({ cicloId }: { cicloId: number }) {
                     <td className="px-4 py-2.5 font-mono text-xs text-gray-600">{c.matricula}</td>
                     <td className="px-4 py-2.5">
                       <p className="font-medium text-gray-800">{c.nome}</p>
-                      {c.email && <p className="text-xs text-gray-400">{c.email}</p>}
+                      {c.email && <p className="text-xs text-gray-500">{c.email}</p>}
                     </td>
                     <td className="px-4 py-2.5">
                       <p className="text-gray-700">{c.cargo}</p>
-                      {c.grade && <p className="text-xs text-gray-400">{c.grade}</p>}
+                      {c.grade && <p className="text-xs text-gray-500">{c.grade}</p>}
                     </td>
                     <td className="px-4 py-2.5 text-xs">
                       <p className="text-gray-700">{c.centroCusto ?? "—"}</p>
-                      <p className="text-gray-400">{c.nomeGestor ?? "—"}</p>
+                      <p className="text-gray-500">{c.nomeGestor ?? "—"}</p>
                     </td>
                     <td className="px-4 py-2.5">
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[c.status] ?? ""}`}>
@@ -194,18 +194,18 @@ export function AbaColaboradores({ cicloId }: { cicloId: number }) {
                           <span className="text-2xs font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
                             MOVIMENTADO
                           </span>
-                          <span className="text-2xs text-gray-400 ml-1">({situacao})</span>
+                          <span className="text-2xs text-gray-500 ml-1">({situacao})</span>
                           {painelNome && <p className="text-2xs text-gray-500 mt-0.5">Painel: {painelNome}</p>}
                         </div>
                       ) : (
-                        <span className="text-xs text-gray-400">—</span>
+                        <span className="text-xs text-gray-500">—</span>
                       )}
                     </td>
                     <td className="px-4 py-2.5">
                       {(!isMovimentado || situacao === "atual") && (
                         <div className="flex items-center gap-1 justify-end">
-                          <button onClick={() => setModalColab(c)} aria-label="Editar colaborador" className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"><Pencil size={14} /></button>
-                          <button onClick={() => excluir(c.id)} disabled={excluindo === c.id} aria-label="Excluir colaborador" className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded disabled:opacity-40"><Trash2 size={14} /></button>
+                          <button onClick={() => setModalColab(c)} aria-label="Editar colaborador" className="min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Pencil size={14} /></button>
+                          <button onClick={() => excluir(c.id)} disabled={excluindo === c.id} aria-label="Excluir colaborador" className="min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg disabled:opacity-40"><Trash2 size={14} /></button>
                         </div>
                       )}
                     </td>

@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
-import { Users, Plus, Trash2, Pencil, X, Eye, EyeOff, Shield, UserCog, User, Building2, FileText, Save } from "lucide-react";
+import { Users, Plus, Trash2, Pencil, Eye, EyeOff, Shield, UserCog, User, Building2, FileText, Save } from "lucide-react";
+import { ModalWrapper } from "@/app/components/ModalWrapper";
+import { LoadingSpinner } from "@/app/components/LoadingSpinner";
 import { useConfirm } from "@/app/components/ConfirmModal";
 
 interface Usuario { id: string; name: string; email: string; role: string; }
@@ -174,7 +176,7 @@ export default function ConfiguracoesPage() {
   }
 
   if (role !== "GUARDIAO" && role !== "BP") return (
-    <div className="flex items-center justify-center h-64 text-gray-400">
+    <div className="flex items-center justify-center h-64 text-gray-500">
       <p>Sem permissão para acessar configurações.</p>
     </div>
   );
@@ -221,7 +223,7 @@ export default function ConfiguracoesPage() {
               <span className={`text-xs font-semibold px-2 py-1 rounded-full flex items-center gap-1 w-fit ${color}`}>
                 {ROLE_ICONS[key]} {label}
               </span>
-              <p className="text-xs text-gray-400 pl-0.5">
+              <p className="text-xs text-gray-500 pl-0.5">
                 {key === "GUARDIAO" && "Acesso total ao sistema"}
                 {key === "BP" && "Gestão por área"}
                 {key === "GESTOR" && "Visão de equipe"}
@@ -238,10 +240,10 @@ export default function ConfiguracoesPage() {
         <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-2">
           <Users size={16} className="text-gray-500"/>
           <h3 className="text-sm font-semibold text-gray-700">Usuários</h3>
-          <span className="text-xs text-gray-400 ml-auto">{usuarios.length} usuário(s)</span>
+          <span className="text-xs text-gray-500 ml-auto">{usuarios.length} usuário(s)</span>
         </div>
         {loading ? (
-          <div className="p-8 text-center text-gray-400 text-sm">Carregando...</div>
+          <LoadingSpinner text="Carregando..." />
         ) : (
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
@@ -267,11 +269,11 @@ export default function ConfiguracoesPage() {
                       {role === "GUARDIAO" && (
                         <div className="flex items-center gap-1">
                           <button onClick={() => abrirEditar(u)}
-                            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors">
+                            className="min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
                             <Pencil size={14}/>
                           </button>
                           <button onClick={() => excluir(u.id)} disabled={excluindo === u.id}
-                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-40">
+                            className="min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40">
                             <Trash2 size={14}/>
                           </button>
                         </div>
@@ -333,7 +335,7 @@ export default function ConfiguracoesPage() {
               </button>
             </div>
             {carta.reguladorPool.length === 0 && (
-              <p className="text-xs text-gray-400 italic">Nenhuma faixa configurada.</p>
+              <p className="text-xs text-gray-500 italic">Nenhuma faixa configurada.</p>
             )}
             {carta.reguladorPool.map((f, i) => (
               <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-end">
@@ -356,7 +358,7 @@ export default function ConfiguracoesPage() {
                     className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
                 </div>
                 <button onClick={() => removeFaixa(i)}
-                  className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors mb-0.5">
+                  className="min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
                   <Trash2 size={14}/>
                 </button>
               </div>
@@ -385,12 +387,7 @@ export default function ConfiguracoesPage() {
 
       {/* Modal criar/editar usuário */}
       {modal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-lg font-bold text-gray-900">{modal === "criar" ? "Novo Usuário" : "Editar Usuário"}</h3>
-              <button onClick={() => setModal(null)} className="text-gray-400 hover:text-gray-600"><X size={20}/></button>
-            </div>
+        <ModalWrapper title={modal === "criar" ? "Novo Usuário" : "Editar Usuário"} onClose={() => setModal(null)} size="sm">
             <form onSubmit={salvar} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Nome</label>
@@ -404,7 +401,7 @@ export default function ConfiguracoesPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Senha {modal === "editar" && <span className="text-gray-400 font-normal">(deixe em branco para manter)</span>}
+                  Senha {modal === "editar" && <span className="text-gray-500 font-normal">(deixe em branco para manter)</span>}
                 </label>
                 <div className="relative">
                   <input type={showSenha ? "text" : "password"} value={senha} onChange={e => setSenha(e.target.value)}
@@ -437,8 +434,7 @@ export default function ConfiguracoesPage() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+        </ModalWrapper>
       )}
       {confirm.modal}
     </div>

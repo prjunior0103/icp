@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { X, Upload, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Upload, AlertCircle, CheckCircle2 } from "lucide-react";
+import { ModalWrapper } from "@/app/components/ModalWrapper";
 
 export function ModalImport({ tipo, cicloId, onDone, onClose }: {
   tipo: "colaboradores" | "areas"; cicloId: number; onDone: () => void; onClose: () => void;
@@ -22,12 +23,7 @@ export function ModalImport({ tipo, cicloId, onDone, onClose }: {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-gray-900">Importar {tipo === "areas" ? "Áreas" : "Colaboradores"}</h3>
-          <button onClick={onClose} aria-label="Fechar" className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
-        </div>
+    <ModalWrapper title={`Importar ${tipo === "areas" ? "Áreas" : "Colaboradores"}`} onClose={onClose} size="md">
         {!resultado ? (
           <div className="space-y-4">
             <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
@@ -57,7 +53,6 @@ export function ModalImport({ tipo, cicloId, onDone, onClose }: {
             <button onClick={onClose} className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm py-2 rounded-lg">Fechar</button>
           </div>
         )}
-      </div>
-    </div>
+    </ModalWrapper>
   );
 }

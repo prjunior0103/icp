@@ -44,7 +44,7 @@ export function RelatGestor({
         {gestores.map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
       </select>
       {linhas.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-10 text-center text-gray-400">
+        <div className="bg-white rounded-xl border border-gray-200 p-10 text-center text-gray-500">
           <UserCog size={36} className="mx-auto mb-2 text-gray-300" />
           Selecione um gestor para ver o painel da equipe
         </div>
