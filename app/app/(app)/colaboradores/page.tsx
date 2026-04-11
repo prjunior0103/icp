@@ -890,20 +890,58 @@ function ModalImportDesligamentos({ cicloId, onDone, onClose }: { cicloId: numbe
 }
 
 // ─── Modal Atribuir Painel ───────────────────────────────
-function ModalAtribuirPainel({ mov, agrupamentos, onSave, onClose }: {
-  mov: Movimentacao; agrupamentos: Agrupamento[]; onSave: () => void; onClose: () => void;
+function ModalAtribuirPainel({ mov, cicloId, agrupamentos, onSave, onClose }: {
+  mov: Movimentacao; cicloId: number; agrupamentos: Agrupamento[]; onSave: () => void; onClose: () => void;
 }) {
-  const [painelId, setPainelId] = useState(mov.painelNovoId?.toString() ?? "");
+  // Map<agrupamentoId, pesoNaCesta> — suporta múltiplos painéis
+  const [selecionados, setSelecionados] = useState<Map<number, number>>(new Map());
   const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState("");
+
+  function toggleAg(agId: number) {
+    setSelecionados(m => {
+      const n = new Map(m);
+      n.has(agId) ? n.delete(agId) : n.set(agId, 100);
+      return n;
+    });
+  }
+
+  function setPeso(agId: number, peso: number) {
+    setSelecionados(m => { const n = new Map(m); n.set(agId, peso); return n; });
+  }
 
   async function salvar() {
-    if (!painelId) return;
+    if (selecionados.size === 0) { setErro("Selecione ao menos um agrupamento"); return; }
     setSalvando(true);
+    setErro("");
+
+    // Primeiro: buscar o colaboradorId pela matrícula
+    const colabRes = await fetch(`/api/colaboradores?cicloId=${cicloId}&busca=${mov.matricula}`);
+    const colabData = await colabRes.json();
+    const colab = (colabData.colaboradores ?? []).find((c: { matricula: string }) => c.matricula === mov.matricula);
+    if (!colab) { setErro("Colaborador não encontrado"); setSalvando(false); return; }
+
+    // Criar AtribuicaoAgrupamento para cada painel selecionado
+    const atribResults = await Promise.all(
+      [...selecionados].map(([agrupamentoId, pesoNaCesta]) =>
+        fetch("/api/atribuicoes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cicloId, colaboradorId: colab.id, agrupamentoId, pesoNaCesta, cascata: "NENHUM" }),
+        })
+      )
+    );
+
+    if (atribResults.some(r => !r.ok)) { setErro("Erro ao criar atribuições"); setSalvando(false); return; }
+
+    // Marcar movimentação como tratada com o primeiro painel selecionado como referência
+    const primeiroId = [...selecionados.keys()][0];
     await fetch("/api/movimentacoes", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: mov.id, acao: "TRATAR", painelNovoId: Number(painelId) }),
+      body: JSON.stringify({ id: mov.id, acao: "TRATAR", painelNovoId: primeiroId }),
     });
+
     setSalvando(false);
     onSave();
     onClose();
@@ -911,28 +949,56 @@ function ModalAtribuirPainel({ mov, agrupamentos, onSave, onClose }: {
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold text-gray-900">Atribuir Novo Painel</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
         </div>
         <p className="text-sm text-gray-600 mb-1"><strong>{mov.nomeColaborador}</strong></p>
-        <p className="text-xs text-gray-400 mb-2">Matrícula: {mov.matricula}</p>
+        <p className="text-xs text-gray-400 mb-1">Matrícula: {mov.matricula}</p>
         {mov.painelAnteriorNome && (
-          <p className="text-xs text-gray-500 mb-4">Painel anterior: <span className="font-medium text-gray-700">{mov.painelAnteriorNome}</span></p>
+          <p className="text-xs text-amber-600 mb-4">Painel anterior: <span className="font-medium">{mov.painelAnteriorNome}</span> — permanece ativo</p>
         )}
-        <div className="mb-4">
-          <label className="block text-xs font-medium text-gray-600 mb-1">Novo Painel *</label>
-          <select value={painelId} onChange={e => setPainelId(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-            <option value="">Selecione...</option>
-            {agrupamentos.map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
-          </select>
+
+        <p className="text-xs font-medium text-gray-600 mb-2">Selecione os novos agrupamentos:</p>
+        <div className="space-y-2 mb-4">
+          {agrupamentos.map(ag => {
+            const sel = selecionados.has(ag.id);
+            return (
+              <div key={ag.id} className={`border rounded-lg px-3 py-2 ${sel ? "border-blue-400 bg-blue-50" : "border-gray-200"}`}>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={sel} onChange={() => toggleAg(ag.id)} className="rounded text-blue-600" />
+                  <span className="text-sm text-gray-800 flex-1">{ag.nome}</span>
+                </label>
+                {sel && (
+                  <div className="flex items-center gap-2 mt-2 ml-6">
+                    <label className="text-xs text-gray-500">Peso na cesta (%):</label>
+                    <input
+                      type="number" min={0} max={100} step={1}
+                      value={selecionados.get(ag.id) ?? 100}
+                      onChange={e => setPeso(ag.id, Number(e.target.value))}
+                      className="w-20 border border-gray-300 rounded px-2 py-0.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
+
+        {selecionados.size > 0 && (
+          <p className="text-xs text-gray-500 mb-3">
+            {selecionados.size} agrupamento(s) selecionado(s). Soma dos pesos: {[...selecionados.values()].reduce((a, b) => a + b, 0)}%
+          </p>
+        )}
+
+        {erro && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg mb-3">{erro}</p>}
+
         <div className="flex gap-3">
           <button onClick={onClose} className="flex-1 border border-gray-300 text-gray-700 text-sm py-2 rounded-lg hover:bg-gray-50">Cancelar</button>
-          <button onClick={salvar} disabled={!painelId || salvando} className="flex-1 bg-blue-700 hover:bg-blue-800 disabled:bg-blue-400 text-white text-sm py-2 rounded-lg">
-            {salvando ? "Salvando..." : "Atribuir"}
+          <button onClick={salvar} disabled={selecionados.size === 0 || salvando}
+            className="flex-1 bg-blue-700 hover:bg-blue-800 disabled:bg-blue-400 text-white text-sm py-2 rounded-lg">
+            {salvando ? "Salvando..." : `Atribuir ${selecionados.size > 0 ? `(${selecionados.size})` : ""}`}
           </button>
         </div>
       </div>
@@ -1159,7 +1225,7 @@ function AbaMovimentacoes({ cicloId }: { cicloId: number }) {
       {/* Modais */}
       {modalConfig && <ModalConfigCampos cicloId={cicloId} onClose={() => { setModalConfig(false); carregar(); }} />}
       {modalDesligamento && <ModalDesligamento mov={modalDesligamento} onSave={carregar} onClose={() => setModalDesligamento(null)} />}
-      {modalPainel && <ModalAtribuirPainel mov={modalPainel} agrupamentos={agrupamentos} onSave={carregar} onClose={() => setModalPainel(null)} />}
+      {modalPainel && <ModalAtribuirPainel mov={modalPainel} cicloId={cicloId} agrupamentos={agrupamentos} onSave={carregar} onClose={() => setModalPainel(null)} />}
       {modalImportDeslig && <ModalImportDesligamentos cicloId={cicloId} onDone={carregar} onClose={() => setModalImportDeslig(false)} />}
     </div>
   );
