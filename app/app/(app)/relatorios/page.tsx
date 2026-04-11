@@ -337,7 +337,7 @@ function RelatResponsavel({ indicadores, notasMap, realizacoes, anoFiscal, mesIn
 }
 
 // ─── R5: Painel do Gestor ────────────────────────────────
-function RelatGestor({ atribuicoes, notasMap }: { atribuicoes: Atribuicao[]; notasMap: Map<number, number>; }) {
+function RelatGestor({ atribuicoes, notasMap, movimentadosSet }: { atribuicoes: Atribuicao[]; notasMap: Map<number, number>; movimentadosSet: Set<string>; }) {
   const colabsMap = new Map<number, Colaborador>();
   for (const a of atribuicoes) colabsMap.set(a.colaboradorId, a.colaborador);
   const colaboradores = Array.from(colabsMap.values());
@@ -356,10 +356,6 @@ function RelatGestor({ atribuicoes, notasMap }: { atribuicoes: Atribuicao[]; not
   const linhas = atribuicoes
     .filter(a => filtroGestor ? String(a.colaborador.gestorId) === filtroGestor : false)
     .sort((a, b) => calcResultadoAtrib(b) - calcResultadoAtrib(a));
-
-  // Conta quantas atribuições cada colaborador tem (para mostrar flag MOVIMENTADO)
-  const atribsPorColab = new Map<number, number>();
-  for (const a of atribuicoes) atribsPorColab.set(a.colaboradorId, (atribsPorColab.get(a.colaboradorId) ?? 0) + 1);
 
   return (
     <div className="space-y-3">
@@ -383,7 +379,7 @@ function RelatGestor({ atribuicoes, notasMap }: { atribuicoes: Atribuicao[]; not
             <tbody className="divide-y divide-gray-100">
               {linhas.map(a => {
                 const resultado = calcResultadoAtrib(a);
-                const movimentado = (atribsPorColab.get(a.colaboradorId) ?? 1) > 1;
+                const movimentado = movimentadosSet.has(a.colaborador.matricula);
                 return (
                   <tr key={`${a.colaboradorId}-${a.agrupamentoId}`} className={`hover:bg-gray-50 ${movimentado ? "bg-amber-50/40" : ""}`}>
                     <td className="px-4 py-2.5">
@@ -407,12 +403,9 @@ function RelatGestor({ atribuicoes, notasMap }: { atribuicoes: Atribuicao[]; not
 }
 
 // ─── R6: Calibração ──────────────────────────────────────
-function RelatCalibracao({ atribuicoes, notasMap }: { atribuicoes: Atribuicao[]; notasMap: Map<number, number>; }) {
+function RelatCalibracao({ atribuicoes, notasMap, movimentadosSet }: { atribuicoes: Atribuicao[]; notasMap: Map<number, number>; movimentadosSet: Set<string>; }) {
   // Chave única: "colaboradorId-agrupamentoId" para suportar movimentados com 2 painéis
   type LinhaCalib = { key: string; colaboradorId: number; agrupamentoId: number; colab: Colaborador; ag: Agrupamento; movimentado: boolean };
-
-  const atribsPorColab = new Map<number, number>();
-  for (const a of atribuicoes) atribsPorColab.set(a.colaboradorId, (atribsPorColab.get(a.colaboradorId) ?? 0) + 1);
 
   const linhas: LinhaCalib[] = atribuicoes.map(a => ({
     key: `${a.colaboradorId}-${a.agrupamentoId}`,
@@ -420,7 +413,7 @@ function RelatCalibracao({ atribuicoes, notasMap }: { atribuicoes: Atribuicao[];
     agrupamentoId: a.agrupamentoId,
     colab: a.colaborador,
     ag: a.agrupamento,
-    movimentado: (atribsPorColab.get(a.colaboradorId) ?? 1) > 1,
+    movimentado: movimentadosSet.has(a.colaborador.matricula),
   }));
 
   const areas = Array.from(new Set(linhas.map(l => l.colab.area?.nivel1).filter(Boolean))) as string[];
@@ -812,8 +805,8 @@ export default function RelatoriosPage() {
       {aba === "indicador"   && <RelatIndicador indicadores={indicadores} notasMap={notasMap} realMap={realMap} orcMap={orcMap} atribuicoes={atribuicoes}/>}
       {aba === "contratacao" && <RelatContratacao atribuicoes={atribuicoes} indicadores={indicadores} notasMap={notasMap}/>}
       {aba === "responsavel" && <RelatResponsavel indicadores={indicadores} notasMap={notasMap} realizacoes={realizacoes} anoFiscal={cicloAtivo.anoFiscal} mesInicio={cicloAtivo.mesInicio} mesFim={cicloAtivo.mesFim}/>}
-      {aba === "gestor"      && <RelatGestor atribuicoes={atribuicoes} notasMap={notasMap}/>}
-      {aba === "calibracao"  && <RelatCalibracao atribuicoes={atribuicoes} notasMap={notasMap}/>}
+      {aba === "gestor"      && <RelatGestor atribuicoes={atribuicoes} notasMap={notasMap} movimentadosSet={movimentadosSet}/>}
+      {aba === "calibracao"  && <RelatCalibracao atribuicoes={atribuicoes} notasMap={notasMap} movimentadosSet={movimentadosSet}/>}
       {aba === "pendencias"  && <RelatPendencias indicadores={indicadores} realizacoes={realizacoes} anoFiscal={cicloAtivo.anoFiscal} mesInicio={cicloAtivo.mesInicio} mesFim={cicloAtivo.mesFim}/>}
       {aba === "movimentacoes" && <RelatMovimentacoes cicloId={cicloAtivo.id}/>}
     </div>
