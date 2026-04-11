@@ -155,7 +155,7 @@ function MiniCombo({
               <button type="button" className="w-full text-left px-3 py-1.5 text-xs text-gray-400 hover:bg-gray-50"
                 onClick={() => select("")}>Todos</button>
             )}
-            {filtered.sort().map(o => (
+            {[...filtered].sort().map(o => (
               <button key={o} type="button"
                 className={`w-full text-left px-3 py-1.5 text-xs transition-colors
                   ${value === o ? "bg-blue-100 text-blue-700 font-medium" : "text-gray-700 hover:bg-blue-50"}`}

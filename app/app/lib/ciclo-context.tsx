@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
 
 interface Ciclo {
   id: number;
@@ -28,6 +28,8 @@ const CicloContext = createContext<CicloContextType>({
 export function CicloProvider({ children }: { children: ReactNode }) {
   const [ciclos, setCiclos] = useState<Ciclo[]>([]);
   const [cicloAtivo, setCicloAtivo] = useState<Ciclo | null>(null);
+  const cicloAtivoRef = useRef<Ciclo | null>(null);
+  cicloAtivoRef.current = cicloAtivo;
 
   function carregar(cicloAtivoAtual?: Ciclo | null) {
     fetch("/api/ciclos")
@@ -54,7 +56,7 @@ export function CicloProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <CicloContext.Provider value={{ ciclos, cicloAtivo, setCicloAtivo, recarregar: () => carregar(cicloAtivo) }}>
+    <CicloContext.Provider value={{ ciclos, cicloAtivo, setCicloAtivo, recarregar: () => carregar(cicloAtivoRef.current) }}>
       {children}
     </CicloContext.Provider>
   );

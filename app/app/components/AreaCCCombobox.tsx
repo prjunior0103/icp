@@ -26,7 +26,7 @@ export function AreaCCCombobox({ areas, value, onChange, className = "", size = 
   const ref = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const py = size === "md" ? "py-2" : "py-2";
+  const py = size === "md" ? "py-2" : "py-1.5";
   const textSize = size === "md" ? "text-sm" : "text-xs";
 
   const grupos = [
@@ -124,7 +124,7 @@ export function AreaCCCombobox({ areas, value, onChange, className = "", size = 
                 <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400 bg-gray-50 select-none">
                   {g.label}
                 </div>
-                {g.values.sort().map(v => (
+                {[...g.values].sort().map(v => (
                   <button
                     key={v}
                     type="button"

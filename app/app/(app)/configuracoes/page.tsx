@@ -136,14 +136,24 @@ export default function ConfiguracoesPage() {
   async function salvarCarta() {
     if (!cicloId) return;
     setSalvandoCarta(true);
-    await fetch("/api/config-carta", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cicloId, ...carta, reguladorPool: carta.reguladorPool }),
-    });
-    setSalvandoCarta(false);
-    setCartaSalva(true);
-    setTimeout(() => setCartaSalva(false), 2500);
+    try {
+      const res = await fetch("/api/config-carta", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cicloId, ...carta, reguladorPool: carta.reguladorPool }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setErro(d.error ?? "Erro ao salvar configurações");
+        return;
+      }
+      setCartaSalva(true);
+      setTimeout(() => setCartaSalva(false), 2500);
+    } catch {
+      setErro("Erro de conexão ao salvar");
+    } finally {
+      setSalvandoCarta(false);
+    }
   }
 
   function addFaixa() {
