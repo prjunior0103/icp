@@ -28,8 +28,6 @@ interface ConfigCarta {
   gatilhoIndicador: string;
   gatilhoTotal: string;
   reguladorPool: ReguladorFaixa[];
-  targetSalarioPool: string;
-  targetBonus: string;
   textoCriterios: string;
 }
 
@@ -104,8 +102,6 @@ export default function ConfiguracoesPage() {
     gatilhoIndicador: "LAIR CONTÁBIL",
     gatilhoTotal: "TOTAL 2025",
     reguladorPool: [],
-    targetSalarioPool: "",
-    targetBonus: "",
     textoCriterios: "",
   });
   const [salvandoCarta, setSalvandoCarta] = useState(false);
@@ -131,8 +127,6 @@ export default function ConfiguracoesPage() {
             gatilhoIndicador: c.gatilhoIndicador ?? "",
             gatilhoTotal: c.gatilhoTotal ?? "",
             reguladorPool: (() => { try { return JSON.parse(c.reguladorPool ?? "[]"); } catch { return []; } })(),
-            targetSalarioPool: c.targetSalarioPool ?? "",
-            targetBonus: c.targetBonus ?? "",
             textoCriterios: c.textoCriterios ?? "",
           });
         }
@@ -354,27 +348,6 @@ export default function ConfiguracoesPage() {
                 </button>
               </div>
             ))}
-          </div>
-
-          {/* Targets */}
-          <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
-            <h3 className="text-sm font-semibold text-gray-700">Targets</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Target Salário Pool</label>
-                <input type="text" value={carta.targetSalarioPool}
-                  onChange={e => setCarta(c => ({ ...c, targetSalarioPool: e.target.value }))}
-                  placeholder="ex: 2,5%"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Target Bônus</label>
-                <input type="text" value={carta.targetBonus}
-                  onChange={e => setCarta(c => ({ ...c, targetBonus: e.target.value }))}
-                  placeholder="ex: 1 salário"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
-              </div>
-            </div>
           </div>
 
           {/* Critérios e Conceitos */}

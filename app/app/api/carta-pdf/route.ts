@@ -136,10 +136,11 @@ export async function GET(req: Request) {
       doc.fillColor(TEXTO).fontSize(6.5).font("Helvetica").text(`${linha.faixaDe} — ${linha.faixaAte}: ${linha.fator}`, M + colW + 5, rY);
       rY += 10;
     }
-    // Coluna 3 — Target
+    // Coluna 3 — Target (individual por colaborador)
     doc.fillColor(TEXTO_C).fontSize(7).font("Helvetica-Bold").text("3. TARGET DO ICP", M + colW * 2 + 5, y + 5);
-    doc.fillColor(TEXTO).fontSize(7).font("Helvetica").text(`Salário Pool: ${configCarta?.targetSalarioPool ?? "—"}`, M + colW * 2 + 5, y + 18);
-    doc.text(`Target de Bônus: ${configCarta?.targetBonus ?? "—"}`, M + colW * 2 + 5, y + 30);
+    const targetPct = colab.target != null ? `${(colab.target * 100).toFixed(0)}%` : "—";
+    doc.fillColor(AZUL).fontSize(22).font("Helvetica-Bold").text(targetPct, M + colW * 2 + 5, y + 20);
+    doc.fillColor(TEXTO_C).fontSize(7).font("Helvetica").text("do salário-base", M + colW * 2 + 5, y + 48);
     y += 96;
 
     // Indicadores por agrupamento

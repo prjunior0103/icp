@@ -916,23 +916,33 @@ function RelatCartaPDF({ atribuicoes, cicloId }: { atribuicoes: Atribuicao[]; ci
   const [tipo, setTipo] = useState<"todos" | "colaborador">("todos");
   const [colaboradorId, setColaboradorId] = useState("");
   const [gerando, setGerando] = useState(false);
+  const [erro, setErro] = useState("");
 
   const colabsMap = new Map<number, { id: number; nome: string }>();
   for (const a of atribuicoes) colabsMap.set(a.colaboradorId, { id: a.colaboradorId, nome: a.colaborador.nome });
   const colaboradores = Array.from(colabsMap.values()).sort((a, b) => a.nome.localeCompare(b.nome));
 
   async function gerar() {
+    setErro("");
     setGerando(true);
-    const params = new URLSearchParams({ cicloId: String(cicloId) });
-    if (tipo === "colaborador" && colaboradorId) params.set("colaboradorId", colaboradorId);
-    const res = await fetch(`/api/carta-pdf?${params}`);
-    if (res.ok) {
+    try {
+      const params = new URLSearchParams({ cicloId: String(cicloId) });
+      if (tipo === "colaborador" && colaboradorId) params.set("colaboradorId", colaboradorId);
+      const res = await fetch(`/api/carta-pdf?${params}`);
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setErro(d.error ?? `Erro ${res.status} ao gerar PDF`);
+        return;
+      }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a"); a.href = url; a.download = `carta-icp.pdf`; a.click();
       URL.revokeObjectURL(url);
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : "Erro de conexão ao gerar PDF");
+    } finally {
+      setGerando(false);
     }
-    setGerando(false);
   }
 
   return (
@@ -945,7 +955,7 @@ function RelatCartaPDF({ atribuicoes, cicloId }: { atribuicoes: Atribuicao[]; ci
         <p className="text-sm text-gray-500">Gera a carta de incentivo individual com painel, indicadores e critérios. Configure os parâmetros em <strong>Configurações → Carta ICP</strong>.</p>
         <div>
           <label className="text-xs font-medium text-gray-700 mb-1 block">Escopo</label>
-          <select value={tipo} onChange={e => { setTipo(e.target.value as typeof tipo); setColaboradorId(""); }}
+          <select value={tipo} onChange={e => { setTipo(e.target.value as typeof tipo); setColaboradorId(""); setErro(""); }}
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
             <option value="todos">Todos os colaboradores</option>
             <option value="colaborador">Colaborador específico</option>
@@ -961,6 +971,7 @@ function RelatCartaPDF({ atribuicoes, cicloId }: { atribuicoes: Atribuicao[]; ci
             </select>
           </div>
         )}
+        {erro && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{erro}</p>}
         <button onClick={gerar} disabled={gerando || (tipo === "colaborador" && !colaboradorId)}
           className="w-full flex items-center justify-center gap-2 bg-blue-700 hover:bg-blue-800 disabled:bg-blue-300 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition-colors">
           <Mail size={15}/> {gerando ? "Gerando..." : "Baixar PDF"}
@@ -1144,13 +1155,15 @@ export default function RelatoriosPage() {
         </button>
       </div>
 
-      <div className="flex gap-1 border-b border-gray-200">
-        {ABAS.map(({ id, label, icon }) => (
-          <button key={id} onClick={() => setAba(id)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px flex items-center gap-1.5 ${aba === id ? "border-blue-600 text-blue-700" : "border-transparent text-gray-500 hover:text-gray-700"}`}>
-            {icon}{label}
-          </button>
-        ))}
+      <div className="border-b border-gray-200 overflow-x-auto">
+        <div className="flex gap-0 min-w-max">
+          {ABAS.map(({ id, label, icon }) => (
+            <button key={id} onClick={() => setAba(id)}
+              className={`px-3 py-2.5 text-xs font-medium border-b-2 transition-colors -mb-px flex items-center gap-1 whitespace-nowrap ${aba === id ? "border-blue-600 text-blue-700" : "border-transparent text-gray-500 hover:text-gray-700"}`}>
+              {icon}{label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {aba === "colaborador" && <RelatColaborador atribuicoes={atribuicoes} notasMap={notasMap} areas={areas} movimentadosSet={movimentadosSet}/>}
