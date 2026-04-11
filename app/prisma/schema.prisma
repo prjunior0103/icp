@@ -211,6 +211,19 @@ model ConfigMovimentacao {
   campos    String  @default("centroCusto,matriculaGestor") // campos separados por vírgula
 }
 
+model ConfigCartaICP {
+  id                Int      @id @default(autoincrement())
+  cicloId           Int      @unique
+  gatilhoPercentual Float    @default(80)
+  gatilhoIndicador  String   @default("LAIR CONTÁBIL")
+  gatilhoTotal      String   @default("TOTAL 2025")
+  reguladorPool     String   @default("[]") // JSON: [{faixaDe, faixaAte, fator}]
+  targetSalarioPool String   @default("")
+  targetBonus       String   @default("")
+  textoCriterios    String   @default("")
+  updatedAt         DateTime @updatedAt
+}
+
 model AuditLog {
   id          Int      @id @default(autoincrement())
   userId      String

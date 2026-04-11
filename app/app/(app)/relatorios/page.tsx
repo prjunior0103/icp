@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useCiclo } from "@/app/lib/ciclo-context";
 import { calcNota, calcMID, gerarPeriodos, agregarRealizacoes } from "@/app/lib/calc";
-import { FileText, Search, Download, Users, BarChart3, GitBranch, UserCheck, ChevronDown, ChevronUp, UserCog, LayoutGrid, ArrowLeftRight, UserX, AlertCircle, X, Plus, Presentation } from "lucide-react";
+import { FileText, Search, Download, Users, BarChart3, GitBranch, UserCheck, ChevronDown, ChevronUp, UserCog, LayoutGrid, ArrowLeftRight, UserX, AlertCircle, X, Plus, Presentation, Mail } from "lucide-react";
 import { HierarchicalAreaFilter, EMPTY_FILTERS, matchesAreaFilter, type AreaFilters } from "@/app/components/HierarchicalAreaFilter";
 
 // ─── Types ────────────────────────────────────────────────
@@ -16,7 +16,7 @@ interface Agrupamento { id: number; nome: string; tipo: string; indicadores: Ind
 interface Colaborador { id: number; nome: string; matricula: string; cargo: string; salarioBase: number; target: number; gestorId?: number | null; centroCusto?: string | null; area?: { nivel1: string; nivel2?: string | null; nivel3?: string | null; nivel4?: string | null; nivel5?: string | null } | null; }
 interface Atribuicao { colaboradorId: number; agrupamentoId: number; pesoNaCesta: number; colaborador: Colaborador; agrupamento: Agrupamento; }
 
-type AbaId = "colaborador" | "indicador" | "contratacao" | "responsavel" | "gestor" | "calibracao" | "pendencias" | "movimentacoes" | "sem-painel" | "nao-apurados" | "ppt";
+type AbaId = "colaborador" | "indicador" | "contratacao" | "responsavel" | "gestor" | "calibracao" | "pendencias" | "movimentacoes" | "sem-painel" | "nao-apurados" | "ppt" | "carta";
 
 const ABAS: { id: AbaId; label: string; icon: React.ReactNode }[] = [
   { id: "colaborador", label: "Por Colaborador", icon: <Users size={14}/> },
@@ -30,6 +30,7 @@ const ABAS: { id: AbaId; label: string; icon: React.ReactNode }[] = [
   { id: "sem-painel",    label: "Sem Painel",       icon: <UserX size={14}/> },
   { id: "nao-apurados",  label: "Não Apurados",     icon: <AlertCircle size={14}/> },
   { id: "ppt",           label: "Gerar PPT",        icon: <Presentation size={14}/> },
+  { id: "carta",         label: "Carta PDF",        icon: <Mail size={14}/> },
 ];
 
 const MESES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
@@ -910,6 +911,65 @@ function RelatNaoApurados({ indicadores, realizacoes, anoFiscal, mesInicio, mesF
 }
 
 // ─── R11: Gerar PPT ──────────────────────────────────────
+// ─── R12: Carta PDF ──────────────────────────────────────
+function RelatCartaPDF({ atribuicoes, cicloId }: { atribuicoes: Atribuicao[]; cicloId: number }) {
+  const [tipo, setTipo] = useState<"todos" | "colaborador">("todos");
+  const [colaboradorId, setColaboradorId] = useState("");
+  const [gerando, setGerando] = useState(false);
+
+  const colabsMap = new Map<number, { id: number; nome: string }>();
+  for (const a of atribuicoes) colabsMap.set(a.colaboradorId, { id: a.colaboradorId, nome: a.colaborador.nome });
+  const colaboradores = Array.from(colabsMap.values()).sort((a, b) => a.nome.localeCompare(b.nome));
+
+  async function gerar() {
+    setGerando(true);
+    const params = new URLSearchParams({ cicloId: String(cicloId) });
+    if (tipo === "colaborador" && colaboradorId) params.set("colaboradorId", colaboradorId);
+    const res = await fetch(`/api/carta-pdf?${params}`);
+    if (res.ok) {
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url; a.download = `carta-icp.pdf`; a.click();
+      URL.revokeObjectURL(url);
+    }
+    setGerando(false);
+  }
+
+  return (
+    <div className="max-w-lg space-y-5">
+      <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+        <div className="flex items-center gap-2">
+          <Mail size={18} className="text-blue-500"/>
+          <h3 className="font-semibold text-gray-800">Gerar Carta PDF</h3>
+        </div>
+        <p className="text-sm text-gray-500">Gera a carta de incentivo individual com painel, indicadores e critérios. Configure os parâmetros em <strong>Configurações → Carta ICP</strong>.</p>
+        <div>
+          <label className="text-xs font-medium text-gray-700 mb-1 block">Escopo</label>
+          <select value={tipo} onChange={e => { setTipo(e.target.value as typeof tipo); setColaboradorId(""); }}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="todos">Todos os colaboradores</option>
+            <option value="colaborador">Colaborador específico</option>
+          </select>
+        </div>
+        {tipo === "colaborador" && (
+          <div>
+            <label className="text-xs font-medium text-gray-700 mb-1 block">Colaborador</label>
+            <select value={colaboradorId} onChange={e => setColaboradorId(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="">Selecionar...</option>
+              {colaboradores.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+            </select>
+          </div>
+        )}
+        <button onClick={gerar} disabled={gerando || (tipo === "colaborador" && !colaboradorId)}
+          className="w-full flex items-center justify-center gap-2 bg-blue-700 hover:bg-blue-800 disabled:bg-blue-300 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition-colors">
+          <Mail size={15}/> {gerando ? "Gerando..." : "Baixar PDF"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function RelatPPT({ atribuicoes, cicloId }: { atribuicoes: Atribuicao[]; cicloId: number }) {
   const [tipo, setTipo] = useState<"todos" | "colaborador" | "gestor" | "area">("todos");
   const [filtroId, setFiltroId] = useState("");
@@ -1104,6 +1164,7 @@ export default function RelatoriosPage() {
       {aba === "sem-painel"  && <RelatSemPainel colaboradoresAll={colaboradoresAll} atribuicoes={atribuicoes} agrupamentos={agrupamentosAll} cicloId={cicloAtivo.id} onAtribuir={carregar} readOnly={isCliente}/>}
       {aba === "nao-apurados" && <RelatNaoApurados indicadores={indicadores} realizacoes={realizacoes} anoFiscal={cicloAtivo.anoFiscal} mesInicio={cicloAtivo.mesInicio} mesFim={cicloAtivo.mesFim}/>}
       {aba === "ppt"          && <RelatPPT atribuicoes={atribuicoes} cicloId={cicloAtivo.id}/>}
+      {aba === "carta"        && <RelatCartaPDF atribuicoes={atribuicoes} cicloId={cicloAtivo.id}/>}
     </div>
   );
 }
