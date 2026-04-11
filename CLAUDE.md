@@ -1,37 +1,33 @@
 ## 🔁 ESTADO DA SESSÃO ANTERIOR — LEIA ANTES DE TUDO
 
 # Estado Persistente — ICP
-> Atualizado por: Coordenador ICP | Última atualização: 2026-04-11T04:30
+> Atualizado por: Coordenador ICP | Última atualização: 2026-04-11T18:00
 
 ## Task em progresso
-Nenhuma.
+Audit/Refactor — Fase 6 (próxima a executar)
 
-## Últimas entregas (M8 — commit 2a0a226)
-- TASK-073: abas "Sem Painel" e "Não Apurados" em Relatórios
-- TASK-069: Dashboard reformulado com KPIs, MID médio, distribuição
-- TASK-057: perfil CLIENTE + gestão de usuários em Configurações
-- TASK-074: aba "Gerar PPT" com pptxgenjs — por colaborador/gestor/área
+## Plano de Refactor — Design System (6 Fases)
+- ✅ Fase 0: Foundation — tipos, utils, fetch wrapper (commit d2fd98d)
+- ✅ Fase 1: Bugs críticos — error handling, sort mutation, stale closure (commit 7439e69)
+- ✅ Fase 2: Componentes UI — ConfirmModal, ModalWrapper, SearchInput, FormField, DataTable, BaseCombobox (commit c197d15)
+- ✅ Fase 3+4: UX gaps + consistência visual (commit 88829ae)
+- ✅ Fase 5: Acessibilidade — ARIA, keyboard nav, aria-label, checkbox labels (commit ccda6f5)
+- ⏳ Fase 6: Arquitetura — split files grandes, AbortController, ADR (6 items) — ÚLTIMA
 
-## Arquivos modificados (M8)
-- app/app/(app)/relatorios/page.tsx (abas sem-painel, nao-apurados, ppt)
-- app/app/(app)/page.tsx (dashboard reformulado)
-- app/app/(app)/layout.tsx (nav por role)
-- app/app/(app)/configuracoes/page.tsx (gestão de usuários)
-- app/app/api/usuarios/route.ts (novo — CRUD usuários)
-- app/app/api/ppt/route.ts (novo — geração PPT)
+## Fase 6 — Escopo
+- Split de files grandes (colaboradores ~1290 linhas, metas ~970 linhas, relatorios ~850 linhas)
+- AbortController nos fetches (cancelar requests em andamento ao trocar ciclo)
+- ADR para mudanças no motor de cálculo
+- Arquitetura: extrair lógica de negócio para hooks customizados
 
-## Decisões técnicas recentes
-- CLIENTE: perfil read-only — vê só Dashboard+Relatórios via filtro de nav por role
-- PPT: gerado server-side via pptxgenjs, streaming como binary response
-- Usuários: ID é UUID String (não Int)
-- pptxgenjs instalado tanto local quanto na VPS
+## Branch e commits recentes
+- Branch: rebuild/m1
+- Commits: d2fd98d → 7439e69 → c197d15 → 88829ae → ccda6f5
 
 ## Deploy (VPS)
 - VPS: root@187.77.34.25 | senha: F4x1n3r0D0C40s&
 - App: /home/app/ICP/app | Porta: 3003 | Serviço: icp.service | DB: dev.db
 - Deploy: git pull + npm run build + systemctl restart icp
-- SSH: sshpass -p 'F4x1n3r0D0C40s&' ssh -o StrictHostKeyChecking=no -o PubkeyAuthentication=no -o PreferredAuthentications=password root@187.77.34.25
-- Repo: git@github.com:prjunior0103/icp.git | Branch: rebuild/m1
 
 ## Tasks pendentes no ICP
 - TASK-066 [MEDIA] Carta PDF + configuração de Regulador do Pool
