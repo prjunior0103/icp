@@ -10,6 +10,8 @@ import {
 import { HierarchicalAreaFilter, EMPTY_FILTERS, matchesAreaFilter, type AreaFilters } from "@/app/components/HierarchicalAreaFilter";
 import { fmtData } from "@/app/lib/format";
 import { useCiclo } from "@/app/lib/ciclo-context";
+import { useConfirm } from "@/app/components/ConfirmModal";
+import { SearchInput } from "@/app/components/SearchInput";
 
 // ─── Types ───────────────────────────────────────────────
 interface Area {
@@ -362,6 +364,7 @@ function AbaAreas({ cicloId }: { cicloId: number }) {
   const [modalArea, setModalArea] = useState<Area | null | "new">(null);
   const [modalImport, setModalImport] = useState(false);
   const [excluindo, setExcluindo] = useState<number | null>(null);
+  const confirm = useConfirm();
 
   const carregar = useCallback(() => {
     fetch(`/api/areas?cicloId=${cicloId}`).then((r) => r.json()).then((d) => setAreas(d.areas ?? []));
@@ -369,12 +372,13 @@ function AbaAreas({ cicloId }: { cicloId: number }) {
 
   useEffect(() => { carregar(); }, [carregar]);
 
-  async function excluir(id: number) {
-    if (!confirm("Excluir esta área?")) return;
-    setExcluindo(id);
-    await fetch(`/api/areas?id=${id}`, { method: "DELETE" });
-    setExcluindo(null);
-    carregar();
+  function excluir(id: number) {
+    confirm.request("Excluir esta área?", async () => {
+      setExcluindo(id);
+      await fetch(`/api/areas?id=${id}`, { method: "DELETE" });
+      setExcluindo(null);
+      carregar();
+    }, { confirmLabel: "Excluir", variant: "danger" });
   }
 
   function baixarTemplate() {
@@ -442,6 +446,7 @@ function AbaAreas({ cicloId }: { cicloId: number }) {
       {modalImport && (
         <ModalImport tipo="areas" cicloId={cicloId} onDone={carregar} onClose={() => setModalImport(false)} />
       )}
+      {confirm.modal}
     </div>
   );
 }
@@ -454,6 +459,7 @@ interface MovimentacaoResumo {
 }
 
 function AbaColaboradores({ cicloId }: { cicloId: number }) {
+  const confirm = useConfirm();
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
   const [areas, setAreas] = useState<Area[]>([]);
   const [movimentacoes, setMovimentacoes] = useState<MovimentacaoResumo[]>([]);
@@ -476,21 +482,23 @@ function AbaColaboradores({ cicloId }: { cicloId: number }) {
 
   useEffect(() => { carregar(); setSelecionados(new Set()); }, [carregar]);
 
-  async function excluir(id: number) {
-    if (!confirm("Excluir este colaborador?")) return;
-    setExcluindo(id);
-    await fetch(`/api/colaboradores?id=${id}`, { method: "DELETE" });
-    setExcluindo(null);
-    carregar();
+  function excluir(id: number) {
+    confirm.request("Excluir este colaborador?", async () => {
+      setExcluindo(id);
+      await fetch(`/api/colaboradores?id=${id}`, { method: "DELETE" });
+      setExcluindo(null);
+      carregar();
+    }, { confirmLabel: "Excluir", variant: "danger" });
   }
 
-  async function excluirSelecionados() {
-    if (!confirm(`Excluir ${selecionados.size} colaborador(es)?`)) return;
-    setExcluindoMassa(true);
-    await Promise.all([...selecionados].map(id => fetch(`/api/colaboradores?id=${id}`, { method: "DELETE" })));
-    setSelecionados(new Set());
-    setExcluindoMassa(false);
-    carregar();
+  function excluirSelecionados() {
+    confirm.request(`Excluir ${selecionados.size} colaborador(es)?`, async () => {
+      setExcluindoMassa(true);
+      await Promise.all([...selecionados].map(id => fetch(`/api/colaboradores?id=${id}`, { method: "DELETE" })));
+      setSelecionados(new Set());
+      setExcluindoMassa(false);
+      carregar();
+    }, { confirmLabel: "Excluir", variant: "danger" });
   }
 
   function toggleSel(id: number) {
@@ -544,15 +552,12 @@ function AbaColaboradores({ cicloId }: { cicloId: number }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3 flex-wrap">
-        <div className="flex-1 relative min-w-48">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar por nome ou matrícula..."
-            className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
+        <SearchInput
+          value={busca}
+          onChange={setBusca}
+          placeholder="Buscar por nome ou matrícula..."
+          className="flex-1 min-w-48"
+        />
         <HierarchicalAreaFilter areas={areas} value={filtroArea} onChange={setFiltroArea} />
         {selecionados.size > 0 && (
           <button onClick={excluirSelecionados} disabled={excluindoMassa}
@@ -628,11 +633,11 @@ function AbaColaboradores({ cicloId }: { cicloId: number }) {
                     <td className="px-4 py-2.5">
                       {isMovimentado ? (
                         <div>
-                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                          <span className="text-2xs font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
                             MOVIMENTADO
                           </span>
-                          <span className="text-[10px] text-gray-400 ml-1">({situacao})</span>
-                          {painelNome && <p className="text-[10px] text-gray-500 mt-0.5">Painel: {painelNome}</p>}
+                          <span className="text-2xs text-gray-400 ml-1">({situacao})</span>
+                          {painelNome && <p className="text-2xs text-gray-500 mt-0.5">Painel: {painelNome}</p>}
                         </div>
                       ) : (
                         <span className="text-xs text-gray-400">—</span>
@@ -666,6 +671,7 @@ function AbaColaboradores({ cicloId }: { cicloId: number }) {
       {modalImport && (
         <ModalImport tipo="colaboradores" cicloId={cicloId} onDone={carregar} onClose={() => setModalImport(false)} />
       )}
+      {confirm.modal}
     </div>
   );
 }
@@ -1161,7 +1167,7 @@ function AbaMovimentacoes({ cicloId }: { cicloId: number }) {
                         {TIPO_LABEL[m.tipo] ?? m.tipo}
                       </span>
                       {m.requerNovoPainel && m.statusTratamento === "PENDENTE" && (
-                        <span className="block mt-1 text-[10px] text-amber-600 font-medium">Requer novo painel</span>
+                        <span className="block mt-1 text-2xs text-amber-600 font-medium">Requer novo painel</span>
                       )}
                     </td>
                     <td className="px-4 py-3 text-xs">
@@ -1181,7 +1187,7 @@ function AbaMovimentacoes({ cicloId }: { cicloId: number }) {
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${STATUS_TRAT_COR[m.statusTratamento] ?? ""}`}>
+                      <span className={`text-2xs font-semibold px-1.5 py-0.5 rounded-full ${STATUS_TRAT_COR[m.statusTratamento] ?? ""}`}>
                         {m.statusTratamento}
                       </span>
                     </td>

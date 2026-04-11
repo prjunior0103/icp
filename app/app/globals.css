@@ -105,6 +105,13 @@ tbody td:first-child {
   font-weight: 500;
 }
 
+/* ── Custom text sizes ────────────────────────────────────────────────────── */
+
+@utility text-2xs {
+  font-size: 0.625rem;
+  line-height: 1rem;
+}
+
 /* ── Component utilities ──────────────────────────────────────────────────── */
 
 .icp-card {

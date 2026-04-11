@@ -14,6 +14,8 @@ import {
   Building2,
   FileText,
   Shield,
+  Menu,
+  X,
 } from "lucide-react";
 import { CicloProvider, useCiclo } from "@/app/lib/ciclo-context";
 import { STATUS_BADGE, STATUS_LABEL } from "@/app/lib/status";
@@ -39,6 +41,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
   const role = session?.user?.role;
   const { ciclos, cicloAtivo, setCicloAtivo } = useCiclo();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/login");
@@ -54,7 +57,14 @@ function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
       {/* Header */}
-      <header className="bg-blue-900 text-white h-14 flex items-center px-4 gap-4 shadow-md z-10">
+      <header className="bg-blue-900 text-white h-14 flex items-center px-4 gap-4 shadow-md z-40">
+        <button
+          className="md:hidden p-1.5 text-blue-300 hover:text-white transition-colors"
+          onClick={() => setSidebarOpen(v => !v)}
+          aria-label="Menu"
+        >
+          {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+        </button>
         <div className="flex items-center gap-2 min-w-max">
           <div className="w-8 h-8 bg-blue-400 rounded flex items-center justify-center font-bold text-xs">
             ICP
@@ -128,15 +138,29 @@ function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      <div className="flex flex-1">
-        <aside className="w-56 bg-white border-r border-gray-200 flex flex-col py-4">
+      <div className="flex flex-1 min-h-0 relative">
+        {/* Backdrop mobile */}
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 bg-black/20 z-30 md:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
+        <aside className={`
+          fixed top-14 bottom-0 left-0 z-30
+          md:static md:top-auto md:bottom-auto md:z-auto
+          w-56 bg-white border-r border-gray-200 flex flex-col py-4
+          transition-transform duration-200
+          ${sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
+        `}>
           <nav className="flex-1 px-2 space-y-0.5">
             {[...NAV_ITEMS.filter(item => item.roles.includes(role ?? "COLABORADOR")), ...(role === "GUARDIAO" ? NAV_GUARDIAO : [])].map(({ href, label, icon: Icon }) => {
               const active = pathname === href;
               return (
                 <button
                   key={href}
-                  onClick={() => router.push(href)}
+                  onClick={() => { router.push(href); setSidebarOpen(false); }}
                   className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
                     active
                       ? "bg-blue-50 text-blue-700 font-medium"

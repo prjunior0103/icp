@@ -5,6 +5,8 @@ import { Plus, X, Pencil, Trash2, Upload, Download, Search, Target, BarChart3, U
 import { useCiclo } from "@/app/lib/ciclo-context";
 import { HierarchicalAreaFilter, EMPTY_FILTERS, matchesAreaFilter, type AreaFilters } from "@/app/components/HierarchicalAreaFilter";
 import { fmtValor } from "@/app/lib/format";
+import { useConfirm } from "@/app/components/ConfirmModal";
+import { SearchInput } from "@/app/components/SearchInput";
 
 // ─── Types ────────────────────────────────────────────────
 interface Indicador { id: number; cicloId: number; codigo: string; nome: string; tipo: string; abrangencia: string; unidade: string; metaMinima?: number | null; metaAlvo?: number | null; metaMaxima?: number | null; baseline?: number | null; metrica?: string | null; periodicidade: string; criterioApuracao: string; origemDado?: string | null; analistaResp?: string | null; numeradorId?: number | null; divisorId?: number | null; statusJanela: string; status: string; descricao?: string | null; }
@@ -616,13 +618,13 @@ function AbaFormulas({ indicadores, todosIndicadores }: { indicadores: Indicador
                     <p className="font-semibold text-gray-800 text-sm leading-tight">{ind.nome}</p>
                     <p className="text-xs font-mono text-gray-400 mt-0.5">{ind.codigo}</p>
                   </div>
-                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${TIPO_COLOR[ind.tipo] ?? "bg-gray-100 text-gray-600"}`}>
+                  <span className={`text-2xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${TIPO_COLOR[ind.tipo] ?? "bg-gray-100 text-gray-600"}`}>
                     {TIPO_LABEL[ind.tipo] ?? ind.tipo}
                   </span>
                 </div>
 
                 <div className="bg-gray-50 rounded-lg px-3 py-2">
-                  <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide mb-0.5">Fórmula</p>
+                  <p className="text-2xs text-gray-400 font-semibold uppercase tracking-wide mb-0.5">Fórmula</p>
                   <p className="text-xs text-gray-700 font-mono">{descricaoFormula(ind)}</p>
                 </div>
 
@@ -637,7 +639,7 @@ function AbaFormulas({ indicadores, todosIndicadores }: { indicadores: Indicador
 
                 {faixas.length > 0 && (
                   <div>
-                    <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide mb-1">Faixas</p>
+                    <p className="text-2xs text-gray-400 font-semibold uppercase tracking-wide mb-1">Faixas</p>
                     <table className="w-full text-xs">
                       <thead><tr className="text-gray-400">
                         <th className="text-left pb-0.5">De</th><th className="text-left pb-0.5">Até</th><th className="text-left pb-0.5">Nota</th>
@@ -655,7 +657,7 @@ function AbaFormulas({ indicadores, todosIndicadores }: { indicadores: Indicador
                   </div>
                 )}
 
-                <div className="flex gap-2 text-[10px] text-gray-400 border-t border-gray-100 pt-2">
+                <div className="flex gap-2 text-2xs text-gray-400 border-t border-gray-100 pt-2">
                   <span>Teto: <strong className="text-gray-600">120%</strong></span>
                   <span>·</span>
                   <span>Piso: <strong className="text-gray-600">0%</strong> abaixo do mínimo</span>
@@ -672,7 +674,9 @@ function AbaFormulas({ indicadores, todosIndicadores }: { indicadores: Indicador
 // ─── Page ─────────────────────────────────────────────────
 export default function MetasPage() {
   const { cicloAtivo } = useCiclo();
+  const confirm = useConfirm();
   const [aba, setAba] = useState<"indicadores"|"agrupamentos"|"atribuicoes"|"formulas">("indicadores");
+  const [loading, setLoading] = useState(false);
   const [indicadores, setIndicadores] = useState<Indicador[]>([]);
   const [agrupamentos, setAgrupamentos] = useState<Agrupamento[]>([]);
   const [atribuicoes, setAtribuicoes] = useState<Atribuicao[]>([]);
@@ -704,51 +708,64 @@ export default function MetasPage() {
   },[cicloAtivo?.id]);
 
   useEffect(() => {
-    carregarInds(); carregarAgs(); carregarAtribs();
-    if (cicloAtivo) {
-      fetch(`/api/colaboradores?cicloId=${cicloAtivo.id}`).then(r=>r.json()).then(d=>setColaboradores(d.colaboradores??[]));
-      fetch(`/api/areas?cicloId=${cicloAtivo.id}`).then(r=>r.json()).then(d=>setAreas(d.areas??[]));
-    }
+    if (!cicloAtivo) return;
+    setLoading(true);
+    Promise.all([
+      fetch(`/api/indicadores?cicloId=${cicloAtivo.id}`).then(r=>r.json()).then(d=>setIndicadores(d.indicadores??[])),
+      fetch(`/api/agrupamentos?cicloId=${cicloAtivo.id}`).then(r=>r.json()).then(d=>setAgrupamentos(d.agrupamentos??[])),
+      fetch(`/api/atribuicoes?cicloId=${cicloAtivo.id}`).then(r=>r.json()).then(d=>setAtribuicoes(d.atribuicoes??[])),
+      fetch(`/api/colaboradores?cicloId=${cicloAtivo.id}`).then(r=>r.json()).then(d=>setColaboradores(d.colaboradores??[])),
+      fetch(`/api/areas?cicloId=${cicloAtivo.id}`).then(r=>r.json()).then(d=>setAreas(d.areas??[])),
+    ]).finally(() => setLoading(false));
   },[carregarInds,carregarAgs,carregarAtribs,cicloAtivo?.id]);
 
-  async function excluirInd(id: number) {
-    if (!confirm("Excluir indicador?")) return;
-    const res = await fetch(`/api/indicadores?id=${id}`,{method:"DELETE"});
-    if (!res.ok) { const d = await res.json(); alert(d.error ?? "Erro ao excluir"); return; }
-    carregarInds();
+  function excluirInd(id: number) {
+    confirm.request("Excluir indicador?", async () => {
+      const res = await fetch(`/api/indicadores?id=${id}`,{method:"DELETE"});
+      if (!res.ok) { const d = await res.json(); alert(d.error ?? "Erro ao excluir"); return; }
+      carregarInds();
+    }, { confirmLabel: "Excluir", variant: "danger" });
   }
-  async function excluirAg(id: number) {
-    if (!confirm("Excluir agrupamento?")) return;
-    await fetch(`/api/agrupamentos?id=${id}`,{method:"DELETE"}); carregarAgs();
+  function excluirAg(id: number) {
+    confirm.request("Excluir agrupamento?", async () => {
+      await fetch(`/api/agrupamentos?id=${id}`,{method:"DELETE"}); carregarAgs();
+    }, { confirmLabel: "Excluir", variant: "danger" });
   }
-  async function excluirAtrib(id: number) {
-    if (!confirm("Remover atribuição?")) return;
-    await fetch(`/api/atribuicoes?id=${id}`,{method:"DELETE"}); carregarAtribs();
+  function excluirAtrib(id: number) {
+    confirm.request("Remover atribuição?", async () => {
+      await fetch(`/api/atribuicoes?id=${id}`,{method:"DELETE"}); carregarAtribs();
+    }, { confirmLabel: "Remover", variant: "danger" });
   }
-  async function atribuirATodos(ag: Agrupamento) {
+  function atribuirATodos(ag: Agrupamento) {
     if (colaboradores.length === 0) { alert("Nenhum colaborador neste ciclo."); return; }
     const peso = Math.round(ag.indicadores.reduce((s, i) => s + i.peso, 0) * 100) / 100;
-    if (!confirm(`Atribuir "${ag.nome}" a ${colaboradores.length} colaborador(es) com peso ${peso}%?`)) return;
-    setAtribuindoAg(s => new Set(s).add(ag.id));
-    const cid = cicloAtivo!.id;
-    await Promise.all(
-      colaboradores.map(c =>
-        fetch("/api/atribuicoes", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ cicloId: cid, colaboradorId: c.id, agrupamentoId: ag.id, pesoNaCesta: peso, cascata: "NENHUM" }),
-        })
-      )
+    confirm.request(
+      `Atribuir "${ag.nome}" a ${colaboradores.length} colaborador(es) com peso ${peso}%?`,
+      async () => {
+        setAtribuindoAg(s => new Set(s).add(ag.id));
+        const cid = cicloAtivo!.id;
+        await Promise.all(
+          colaboradores.map(c =>
+            fetch("/api/atribuicoes", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ cicloId: cid, colaboradorId: c.id, agrupamentoId: ag.id, pesoNaCesta: peso, cascata: "NENHUM" }),
+            })
+          )
+        );
+        setAtribuindoAg(s => { const n = new Set(s); n.delete(ag.id); return n; });
+        carregarAtribs();
+      },
+      { confirmLabel: "Atribuir", variant: "primary" }
     );
-    setAtribuindoAg(s => { const n = new Set(s); n.delete(ag.id); return n; });
-    carregarAtribs();
   }
 
-  async function excluirAtribsMassa() {
-    if (!confirm(`Excluir ${selAtribs.size} atribuição(ões)?`)) return;
-    setExcluindoAtribs(true);
-    await Promise.all([...selAtribs].map(id => fetch(`/api/atribuicoes?id=${id}`,{method:"DELETE"})));
-    setSelAtribs(new Set()); setExcluindoAtribs(false); carregarAtribs();
+  function excluirAtribsMassa() {
+    confirm.request(`Excluir ${selAtribs.size} atribuição(ões)?`, async () => {
+      setExcluindoAtribs(true);
+      await Promise.all([...selAtribs].map(id => fetch(`/api/atribuicoes?id=${id}`,{method:"DELETE"})));
+      setSelAtribs(new Set()); setExcluindoAtribs(false); carregarAtribs();
+    }, { confirmLabel: "Excluir", variant: "danger" });
   }
   function toggleSelAtrib(id: number) {
     setSelAtribs(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -783,14 +800,20 @@ export default function MetasPage() {
         ))}
       </div>
 
+      {loading && (
+        <div className="p-8 text-center text-gray-400 text-sm">Carregando...</div>
+      )}
+
       {/* ── ABA INDICADORES ── */}
-      {aba==="indicadores" && (
+      {!loading && aba==="indicadores" && (
         <div className="space-y-4">
           <div className="flex items-center gap-3">
-            <div className="flex-1 relative">
-              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"/>
-              <input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar por código ou nome..." className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
-            </div>
+            <SearchInput
+              value={busca}
+              onChange={setBusca}
+              placeholder="Buscar por código ou nome..."
+              className="flex-1"
+            />
             <button onClick={()=>window.location.href=`/api/indicadores/export?cicloId=${cicloAtivo.id}`} className="flex items-center gap-2 border border-gray-300 text-gray-700 text-sm px-3 py-2 rounded-lg hover:bg-gray-50"><Download size={15}/>Exportar</button>
             <button onClick={()=>window.location.href="/api/indicadores/template"} className="flex items-center gap-2 border border-gray-300 text-gray-700 text-sm px-3 py-2 rounded-lg hover:bg-gray-50"><Download size={15}/>Template</button>
             <button onClick={()=>setModalImport(true)} className="flex items-center gap-2 border border-gray-300 text-gray-700 text-sm px-3 py-2 rounded-lg hover:bg-gray-50"><Upload size={15}/>Importar</button>
@@ -824,7 +847,7 @@ export default function MetasPage() {
       )}
 
       {/* ── ABA AGRUPAMENTOS ── */}
-      {aba==="agrupamentos" && (
+      {!loading && aba==="agrupamentos" && (
         <div className="space-y-4">
           <div className="flex justify-end"><button onClick={()=>setModalAg("new")} className="flex items-center gap-2 bg-blue-700 hover:bg-blue-800 text-white text-sm px-3 py-2 rounded-lg"><Plus size={15}/>Novo Agrupamento</button></div>
           {agrupamentos.length===0 ? (
@@ -865,7 +888,7 @@ export default function MetasPage() {
       )}
 
       {/* ── ABA ATRIBUIÇÕES ── */}
-      {aba==="atribuicoes" && (
+      {!loading && aba==="atribuicoes" && (
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <HierarchicalAreaFilter areas={areas} value={filtroAreaAtrib} onChange={setFiltroAreaAtrib} />
@@ -915,7 +938,8 @@ export default function MetasPage() {
         </div>
       )}
 
-      {aba==="formulas" && <AbaFormulas indicadores={indicadores} todosIndicadores={indicadores}/>}
+      {!loading && aba==="formulas" && <AbaFormulas indicadores={indicadores} todosIndicadores={indicadores}/>}
+      {confirm.modal}
 
       {modalInd!==null && <ModalIndicador ind={modalInd==="new"?null:modalInd} cicloId={cicloAtivo.id} colaboradores={colaboradores} todosIndicadores={indicadores} onSave={carregarInds} onClose={()=>setModalInd(null)}/>}
       {modalAg!==null && <ModalAgrupamento ag={modalAg==="new"?null:modalAg} cicloId={cicloAtivo.id} indicadores={indicadores} onSave={carregarAgs} onClose={()=>setModalAg(null)}/>}

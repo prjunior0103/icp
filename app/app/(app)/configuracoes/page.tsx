@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { Users, Plus, Trash2, Pencil, X, Eye, EyeOff, Shield, UserCog, User, Building2, FileText, Save } from "lucide-react";
+import { useConfirm } from "@/app/components/ConfirmModal";
 
 interface Usuario { id: string; name: string; email: string; role: string; }
 
@@ -38,6 +39,7 @@ export default function ConfiguracoesPage() {
 
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [loading, setLoading] = useState(true);
+  const confirm = useConfirm();
 
   // Modal
   const [modal, setModal] = useState<"criar" | "editar" | null>(null);
@@ -88,11 +90,12 @@ export default function ConfiguracoesPage() {
     } catch { setErro("Erro de conexão"); } finally { setSalvando(false); }
   }
 
-  async function excluir(id: string) {
-    if (!confirm("Confirma exclusão do usuário?")) return;
-    setExcluindo(id);
-    await fetch(`/api/usuarios?id=${id}`, { method: "DELETE" });
-    setExcluindo(null); carregar();
+  function excluir(id: string) {
+    confirm.request("Confirma exclusão do usuário?", async () => {
+      setExcluindo(id);
+      await fetch(`/api/usuarios?id=${id}`, { method: "DELETE" });
+      setExcluindo(null); carregar();
+    }, { confirmLabel: "Excluir", variant: "danger" });
   }
 
   // ── Carta ICP ──────────────────────────────────────────
@@ -437,6 +440,7 @@ export default function ConfiguracoesPage() {
           </div>
         </div>
       )}
+      {confirm.modal}
     </div>
   );
 }

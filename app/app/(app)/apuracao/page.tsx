@@ -6,6 +6,7 @@ import { calcNota, calcMID, gerarPeriodos, agregarRealizacoes } from "@/app/lib/
 import { ClipboardList, BarChart3, Search, Save, ChevronDown, ChevronUp, Paperclip, X } from "lucide-react";
 import { HierarchicalAreaFilter, EMPTY_FILTERS, matchesAreaFilter, type AreaFilters } from "@/app/components/HierarchicalAreaFilter";
 import { MESES, labelPeriodo } from "@/app/lib/format";
+import { SearchInput } from "@/app/components/SearchInput";
 
 // ─── Types ────────────────────────────────────────────────
 interface Indicador {
@@ -181,11 +182,12 @@ function AbaPreenchimento({ cicloId, anoFiscal, mesInicio, mesFim, indicadores, 
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <div className="flex-1 relative">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"/>
-          <input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar indicador..."
-            className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
-        </div>
+        <SearchInput
+          value={busca}
+          onChange={setBusca}
+          placeholder="Buscar indicador..."
+          className="flex-1"
+        />
       </div>
 
       {inds.length === 0 ? (
@@ -475,7 +477,7 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
                     <div>
                       <div className="flex items-center gap-2">
                         <p className="font-semibold text-gray-800 text-sm">{c.nome}</p>
-                        {row.movimentado && <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">MOVIMENTADO</span>}
+                        {row.movimentado && <span className="text-2xs font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">MOVIMENTADO</span>}
                       </div>
                       <p className="text-xs text-gray-400">
                         {c.matricula} · {c.cargo}

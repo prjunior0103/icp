@@ -7,6 +7,7 @@ import { Plus, X, Building2, Calendar, LayoutDashboard, Pencil, Trash2, Users, T
 import { useCiclo } from "@/app/lib/ciclo-context";
 import { calcNota, calcMID, gerarPeriodos, agregarRealizacoes } from "@/app/lib/calc";
 import { STATUS_COLOR, STATUS_LABEL } from "@/app/lib/status";
+import { useConfirm } from "@/app/components/ConfirmModal";
 
 const MESES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
 
@@ -27,6 +28,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const role = session?.user?.role;
 
+  const confirm = useConfirm();
   const [stats, setStats] = useState<DashStats | null>(null);
   const [loadingStats, setLoadingStats] = useState(false);
 
@@ -163,11 +165,12 @@ export default function DashboardPage() {
       setModalOpen(false);
     } catch { setErro("Erro de conexão"); } finally { setSalvando(false); }
   }
-  async function excluirCiclo(id: number) {
-    if (!confirm("Confirma exclusão do ciclo?")) return;
-    setExcluindo(id);
-    await fetch(`/api/ciclos?id=${id}`, { method: "DELETE" });
-    recarregar(); setExcluindo(null);
+  function excluirCiclo(id: number) {
+    confirm.request("Confirma exclusão do ciclo?", async () => {
+      setExcluindo(id);
+      await fetch(`/api/ciclos?id=${id}`, { method: "DELETE" });
+      recarregar(); setExcluindo(null);
+    }, { confirmLabel: "Excluir", variant: "danger" });
   }
 
   return (
@@ -247,7 +250,7 @@ export default function DashboardPage() {
                   <p className="text-2xl font-bold text-gray-900">{stats.atribuidos}</p>
                   <p className="text-xs text-gray-500 mt-0.5">Atribuídos</p>
                   {stats.totalColabs > 0 && (
-                    <p className="text-[10px] text-gray-400 mt-0.5">{Math.round(stats.atribuidos/stats.totalColabs*100)}% do total</p>
+                    <p className="text-2xs text-gray-400 mt-0.5">{Math.round(stats.atribuidos/stats.totalColabs*100)}% do total</p>
                   )}
                 </button>
 
@@ -421,6 +424,7 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+      {confirm.modal}
     </div>
   );
 }
