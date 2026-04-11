@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
-import { Users, Plus, Trash2, Pencil, X, Eye, EyeOff, Shield, UserCog, User, Building2 } from "lucide-react";
+import { Users, Plus, Trash2, Pencil, X, Eye, EyeOff, Shield, UserCog, User, Building2, FileText, Save } from "lucide-react";
 
 interface Usuario { id: string; name: string; email: string; role: string; }
 
@@ -22,9 +22,21 @@ const ROLE_ICONS: Record<string, React.ReactNode> = {
   CLIENTE: <Eye size={12}/>,
 };
 
+interface ReguladorFaixa { faixaDe: number; faixaAte: number; fator: number; }
+interface ConfigCarta {
+  gatilhoPercentual: number;
+  gatilhoIndicador: string;
+  gatilhoTotal: string;
+  reguladorPool: ReguladorFaixa[];
+  targetSalarioPool: string;
+  targetBonus: string;
+  textoCriterios: string;
+}
+
 export default function ConfiguracoesPage() {
   const { data: session } = useSession();
   const role = (session?.user as { role?: string })?.role;
+  const [aba, setAba] = useState<"usuarios" | "carta">("usuarios");
 
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [loading, setLoading] = useState(true);
@@ -85,6 +97,75 @@ export default function ConfiguracoesPage() {
     setExcluindo(null); carregar();
   }
 
+  // ── Carta ICP ──────────────────────────────────────────
+  const [cicloId, setCicloId] = useState<number | null>(null);
+  const [carta, setCarta] = useState<ConfigCarta>({
+    gatilhoPercentual: 80,
+    gatilhoIndicador: "LAIR CONTÁBIL",
+    gatilhoTotal: "TOTAL 2025",
+    reguladorPool: [],
+    targetSalarioPool: "",
+    targetBonus: "",
+    textoCriterios: "",
+  });
+  const [salvandoCarta, setSalvandoCarta] = useState(false);
+  const [cartaSalva, setCartaSalva] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/ciclos")
+      .then(r => r.json())
+      .then(d => {
+        const ativo = (d.ciclos ?? []).find((c: { id: number; status: string }) => c.status === "ATIVO");
+        if (ativo) { setCicloId(ativo.id); carregarCarta(ativo.id); }
+      });
+  }, []);
+
+  function carregarCarta(id: number) {
+    fetch(`/api/config-carta?cicloId=${id}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.config) {
+          const c = d.config;
+          setCarta({
+            gatilhoPercentual: c.gatilhoPercentual ?? 80,
+            gatilhoIndicador: c.gatilhoIndicador ?? "",
+            gatilhoTotal: c.gatilhoTotal ?? "",
+            reguladorPool: (() => { try { return JSON.parse(c.reguladorPool ?? "[]"); } catch { return []; } })(),
+            targetSalarioPool: c.targetSalarioPool ?? "",
+            targetBonus: c.targetBonus ?? "",
+            textoCriterios: c.textoCriterios ?? "",
+          });
+        }
+      });
+  }
+
+  async function salvarCarta() {
+    if (!cicloId) return;
+    setSalvandoCarta(true);
+    await fetch("/api/config-carta", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cicloId, ...carta, reguladorPool: carta.reguladorPool }),
+    });
+    setSalvandoCarta(false);
+    setCartaSalva(true);
+    setTimeout(() => setCartaSalva(false), 2500);
+  }
+
+  function addFaixa() {
+    setCarta(c => ({ ...c, reguladorPool: [...c.reguladorPool, { faixaDe: 0, faixaAte: 0, fator: 1 }] }));
+  }
+  function removeFaixa(i: number) {
+    setCarta(c => ({ ...c, reguladorPool: c.reguladorPool.filter((_, idx) => idx !== i) }));
+  }
+  function updateFaixa(i: number, field: keyof ReguladorFaixa, val: number) {
+    setCarta(c => {
+      const reg = [...c.reguladorPool];
+      reg[i] = { ...reg[i], [field]: val };
+      return { ...c, reguladorPool: reg };
+    });
+  }
+
   if (role !== "GUARDIAO" && role !== "BP") return (
     <div className="flex items-center justify-center h-64 text-gray-400">
       <p>Sem permissão para acessar configurações.</p>
@@ -96,9 +177,9 @@ export default function ConfiguracoesPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Configurações</h1>
-          <p className="text-gray-500 text-sm mt-1">Gerenciamento de usuários e perfis de acesso</p>
+          <p className="text-gray-500 text-sm mt-1">Gerenciamento de usuários e parâmetros do ciclo</p>
         </div>
-        {role === "GUARDIAO" && (
+        {role === "GUARDIAO" && aba === "usuarios" && (
           <button onClick={abrirCriar}
             className="flex items-center gap-2 bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
             <Plus size={16}/> Novo Usuário
@@ -106,6 +187,24 @@ export default function ConfiguracoesPage() {
         )}
       </div>
 
+      {/* Abas */}
+      <div className="flex gap-1 border-b border-gray-200">
+        {[
+          { id: "usuarios", label: "Usuários", icon: <Users size={14}/> },
+          { id: "carta",    label: "Carta ICP", icon: <FileText size={14}/> },
+        ].map(t => (
+          <button key={t.id} onClick={() => setAba(t.id as typeof aba)}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              aba === t.id
+                ? "border-blue-600 text-blue-700"
+                : "border-transparent text-gray-500 hover:text-gray-700"
+            }`}>
+            {t.icon}{t.label}
+          </button>
+        ))}
+      </div>
+
+      {aba === "usuarios" && (<>
       {/* Legenda de perfis */}
       <div className="bg-white rounded-xl border border-gray-200 p-5">
         <h3 className="text-sm font-semibold text-gray-700 mb-3">Perfis de Acesso</h3>
@@ -178,6 +277,125 @@ export default function ConfiguracoesPage() {
           </table>
         )}
       </div>
+
+      </>)}
+
+      {/* ── Aba Carta ICP ── */}
+      {aba === "carta" && (
+        <div className="space-y-6 max-w-2xl">
+          {!cicloId && (
+            <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 text-sm px-4 py-3 rounded-lg">
+              Nenhum ciclo ativo encontrado. Ative um ciclo para configurar a carta.
+            </div>
+          )}
+
+          {/* Gatilho */}
+          <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+            <h3 className="text-sm font-semibold text-gray-700">Gatilho de Pagamento</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Percentual mínimo (%)</label>
+                <input type="number" step="0.1" value={carta.gatilhoPercentual}
+                  onChange={e => setCarta(c => ({ ...c, gatilhoPercentual: Number(e.target.value) }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Indicador de gatilho</label>
+                <input type="text" value={carta.gatilhoIndicador}
+                  onChange={e => setCarta(c => ({ ...c, gatilhoIndicador: e.target.value }))}
+                  placeholder="ex: LAIR CONTÁBIL"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Resultado total (rótulo)</label>
+              <input type="text" value={carta.gatilhoTotal}
+                onChange={e => setCarta(c => ({ ...c, gatilhoTotal: e.target.value }))}
+                placeholder="ex: TOTAL 2025"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+            </div>
+          </div>
+
+          {/* Regulador do Pool */}
+          <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-gray-700">Regulador do Pool</h3>
+              <button onClick={addFaixa}
+                className="flex items-center gap-1 text-xs text-blue-700 hover:text-blue-800 font-medium border border-blue-200 hover:border-blue-400 px-2 py-1 rounded-lg transition-colors">
+                <Plus size={12}/> Faixa
+              </button>
+            </div>
+            {carta.reguladorPool.length === 0 && (
+              <p className="text-xs text-gray-400 italic">Nenhuma faixa configurada.</p>
+            )}
+            {carta.reguladorPool.map((f, i) => (
+              <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-end">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">De (%)</label>
+                  <input type="number" step="0.1" value={f.faixaDe}
+                    onChange={e => updateFaixa(i, "faixaDe", Number(e.target.value))}
+                    className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Até (%)</label>
+                  <input type="number" step="0.1" value={f.faixaAte}
+                    onChange={e => updateFaixa(i, "faixaAte", Number(e.target.value))}
+                    className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Fator</label>
+                  <input type="number" step="0.01" value={f.fator}
+                    onChange={e => updateFaixa(i, "fator", Number(e.target.value))}
+                    className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                </div>
+                <button onClick={() => removeFaixa(i)}
+                  className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors mb-0.5">
+                  <Trash2 size={14}/>
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {/* Targets */}
+          <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+            <h3 className="text-sm font-semibold text-gray-700">Targets</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Target Salário Pool</label>
+                <input type="text" value={carta.targetSalarioPool}
+                  onChange={e => setCarta(c => ({ ...c, targetSalarioPool: e.target.value }))}
+                  placeholder="ex: 2,5%"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Target Bônus</label>
+                <input type="text" value={carta.targetBonus}
+                  onChange={e => setCarta(c => ({ ...c, targetBonus: e.target.value }))}
+                  placeholder="ex: 1 salário"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+              </div>
+            </div>
+          </div>
+
+          {/* Critérios e Conceitos */}
+          <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
+            <h3 className="text-sm font-semibold text-gray-700">Critérios e Conceitos</h3>
+            <textarea value={carta.textoCriterios} rows={6}
+              onChange={e => setCarta(c => ({ ...c, textoCriterios: e.target.value }))}
+              placeholder="Descreva os critérios de elegibilidade, conceitos e regras do ICP..."
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"/>
+          </div>
+
+          {/* Salvar */}
+          <div className="flex items-center gap-3">
+            <button onClick={salvarCarta} disabled={salvandoCarta || !cicloId}
+              className="flex items-center gap-2 bg-blue-700 hover:bg-blue-800 disabled:bg-blue-300 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors">
+              <Save size={15}/> {salvandoCarta ? "Salvando..." : "Salvar configuração"}
+            </button>
+            {cartaSalva && <span className="text-sm text-green-600 font-medium">✓ Salvo com sucesso</span>}
+          </div>
+        </div>
+      )}
 
       {/* Modal criar/editar usuário */}
       {modal && (
