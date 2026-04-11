@@ -73,33 +73,41 @@ function NotaBadge({ nota }: { nota: number | null | undefined }) {
 }
 
 // ─── R1: Por Colaborador ─────────────────────────────────
-function RelatColaborador({ atribuicoes, notasMap, areas }: { atribuicoes: Atribuicao[]; notasMap: Map<number, number>; areas: {nivel1:string;nivel2?:string|null;nivel3?:string|null;nivel4?:string|null;nivel5?:string|null;centroCusto:string}[]; }) {
+function RelatColaborador({ atribuicoes, notasMap, areas, movimentadosSet }: { atribuicoes: Atribuicao[]; notasMap: Map<number, number>; areas: {nivel1:string;nivel2?:string|null;nivel3?:string|null;nivel4?:string|null;nivel5?:string|null;centroCusto:string}[]; movimentadosSet: Set<string>; }) {
   const [busca, setBusca] = useState("");
   const [filtroArea, setFiltroArea] = useState<AreaFilters>(EMPTY_FILTERS);
   const [expandido, setExpandido] = useState<Record<string, boolean>>({});
 
-  // Conta atribuições por colaborador para detectar movimentados
-  const atribsPorColab = new Map<number, number>();
-  for (const a of atribuicoes) atribsPorColab.set(a.colaboradorId, (atribsPorColab.get(a.colaboradorId) ?? 0) + 1);
+  // Agrupa atribuições em rows: movimentados → 1 card por atribuição; não-movimentados → 1 card com todos agrupamentos
+  type Row = { key: string; colaborador: Colaborador; atribs: Atribuicao[]; movimentado: boolean };
+  const rowsMap = new Map<string, Row>();
+  for (const at of atribuicoes) {
+    const c = at.colaborador;
+    if (busca && !c.nome.toLowerCase().includes(busca.toLowerCase()) && !c.matricula.includes(busca)) continue;
+    if (!matchesAreaFilter(c, filtroArea, areas)) continue;
+    const movimentado = movimentadosSet.has(c.matricula);
+    const key = movimentado ? `${at.colaboradorId}-${at.agrupamentoId}` : `${at.colaboradorId}`;
+    if (!rowsMap.has(key)) rowsMap.set(key, { key, colaborador: c, atribs: [], movimentado });
+    rowsMap.get(key)!.atribs.push(at);
+  }
+  const rows = Array.from(rowsMap.values());
 
-  // Uma linha por atribuição — movimentados aparecem 2x
-  const atribuicoesFiltradas = atribuicoes.filter(a => {
-    const c = a.colaborador;
-    if (busca && !c.nome.toLowerCase().includes(busca.toLowerCase()) && !c.matricula.includes(busca)) return false;
-    if (!matchesAreaFilter(c, filtroArea, areas)) return false;
-    return true;
-  });
-
-  function calcAtrib(at: Atribuicao) {
-    const mids: { ind: Indicador; nota: number; peso: number; mid: number }[] = [];
-    let ating = 0;
-    for (const ig of at.agrupamento.indicadores) {
-      const nota = notasMap.get(ig.indicadorId) ?? 0;
-      const mid = calcMID(nota, ig.peso);
-      mids.push({ ind: ig.indicador, nota, peso: ig.peso, mid });
-      ating += mid;
+  function calcRow(atribs: Atribuicao[]) {
+    let resultado = 0;
+    const grupos: { ag: Agrupamento; pesoNaCesta: number; mids: { ind: Indicador; nota: number; peso: number; mid: number }[]; ating: number }[] = [];
+    for (const at of atribs) {
+      const mids: { ind: Indicador; nota: number; peso: number; mid: number }[] = [];
+      let ating = 0;
+      for (const ig of at.agrupamento.indicadores) {
+        const nota = notasMap.get(ig.indicadorId) ?? 0;
+        const mid = calcMID(nota, ig.peso);
+        mids.push({ ind: ig.indicador, nota, peso: ig.peso, mid });
+        ating += mid;
+        resultado += mid;
+      }
+      grupos.push({ ag: at.agrupamento, pesoNaCesta: at.pesoNaCesta, mids, ating });
     }
-    return { resultado: ating, mids };
+    return { resultado, grupos };
   }
 
   return (
@@ -113,24 +121,22 @@ function RelatColaborador({ atribuicoes, notasMap, areas }: { atribuicoes: Atrib
         <HierarchicalAreaFilter areas={areas} value={filtroArea} onChange={setFiltroArea} />
       </div>
 
-      {atribuicoesFiltradas.map(at => {
-        const c = at.colaborador;
-        const { resultado, mids } = calcAtrib(at);
-        const rowKey = `${at.colaboradorId}-${at.agrupamentoId}`;
-        const aberto = expandido[rowKey];
-        const movimentado = (atribsPorColab.get(at.colaboradorId) ?? 1) > 1;
+      {rows.map(row => {
+        const c = row.colaborador;
+        const { resultado, grupos } = calcRow(row.atribs);
+        const aberto = expandido[row.key];
         return (
-          <div key={rowKey} className={`bg-white rounded-xl border overflow-hidden ${movimentado ? "border-amber-200" : "border-gray-200"}`}>
-            <button onClick={() => setExpandido(e => ({ ...e, [rowKey]: !aberto }))}
+          <div key={row.key} className={`bg-white rounded-xl border overflow-hidden ${row.movimentado ? "border-amber-200" : "border-gray-200"}`}>
+            <button onClick={() => setExpandido(e => ({ ...e, [row.key]: !aberto }))}
               className="w-full flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition-colors">
               <div className="text-left">
                 <div className="flex items-center gap-2">
                   <p className="font-semibold text-gray-800 text-sm">{c.nome}</p>
-                  {movimentado && <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">MOVIMENTADO</span>}
+                  {row.movimentado && <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">MOVIMENTADO</span>}
                 </div>
                 <p className="text-xs text-gray-400">
                   {c.matricula} · {c.cargo}{c.area?.nivel1 ? ` · ${c.area.nivel1}` : ""}
-                  {movimentado && <span className="text-amber-600"> · {at.agrupamento.nome}</span>}
+                  {row.movimentado && row.atribs[0] && <span className="text-amber-600"> · {row.atribs[0].agrupamento.nome}</span>}
                 </p>
               </div>
               <div className="flex items-center gap-6">
@@ -143,30 +149,32 @@ function RelatColaborador({ atribuicoes, notasMap, areas }: { atribuicoes: Atrib
             </button>
             {aberto && (
               <div className="border-t border-gray-100 px-5 py-3 space-y-4">
-                <div>
-                  <div className="flex justify-between mb-1">
-                    <p className="text-xs font-semibold text-gray-600">{at.agrupamento.nome} <span className="font-normal text-gray-400">({at.pesoNaCesta}% na cesta)</span></p>
-                    <p className="text-xs text-gray-600">Ating. <span className="font-semibold">{resultado.toFixed(1)}%</span></p>
+                {grupos.map(g => (
+                  <div key={g.ag.id}>
+                    <div className="flex justify-between mb-1">
+                      <p className="text-xs font-semibold text-gray-600">{g.ag.nome} <span className="font-normal text-gray-400">({g.pesoNaCesta}% na cesta)</span></p>
+                      <p className="text-xs text-gray-600">Ating. <span className="font-semibold">{g.ating.toFixed(1)}%</span></p>
+                    </div>
+                    <table className="w-full text-xs">
+                      <thead><tr className="text-gray-400">
+                        <th className="text-left pb-1">Indicador</th>
+                        <th className="text-right pb-1">Nota</th>
+                        <th className="text-right pb-1">Peso</th>
+                        <th className="text-right pb-1">MID</th>
+                      </tr></thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {g.mids.map(m => (
+                          <tr key={m.ind.id}>
+                            <td className="py-1 text-gray-700">{m.ind.codigo} — {m.ind.nome}</td>
+                            <td className="py-1 text-right"><NotaBadge nota={m.nota}/></td>
+                            <td className="py-1 text-right text-gray-500">{m.peso}%</td>
+                            <td className="py-1 text-right font-semibold text-blue-700">{m.mid.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                  <table className="w-full text-xs">
-                    <thead><tr className="text-gray-400">
-                      <th className="text-left pb-1">Indicador</th>
-                      <th className="text-right pb-1">Nota</th>
-                      <th className="text-right pb-1">Peso</th>
-                      <th className="text-right pb-1">MID</th>
-                    </tr></thead>
-                    <tbody className="divide-y divide-gray-50">
-                      {mids.map(m => (
-                        <tr key={m.ind.id}>
-                          <td className="py-1 text-gray-700">{m.ind.codigo} — {m.ind.nome}</td>
-                          <td className="py-1 text-right"><NotaBadge nota={m.nota}/></td>
-                          <td className="py-1 text-right text-gray-500">{m.peso}%</td>
-                          <td className="py-1 text-right font-semibold text-blue-700">{m.mid.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                ))}
               </div>
             )}
           </div>
@@ -728,6 +736,7 @@ export default function RelatoriosPage() {
   const [atribuicoes, setAtribuicoes] = useState<Atribuicao[]>([]);
   const [areas, setAreas] = useState<{nivel1:string;nivel2?:string|null;nivel3?:string|null;nivel4?:string|null;nivel5?:string|null;centroCusto:string}[]>([]);
   const [exportando, setExportando] = useState(false);
+  const [movimentadosSet, setMovimentadosSet] = useState<Set<string>>(new Set());
 
   const carregar = useCallback(() => {
     if (!cicloAtivo) return;
@@ -745,6 +754,10 @@ export default function RelatoriosPage() {
     fetch(`/api/meta-periodos?cicloId=${cid}`).then(r => r.json()).then(d => setMetasPeriodo(d.metasPeriodo ?? []));
     fetch(`/api/atribuicoes?cicloId=${cid}`).then(r => r.json()).then(d => setAtribuicoes(d.atribuicoes ?? []));
     fetch(`/api/areas?cicloId=${cid}`).then(r => r.json()).then(d => setAreas(d.areas ?? []));
+    fetch(`/api/movimentacoes?cicloId=${cid}`).then(r => r.json()).then(d => {
+      const movs: { matricula: string; requerNovoPainel: boolean; statusTratamento: string }[] = d.movimentacoes ?? [];
+      setMovimentadosSet(new Set(movs.filter(m => m.requerNovoPainel && m.statusTratamento === "TRATADO").map(m => m.matricula)));
+    });
   }, [cicloAtivo?.id]);
 
   useEffect(() => { carregar(); }, [carregar]);
@@ -795,7 +808,7 @@ export default function RelatoriosPage() {
         ))}
       </div>
 
-      {aba === "colaborador" && <RelatColaborador atribuicoes={atribuicoes} notasMap={notasMap} areas={areas}/>}
+      {aba === "colaborador" && <RelatColaborador atribuicoes={atribuicoes} notasMap={notasMap} areas={areas} movimentadosSet={movimentadosSet}/>}
       {aba === "indicador"   && <RelatIndicador indicadores={indicadores} notasMap={notasMap} realMap={realMap} orcMap={orcMap} atribuicoes={atribuicoes}/>}
       {aba === "contratacao" && <RelatContratacao atribuicoes={atribuicoes} indicadores={indicadores} notasMap={notasMap}/>}
       {aba === "responsavel" && <RelatResponsavel indicadores={indicadores} notasMap={notasMap} realizacoes={realizacoes} anoFiscal={cicloAtivo.anoFiscal} mesInicio={cicloAtivo.mesInicio} mesFim={cicloAtivo.mesFim}/>}
