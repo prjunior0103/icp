@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useSession } from "next-auth/react";
 import { useCiclo } from "@/app/lib/ciclo-context";
 import { calcNota, calcMID, gerarPeriodos, agregarRealizacoes } from "@/app/lib/calc";
-import { FileText, Search, Download, Users, BarChart3, GitBranch, UserCheck, ChevronDown, ChevronUp, UserCog, LayoutGrid, ArrowLeftRight } from "lucide-react";
+import { FileText, Search, Download, Users, BarChart3, GitBranch, UserCheck, ChevronDown, ChevronUp, UserCog, LayoutGrid, ArrowLeftRight, UserX, AlertCircle, X, Plus, Presentation } from "lucide-react";
 import { HierarchicalAreaFilter, EMPTY_FILTERS, matchesAreaFilter, type AreaFilters } from "@/app/components/HierarchicalAreaFilter";
 
 // ─── Types ────────────────────────────────────────────────
@@ -15,7 +16,7 @@ interface Agrupamento { id: number; nome: string; tipo: string; indicadores: Ind
 interface Colaborador { id: number; nome: string; matricula: string; cargo: string; salarioBase: number; target: number; gestorId?: number | null; centroCusto?: string | null; area?: { nivel1: string; nivel2?: string | null; nivel3?: string | null; nivel4?: string | null; nivel5?: string | null } | null; }
 interface Atribuicao { colaboradorId: number; agrupamentoId: number; pesoNaCesta: number; colaborador: Colaborador; agrupamento: Agrupamento; }
 
-type AbaId = "colaborador" | "indicador" | "contratacao" | "responsavel" | "gestor" | "calibracao" | "pendencias" | "movimentacoes";
+type AbaId = "colaborador" | "indicador" | "contratacao" | "responsavel" | "gestor" | "calibracao" | "pendencias" | "movimentacoes" | "sem-painel" | "nao-apurados" | "ppt";
 
 const ABAS: { id: AbaId; label: string; icon: React.ReactNode }[] = [
   { id: "colaborador", label: "Por Colaborador", icon: <Users size={14}/> },
@@ -26,6 +27,9 @@ const ABAS: { id: AbaId; label: string; icon: React.ReactNode }[] = [
   { id: "calibracao",  label: "Calibração",       icon: <LayoutGrid size={14}/> },
   { id: "pendencias",  label: "Pendências",        icon: <FileText size={14}/> },
   { id: "movimentacoes", label: "Movimentações",   icon: <ArrowLeftRight size={14}/> },
+  { id: "sem-painel",    label: "Sem Painel",       icon: <UserX size={14}/> },
+  { id: "nao-apurados",  label: "Não Apurados",     icon: <AlertCircle size={14}/> },
+  { id: "ppt",           label: "Gerar PPT",        icon: <Presentation size={14}/> },
 ];
 
 const MESES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
@@ -719,8 +723,292 @@ function RelatMovimentacoes({ cicloId }: { cicloId: number }) {
   );
 }
 
+// ─── R9: Sem Painel ─────────────────────────────────────
+interface ColaboradorBasico { id: number; nome: string; matricula: string; cargo: string; area?: { nivel1: string } | null; }
+interface AgrupamentoBasico { id: number; nome: string; tipo: string; }
+
+function RelatSemPainel({ colaboradoresAll, atribuicoes, agrupamentos, cicloId, onAtribuir, readOnly }: {
+  colaboradoresAll: ColaboradorBasico[];
+  atribuicoes: Atribuicao[];
+  agrupamentos: AgrupamentoBasico[];
+  cicloId: number;
+  onAtribuir: () => void;
+  readOnly?: boolean;
+}) {
+  const atribuidosSet = new Set(atribuicoes.map(a => a.colaboradorId));
+  const semPainel = colaboradoresAll.filter(c => !atribuidosSet.has(c.id));
+  const [busca, setBusca] = useState("");
+  const [modal, setModal] = useState<ColaboradorBasico | null>(null);
+  const [agrupId, setAgrupId] = useState("");
+  const [peso, setPeso] = useState("100");
+  const [salvando, setSalvando] = useState(false);
+
+  const filtrados = semPainel.filter(c =>
+    !busca || c.nome.toLowerCase().includes(busca.toLowerCase()) || c.matricula.includes(busca)
+  );
+
+  async function atribuir() {
+    if (!modal || !agrupId) return;
+    setSalvando(true);
+    await fetch("/api/atribuicoes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cicloId, colaboradorId: modal.id, agrupamentoId: Number(agrupId), pesoNaCesta: Number(peso) }),
+    });
+    setSalvando(false);
+    setModal(null);
+    setAgrupId("");
+    setPeso("100");
+    onAtribuir();
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* Resumo */}
+      <div className="flex items-center gap-3">
+        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 flex items-center gap-2">
+          <UserX size={16} className="text-red-500"/>
+          <span className="text-sm font-semibold text-red-700">{semPainel.length} colaborador(es) sem painel</span>
+        </div>
+        <div className="relative flex-1 max-w-sm">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"/>
+          <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar colaborador..."
+            className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 border-b border-gray-200">
+            <tr>
+              {["Nome","Matrícula","Cargo","Área","Ação"].map(h => (
+                <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {filtrados.length === 0 ? (
+              <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-400 text-sm">
+                {semPainel.length === 0 ? "Todos os colaboradores têm painel atribuído 🎉" : "Nenhum resultado"}
+              </td></tr>
+            ) : filtrados.map(c => (
+              <tr key={c.id} className="hover:bg-gray-50">
+                <td className="px-4 py-2.5 font-medium text-gray-800">{c.nome}</td>
+                <td className="px-4 py-2.5 font-mono text-xs text-gray-500">{c.matricula}</td>
+                <td className="px-4 py-2.5 text-gray-600 text-xs">{c.cargo}</td>
+                <td className="px-4 py-2.5 text-gray-500 text-xs">{c.area?.nivel1 ?? "—"}</td>
+                {!readOnly && (
+                  <td className="px-4 py-2.5">
+                    <button onClick={() => setModal(c)}
+                      className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg transition-colors">
+                      <Plus size={12}/> Atribuir
+                    </button>
+                  </td>
+                )}
+                {readOnly && <td className="px-4 py-2.5"/>}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Modal atribuir */}
+      {modal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900">Atribuir Painel</h3>
+              <button onClick={() => setModal(null)} className="text-gray-400 hover:text-gray-600"><X size={18}/></button>
+            </div>
+            <p className="text-sm text-gray-600">{modal.nome} · {modal.matricula}</p>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-medium text-gray-700 mb-1 block">Agrupamento</label>
+                <select value={agrupId} onChange={e => setAgrupId(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <option value="">Selecionar agrupamento</option>
+                  {agrupamentos.map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-700 mb-1 block">Peso na Cesta (%)</label>
+                <input type="number" min="0" max="100" value={peso} onChange={e => setPeso(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end pt-2">
+              <button onClick={() => setModal(null)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancelar</button>
+              <button onClick={atribuir} disabled={salvando || !agrupId}
+                className="px-4 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white rounded-lg transition-colors">
+                {salvando ? "Salvando..." : "Atribuir"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── R10: Não Apurados ────────────────────────────────────
+function RelatNaoApurados({ indicadores, realizacoes, anoFiscal, mesInicio, mesFim }: {
+  indicadores: Indicador[]; realizacoes: Realizacao[]; anoFiscal: number; mesInicio: number; mesFim: number;
+}) {
+  const hoje = new Date();
+  const mesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}`;
+  const indsBase = indicadores.filter(i => !i.numeradorId && !i.divisorId);
+  const todosMeses = gerarPeriodos(anoFiscal, mesInicio, mesFim, "MENSAL");
+  const periodosCiclo = new Set(todosMeses);
+  const periodoRef = periodosCiclo.has(mesAtual) ? mesAtual : [...todosMeses].sort().pop() ?? mesAtual;
+
+  const linhas = indsBase.flatMap(ind => {
+    const periodos = gerarPeriodos(anoFiscal, mesInicio, mesFim, ind.periodicidade);
+    const periodoAtual = periodos.filter(p => p <= periodoRef).pop();
+    if (!periodoAtual) return [];
+    const preenchido = realizacoes.some(r => r.indicadorId === ind.id && r.periodo === periodoAtual);
+    return preenchido ? [] : [{ ind, periodo: periodoAtual }];
+  });
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-3">
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 flex items-center gap-2">
+          <AlertCircle size={16} className="text-amber-500"/>
+          <span className="text-sm font-semibold text-amber-700">{linhas.length} indicador(es) não apurado(s) em {labelPeriodo(periodoRef)}</span>
+        </div>
+      </div>
+      <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 border-b border-gray-200">
+            <tr>
+              {["Código","Indicador","Responsável","Período","Ação"].map(h => (
+                <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {linhas.length === 0 ? (
+              <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-400 text-sm">Todos os indicadores estão apurados em {labelPeriodo(periodoRef)} 🎉</td></tr>
+            ) : linhas.map(({ ind, periodo }) => (
+              <tr key={ind.id} className="hover:bg-gray-50">
+                <td className="px-4 py-2.5 font-mono text-xs text-gray-500">{ind.codigo}</td>
+                <td className="px-4 py-2.5 font-medium text-gray-800">{ind.nome}</td>
+                <td className="px-4 py-2.5 text-gray-500 text-xs">{ind.analistaResp ?? "—"}</td>
+                <td className="px-4 py-2.5 text-xs text-gray-600">{labelPeriodo(periodo)}</td>
+                <td className="px-4 py-2.5">
+                  <a href="/apuracao" className="flex items-center gap-1 text-xs font-medium text-amber-600 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 px-2.5 py-1 rounded-lg transition-colors w-fit">
+                    <BarChart3 size={12}/> Apurar
+                  </a>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─── R11: Gerar PPT ──────────────────────────────────────
+function RelatPPT({ atribuicoes, cicloId }: { atribuicoes: Atribuicao[]; cicloId: number }) {
+  const [tipo, setTipo] = useState<"todos" | "colaborador" | "gestor" | "area">("todos");
+  const [filtroId, setFiltroId] = useState("");
+  const [filtroArea, setFiltroArea] = useState("");
+  const [gerando, setGerando] = useState(false);
+
+  const colabsMap = new Map<number, { id: number; nome: string; gestorId?: number | null }>();
+  for (const a of atribuicoes) colabsMap.set(a.colaboradorId, { id: a.colaboradorId, nome: a.colaborador.nome, gestorId: a.colaborador.gestorId });
+  const colaboradores = Array.from(colabsMap.values()).sort((a, b) => a.nome.localeCompare(b.nome));
+
+  const gestoresIds = new Set(colaboradores.map(c => c.gestorId).filter(Boolean));
+  const gestores = colaboradores.filter(c => gestoresIds.has(c.id));
+
+  const areas = Array.from(new Set(atribuicoes.map(a => a.colaborador.area?.nivel1).filter(Boolean))) as string[];
+
+  async function gerar() {
+    setGerando(true);
+    const params = new URLSearchParams({ cicloId: String(cicloId), tipo });
+    if ((tipo === "colaborador" || tipo === "gestor") && filtroId) params.set("filtroId", filtroId);
+    if (tipo === "area" && filtroArea) params.set("filtroArea", filtroArea);
+    const res = await fetch(`/api/ppt?${params}`);
+    if (res.ok) {
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `ICP-PPT-${tipo}.pptx`; a.click();
+      URL.revokeObjectURL(url);
+    }
+    setGerando(false);
+  }
+
+  return (
+    <div className="max-w-lg space-y-5">
+      <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+        <div className="flex items-center gap-2">
+          <Presentation size={18} className="text-blue-500"/>
+          <h3 className="font-semibold text-gray-800">Gerar PPT Executivo</h3>
+        </div>
+        <p className="text-sm text-gray-500">Gera uma apresentação com um slide por colaborador contendo painel, indicadores, atingimento, MID total e YTD.</p>
+
+        <div>
+          <label className="text-xs font-medium text-gray-700 mb-1 block">Escopo</label>
+          <select value={tipo} onChange={e => { setTipo(e.target.value as typeof tipo); setFiltroId(""); setFiltroArea(""); }}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="todos">Todos os colaboradores</option>
+            <option value="colaborador">Colaborador específico</option>
+            <option value="gestor">Equipe de um gestor</option>
+            <option value="area">Área específica</option>
+          </select>
+        </div>
+
+        {tipo === "colaborador" && (
+          <div>
+            <label className="text-xs font-medium text-gray-700 mb-1 block">Colaborador</label>
+            <select value={filtroId} onChange={e => setFiltroId(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="">Selecionar...</option>
+              {colaboradores.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+            </select>
+          </div>
+        )}
+
+        {tipo === "gestor" && (
+          <div>
+            <label className="text-xs font-medium text-gray-700 mb-1 block">Gestor</label>
+            <select value={filtroId} onChange={e => setFiltroId(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="">Selecionar...</option>
+              {gestores.map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
+            </select>
+          </div>
+        )}
+
+        {tipo === "area" && (
+          <div>
+            <label className="text-xs font-medium text-gray-700 mb-1 block">Área</label>
+            <select value={filtroArea} onChange={e => setFiltroArea(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="">Selecionar...</option>
+              {areas.map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
+          </div>
+        )}
+
+        <button onClick={gerar} disabled={gerando || (tipo === "colaborador" && !filtroId) || (tipo === "gestor" && !filtroId) || (tipo === "area" && !filtroArea)}
+          className="w-full flex items-center justify-center gap-2 bg-blue-700 hover:bg-blue-800 disabled:bg-blue-300 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition-colors">
+          <Presentation size={15}/>
+          {gerando ? "Gerando..." : "Baixar PPT"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────
 export default function RelatoriosPage() {
+  const { data: session } = useSession();
+  const role = (session?.user as { role?: string })?.role ?? "COLABORADOR";
+  const isCliente = role === "CLIENTE";
   const { cicloAtivo } = useCiclo();
   const [aba, setAba] = useState<AbaId>("colaborador");
   const [indicadores, setIndicadores] = useState<Indicador[]>([]);
@@ -730,6 +1018,8 @@ export default function RelatoriosPage() {
   const [areas, setAreas] = useState<{nivel1:string;nivel2?:string|null;nivel3?:string|null;nivel4?:string|null;nivel5?:string|null;centroCusto:string}[]>([]);
   const [exportando, setExportando] = useState(false);
   const [movimentadosSet, setMovimentadosSet] = useState<Set<string>>(new Set());
+  const [colaboradoresAll, setColaboradoresAll] = useState<ColaboradorBasico[]>([]);
+  const [agrupamentosAll, setAgrupamentosAll] = useState<AgrupamentoBasico[]>([]);
 
   const carregar = useCallback(() => {
     if (!cicloAtivo) return;
@@ -747,6 +1037,8 @@ export default function RelatoriosPage() {
     fetch(`/api/meta-periodos?cicloId=${cid}`).then(r => r.json()).then(d => setMetasPeriodo(d.metasPeriodo ?? []));
     fetch(`/api/atribuicoes?cicloId=${cid}`).then(r => r.json()).then(d => setAtribuicoes(d.atribuicoes ?? []));
     fetch(`/api/areas?cicloId=${cid}`).then(r => r.json()).then(d => setAreas(d.areas ?? []));
+    fetch(`/api/colaboradores?cicloId=${cid}`).then(r => r.json()).then(d => setColaboradoresAll(d.colaboradores ?? []));
+    fetch(`/api/agrupamentos?cicloId=${cid}`).then(r => r.json()).then(d => setAgrupamentosAll(d.agrupamentos ?? []));
     fetch(`/api/movimentacoes?cicloId=${cid}`).then(r => r.json()).then(d => {
       const movs: { matricula: string; requerNovoPainel: boolean; statusTratamento: string }[] = d.movimentacoes ?? [];
       setMovimentadosSet(new Set(movs.filter(m => m.requerNovoPainel && m.statusTratamento === "TRATADO").map(m => m.matricula)));
@@ -809,6 +1101,9 @@ export default function RelatoriosPage() {
       {aba === "calibracao"  && <RelatCalibracao atribuicoes={atribuicoes} notasMap={notasMap} movimentadosSet={movimentadosSet}/>}
       {aba === "pendencias"  && <RelatPendencias indicadores={indicadores} realizacoes={realizacoes} anoFiscal={cicloAtivo.anoFiscal} mesInicio={cicloAtivo.mesInicio} mesFim={cicloAtivo.mesFim}/>}
       {aba === "movimentacoes" && <RelatMovimentacoes cicloId={cicloAtivo.id}/>}
+      {aba === "sem-painel"  && <RelatSemPainel colaboradoresAll={colaboradoresAll} atribuicoes={atribuicoes} agrupamentos={agrupamentosAll} cicloId={cicloAtivo.id} onAtribuir={carregar} readOnly={isCliente}/>}
+      {aba === "nao-apurados" && <RelatNaoApurados indicadores={indicadores} realizacoes={realizacoes} anoFiscal={cicloAtivo.anoFiscal} mesInicio={cicloAtivo.mesInicio} mesFim={cicloAtivo.mesFim}/>}
+      {aba === "ppt"          && <RelatPPT atribuicoes={atribuicoes} cicloId={cicloAtivo.id}/>}
     </div>
   );
 }

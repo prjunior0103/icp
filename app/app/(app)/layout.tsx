@@ -18,12 +18,12 @@ import {
 import { CicloProvider, useCiclo } from "@/app/lib/ciclo-context";
 
 const NAV_ITEMS = [
-  { href: "/colaboradores", label: "Colaboradores", icon: Users },
-  { href: "/metas", label: "Metas", icon: Target },
-  { href: "/apuracao", label: "Apuração", icon: BarChart3 },
-  { href: "/relatorios", label: "Relatórios", icon: FileText },
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/configuracoes", label: "Configurações", icon: Settings },
+  { href: "/colaboradores", label: "Colaboradores", icon: Users, roles: ["GUARDIAO","BP","GESTOR","COLABORADOR"] },
+  { href: "/metas", label: "Metas", icon: Target, roles: ["GUARDIAO","BP","GESTOR","COLABORADOR"] },
+  { href: "/apuracao", label: "Apuração", icon: BarChart3, roles: ["GUARDIAO","BP","GESTOR","COLABORADOR"] },
+  { href: "/relatorios", label: "Relatórios", icon: FileText, roles: ["GUARDIAO","BP","GESTOR","COLABORADOR","CLIENTE"] },
+  { href: "/", label: "Dashboard", icon: LayoutDashboard, roles: ["GUARDIAO","BP","GESTOR","COLABORADOR","CLIENTE"] },
+  { href: "/configuracoes", label: "Configurações", icon: Settings, roles: ["GUARDIAO","BP"] },
 ];
 
 const NAV_GUARDIAO = [
@@ -135,7 +135,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
       <div className="flex flex-1">
         <aside className="w-56 bg-white border-r border-gray-200 flex flex-col py-4">
           <nav className="flex-1 px-2 space-y-0.5">
-            {[...NAV_ITEMS, ...(role === "GUARDIAO" ? NAV_GUARDIAO : [])].map(({ href, label, icon: Icon }) => {
+            {[...NAV_ITEMS.filter(item => item.roles.includes(role ?? "COLABORADOR")), ...(role === "GUARDIAO" ? NAV_GUARDIAO : [])].map(({ href, label, icon: Icon }) => {
               const active = pathname === href;
               return (
                 <button
