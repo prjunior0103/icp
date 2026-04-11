@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useCiclo } from "@/app/lib/ciclo-context";
 import { calcNota, calcMID, gerarPeriodos, agregarRealizacoes } from "@/app/lib/calc";
-import { FileText, Search, Download, Users, BarChart3, GitBranch, UserCheck, ChevronDown, ChevronUp, UserCog, LayoutGrid } from "lucide-react";
+import { FileText, Search, Download, Users, BarChart3, GitBranch, UserCheck, ChevronDown, ChevronUp, UserCog, LayoutGrid, ArrowLeftRight } from "lucide-react";
 import { HierarchicalAreaFilter, EMPTY_FILTERS, matchesAreaFilter, type AreaFilters } from "@/app/components/HierarchicalAreaFilter";
 
 // ─── Types ────────────────────────────────────────────────
@@ -15,7 +15,7 @@ interface Agrupamento { id: number; nome: string; tipo: string; indicadores: Ind
 interface Colaborador { id: number; nome: string; matricula: string; cargo: string; salarioBase: number; target: number; gestorId?: number | null; centroCusto?: string | null; area?: { nivel1: string; nivel2?: string | null; nivel3?: string | null; nivel4?: string | null; nivel5?: string | null } | null; }
 interface Atribuicao { colaboradorId: number; agrupamentoId: number; pesoNaCesta: number; colaborador: Colaborador; agrupamento: Agrupamento; }
 
-type AbaId = "colaborador" | "indicador" | "contratacao" | "responsavel" | "gestor" | "calibracao" | "pendencias";
+type AbaId = "colaborador" | "indicador" | "contratacao" | "responsavel" | "gestor" | "calibracao" | "pendencias" | "movimentacoes";
 
 const ABAS: { id: AbaId; label: string; icon: React.ReactNode }[] = [
   { id: "colaborador", label: "Por Colaborador", icon: <Users size={14}/> },
@@ -25,6 +25,7 @@ const ABAS: { id: AbaId; label: string; icon: React.ReactNode }[] = [
   { id: "gestor",      label: "Painel do Gestor", icon: <UserCog size={14}/> },
   { id: "calibracao",  label: "Calibração",       icon: <LayoutGrid size={14}/> },
   { id: "pendencias",  label: "Pendências",        icon: <FileText size={14}/> },
+  { id: "movimentacoes", label: "Movimentações",   icon: <ArrowLeftRight size={14}/> },
 ];
 
 const MESES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
@@ -539,6 +540,144 @@ function RelatPendencias({ indicadores, realizacoes, anoFiscal, mesInicio, mesFi
   );
 }
 
+// ─── Relatório Movimentações ─────────────────────────────
+interface MovRel {
+  id: number; matricula: string; tipo: string; dataEfetiva: string;
+  dadosAntigos: string | null; dadosNovos: string | null;
+  requerNovoPainel: boolean; painelAnteriorNome: string | null; painelNovoNome: string | null;
+  statusTratamento: string; nomeColaborador: string | null;
+}
+
+const MOV_TIPO_LABEL: Record<string, string> = {
+  ADMISSAO:"Admissão", DESLIGAMENTO:"Desligamento", POSSIVEL_DESLIGAMENTO:"Possível Desligamento",
+  AFASTAMENTO:"Afastamento", RETORNO:"Retorno", MUDANCA_FUNCAO:"Mud. Função",
+  MUDANCA_AREA:"Mud. Área", MUDANCA_GESTOR:"Mud. Gestor",
+  MUDANCA_AREA_GESTOR:"Mud. Área+Gestor", MOVIMENTACAO:"Movimentação",
+};
+const MOV_TIPO_COR: Record<string, string> = {
+  ADMISSAO:"bg-green-100 text-green-700", DESLIGAMENTO:"bg-red-100 text-red-700",
+  POSSIVEL_DESLIGAMENTO:"bg-red-50 text-red-600", AFASTAMENTO:"bg-orange-100 text-orange-700",
+  RETORNO:"bg-blue-100 text-blue-700", MUDANCA_FUNCAO:"bg-purple-100 text-purple-700",
+  MUDANCA_AREA:"bg-yellow-100 text-yellow-700", MUDANCA_GESTOR:"bg-indigo-100 text-indigo-700",
+  MUDANCA_AREA_GESTOR:"bg-pink-100 text-pink-700", MOVIMENTACAO:"bg-gray-100 text-gray-700",
+};
+
+function RelatMovimentacoes({ cicloId }: { cicloId: number }) {
+  const [movs, setMovs] = useState<MovRel[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`/api/movimentacoes?cicloId=${cicloId}`).then(r => r.json()).then(d => {
+      setMovs(d.movimentacoes ?? []);
+      setLoading(false);
+    });
+  }, [cicloId]);
+
+  if (loading) return <div className="text-center py-10 text-gray-400 text-sm">Carregando...</div>;
+
+  // Resumo por tipo
+  const porTipo = new Map<string, number>();
+  for (const m of movs) porTipo.set(m.tipo, (porTipo.get(m.tipo) ?? 0) + 1);
+
+  // Status tratamento
+  const pendentes = movs.filter(m => m.statusTratamento === "PENDENTE").length;
+  const tratados = movs.filter(m => m.statusTratamento === "TRATADO").length;
+  const ignorados = movs.filter(m => m.statusTratamento === "IGNORADO").length;
+  const requerPainel = movs.filter(m => m.requerNovoPainel && m.statusTratamento === "PENDENTE").length;
+
+  return (
+    <div className="space-y-5">
+      {/* Cards resumo */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <p className="text-xs text-gray-500 uppercase font-medium">Total</p>
+          <p className="text-2xl font-bold text-gray-900">{movs.length}</p>
+        </div>
+        <div className="bg-white rounded-xl border border-amber-200 p-4">
+          <p className="text-xs text-amber-600 uppercase font-medium">Pendentes</p>
+          <p className="text-2xl font-bold text-amber-700">{pendentes}</p>
+        </div>
+        <div className="bg-white rounded-xl border border-green-200 p-4">
+          <p className="text-xs text-green-600 uppercase font-medium">Tratados</p>
+          <p className="text-2xl font-bold text-green-700">{tratados}</p>
+        </div>
+        <div className="bg-white rounded-xl border border-blue-200 p-4">
+          <p className="text-xs text-blue-600 uppercase font-medium">Requerem Painel</p>
+          <p className="text-2xl font-bold text-blue-700">{requerPainel}</p>
+        </div>
+      </div>
+
+      {/* Resumo por tipo */}
+      <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <h3 className="text-sm font-semibold text-gray-700 mb-3">Por Tipo</h3>
+        <div className="flex flex-wrap gap-2">
+          {[...porTipo.entries()].sort((a, b) => b[1] - a[1]).map(([tipo, qtd]) => (
+            <div key={tipo} className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold ${MOV_TIPO_COR[tipo] ?? "bg-gray-100 text-gray-600"}`}>
+              {MOV_TIPO_LABEL[tipo] ?? tipo}: {qtd}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Tabela detalhada */}
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 border-b border-gray-200">
+            <tr>
+              {["Data", "Colaborador", "Matrícula", "Tipo", "Painel", "Status"].map(h => (
+                <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {movs.filter(m => m.tipo !== "ADMISSAO").map(m => (
+              <tr key={m.id} className={`hover:bg-gray-50 ${m.statusTratamento === "PENDENTE" ? "bg-amber-50/30" : ""}`}>
+                <td className="px-4 py-2.5 text-xs text-gray-500 whitespace-nowrap">
+                  {new Date(m.dataEfetiva).toLocaleDateString("pt-BR")}
+                </td>
+                <td className="px-4 py-2.5 font-medium text-gray-800 text-xs">{m.nomeColaborador ?? "—"}</td>
+                <td className="px-4 py-2.5 font-mono text-xs text-gray-500">{m.matricula}</td>
+                <td className="px-4 py-2.5">
+                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${MOV_TIPO_COR[m.tipo] ?? "bg-gray-100"}`}>
+                    {MOV_TIPO_LABEL[m.tipo] ?? m.tipo}
+                  </span>
+                </td>
+                <td className="px-4 py-2.5 text-xs">
+                  {m.requerNovoPainel ? (
+                    <div>
+                      {m.painelAnteriorNome && <span className="text-red-500 line-through mr-1">{m.painelAnteriorNome}</span>}
+                      {m.painelNovoNome ? <span className="text-green-700 font-medium">{m.painelNovoNome}</span> : <span className="text-amber-600 font-medium">Pendente</span>}
+                    </div>
+                  ) : <span className="text-gray-400">—</span>}
+                </td>
+                <td className="px-4 py-2.5">
+                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                    m.statusTratamento === "PENDENTE" ? "bg-amber-100 text-amber-700" :
+                    m.statusTratamento === "TRATADO" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
+                  }`}>
+                    {m.statusTratamento}
+                  </span>
+                </td>
+              </tr>
+            ))}
+            {movs.filter(m => m.tipo !== "ADMISSAO").length === 0 && (
+              <tr><td colSpan={6} className="px-4 py-10 text-center text-gray-400 text-sm">Nenhuma movimentação (exceto admissões do primeiro import)</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Botão exportar */}
+      <div className="flex justify-end">
+        <button onClick={() => window.location.href = `/api/colaboradores/export-consolidada?cicloId=${cicloId}`}
+          className="flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white text-sm font-medium px-4 py-2 rounded-lg">
+          <Download size={15} /> Exportar Base Consolidada
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────
 export default function RelatoriosPage() {
   const { cicloAtivo } = useCiclo();
@@ -623,6 +762,7 @@ export default function RelatoriosPage() {
       {aba === "gestor"      && <RelatGestor atribuicoes={atribuicoes} notasMap={notasMap}/>}
       {aba === "calibracao"  && <RelatCalibracao atribuicoes={atribuicoes} notasMap={notasMap}/>}
       {aba === "pendencias"  && <RelatPendencias indicadores={indicadores} realizacoes={realizacoes} anoFiscal={cicloAtivo.anoFiscal} mesInicio={cicloAtivo.mesInicio} mesFim={cicloAtivo.mesFim}/>}
+      {aba === "movimentacoes" && <RelatMovimentacoes cicloId={cicloAtivo.id}/>}
     </div>
   );
 }

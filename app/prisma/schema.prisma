@@ -68,6 +68,8 @@ model Colaborador {
   matriculaGestor  String?
   nomeGestor       String?
   status           String                 @default("ATIVO")
+  dataDesligamento DateTime?
+  tipoDesligamento String?                // VOLUNTARIO | INVOLUNTARIO | TERMINO_CONTRATO | APOSENTADORIA | FALECIMENTO | OUTROS
   criadoEm         DateTime               @default(now())
   atribuicoes      AtribuicaoAgrupamento[]
   indicadoresResp  Indicador[]            @relation("ResponsavelEnvio")
@@ -188,15 +190,25 @@ model FaixaIndicador {
 }
 
 model MovimentacaoColaborador {
-  id          Int      @id @default(autoincrement())
-  cicloId     Int
-  matricula   String
-  tipo        String   // ADMISSAO | DESLIGAMENTO | AFASTAMENTO | RETORNO | MUDANCA_FUNCAO | MUDANCA_AREA | MUDANCA_GESTOR
-  dataEfetiva DateTime @default(now())
-  dadosAntigos String?
-  dadosNovos   String?
-  observacao  String?
-  criadoEm    DateTime @default(now())
+  id               Int      @id @default(autoincrement())
+  cicloId          Int
+  matricula        String
+  tipo             String   // ADMISSAO | DESLIGAMENTO | AFASTAMENTO | RETORNO | MUDANCA_FUNCAO | MUDANCA_AREA | MUDANCA_GESTOR | POSSIVEL_DESLIGAMENTO
+  dataEfetiva      DateTime @default(now())
+  dadosAntigos     String?
+  dadosNovos       String?
+  observacao       String?
+  requerNovoPainel Boolean  @default(false)
+  painelAnteriorId Int?
+  painelNovoId     Int?
+  statusTratamento String   @default("PENDENTE") // PENDENTE | TRATADO | IGNORADO
+  criadoEm         DateTime @default(now())
+}
+
+model ConfigMovimentacao {
+  id        Int     @id @default(1)
+  cicloId   Int
+  campos    String  @default("centroCusto,matriculaGestor") // campos separados por vírgula
 }
 
 model AuditLog {
