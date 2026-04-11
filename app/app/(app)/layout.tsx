@@ -17,6 +17,8 @@ import {
   Shield,
   Menu,
   X,
+  BookOpen,
+  HelpCircle,
 } from "lucide-react";
 import { CicloProvider, useCiclo } from "@/app/lib/ciclo-context";
 import { LoadingSpinner } from "@/app/components/LoadingSpinner";
@@ -29,6 +31,7 @@ const NAV_ITEMS = [
   { href: "/relatorios", label: "Relatórios", icon: FileText, roles: ["GUARDIAO","BP","GESTOR","COLABORADOR","CLIENTE"] },
   { href: "/", label: "Dashboard", icon: LayoutDashboard, roles: ["GUARDIAO","BP","GESTOR","COLABORADOR","CLIENTE"] },
   { href: "/configuracoes", label: "Configurações", icon: Settings, roles: ["GUARDIAO","BP"] },
+  { href: "/manual", label: "Manual", icon: BookOpen, roles: ["GUARDIAO","BP","GESTOR","COLABORADOR","CLIENTE"] },
 ];
 
 const NAV_GUARDIAO = [
@@ -128,6 +131,14 @@ function AppShell({ children }: { children: React.ReactNode }) {
         <div className="flex-1" />
 
         <div className="flex items-center gap-3">
+          <Link
+            href="/manual"
+            className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-800 hover:bg-blue-700 transition-colors"
+            title="Manual do sistema"
+            aria-label="Abrir manual do sistema"
+          >
+            <HelpCircle size={16} className="text-blue-300" aria-hidden="true" />
+          </Link>
           <div className="text-right hidden sm:block">
             <p className="text-sm font-medium leading-tight">{session?.user?.name}</p>
             <p className="text-xs text-blue-300 leading-tight">
