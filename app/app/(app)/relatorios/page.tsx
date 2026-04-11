@@ -333,15 +333,21 @@ function RelatGestor({ atribuicoes, notasMap }: { atribuicoes: Atribuicao[]; not
   const gestores = colaboradores.filter(c => gestoresIds.includes(c.id));
   const [filtroGestor, setFiltroGestor] = useState(gestores[0]?.id ? String(gestores[0].id) : "");
 
-  function calcResultado(id: number) {
+  function calcResultadoAtrib(at: Atribuicao) {
     let r = 0;
-    for (const at of atribuicoes.filter(a => a.colaboradorId === id))
-      for (const ig of at.agrupamento.indicadores)
-        r += calcMID(notasMap.get(ig.indicadorId) ?? 0, ig.peso);
+    for (const ig of at.agrupamento.indicadores)
+      r += calcMID(notasMap.get(ig.indicadorId) ?? 0, ig.peso);
     return r;
   }
 
-  const subordinados = colaboradores.filter(c => filtroGestor ? String(c.gestorId) === filtroGestor : false);
+  // Uma linha por atribuição — colaborador com 2 painéis aparece 2x
+  const linhas = atribuicoes
+    .filter(a => filtroGestor ? String(a.colaborador.gestorId) === filtroGestor : false)
+    .sort((a, b) => calcResultadoAtrib(b) - calcResultadoAtrib(a));
+
+  // Conta quantas atribuições cada colaborador tem (para mostrar flag MOVIMENTADO)
+  const atribsPorColab = new Map<number, number>();
+  for (const a of atribuicoes) atribsPorColab.set(a.colaboradorId, (atribsPorColab.get(a.colaboradorId) ?? 0) + 1);
 
   return (
     <div className="space-y-3">
@@ -350,7 +356,7 @@ function RelatGestor({ atribuicoes, notasMap }: { atribuicoes: Atribuicao[]; not
         <option value="">Selecionar gestor</option>
         {gestores.map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
       </select>
-      {subordinados.length === 0 ? (
+      {linhas.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-200 p-10 text-center text-gray-400">
           <UserCog size={36} className="mx-auto mb-2 text-gray-300"/>Selecione um gestor para ver o painel da equipe
         </div>
@@ -358,19 +364,24 @@ function RelatGestor({ atribuicoes, notasMap }: { atribuicoes: Atribuicao[]; not
         <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>{["Colaborador","Matrícula","Cargo","Área","Resultado"].map(h => (
+              <tr>{["Colaborador","Matrícula","Cargo","Área","Painel","Resultado"].map(h => (
                 <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
               ))}</tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {subordinados.sort((a,b) => calcResultado(b.id) - calcResultado(a.id)).map(c => {
-                const resultado = calcResultado(c.id);
+              {linhas.map(a => {
+                const resultado = calcResultadoAtrib(a);
+                const movimentado = (atribsPorColab.get(a.colaboradorId) ?? 1) > 1;
                 return (
-                  <tr key={c.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-2.5 font-medium text-gray-800">{c.nome}</td>
-                    <td className="px-4 py-2.5 text-gray-500 text-xs">{c.matricula}</td>
-                    <td className="px-4 py-2.5 text-gray-600 text-xs">{c.cargo}</td>
-                    <td className="px-4 py-2.5 text-gray-500 text-xs">{c.area?.nivel1 ?? "—"}</td>
+                  <tr key={`${a.colaboradorId}-${a.agrupamentoId}`} className={`hover:bg-gray-50 ${movimentado ? "bg-amber-50/40" : ""}`}>
+                    <td className="px-4 py-2.5">
+                      <p className="font-medium text-gray-800">{a.colaborador.nome}</p>
+                      {movimentado && <span className="text-[10px] font-semibold text-amber-600">MOVIMENTADO</span>}
+                    </td>
+                    <td className="px-4 py-2.5 text-gray-500 text-xs">{a.colaborador.matricula}</td>
+                    <td className="px-4 py-2.5 text-gray-600 text-xs">{a.colaborador.cargo}</td>
+                    <td className="px-4 py-2.5 text-gray-500 text-xs">{a.colaborador.area?.nivel1 ?? "—"}</td>
+                    <td className="px-4 py-2.5 text-xs text-gray-600">{a.agrupamento.nome}</td>
                     <td className="px-4 py-2.5"><NotaBadge nota={resultado}/></td>
                   </tr>
                 );
@@ -385,23 +396,42 @@ function RelatGestor({ atribuicoes, notasMap }: { atribuicoes: Atribuicao[]; not
 
 // ─── R6: Calibração ──────────────────────────────────────
 function RelatCalibracao({ atribuicoes, notasMap }: { atribuicoes: Atribuicao[]; notasMap: Map<number, number>; }) {
-  const colabsMap = new Map<number, Colaborador>();
-  for (const a of atribuicoes) colabsMap.set(a.colaboradorId, a.colaborador);
-  const colaboradores = Array.from(colabsMap.values());
-  const areas = Array.from(new Set(colaboradores.map(c => c.area?.nivel1).filter(Boolean))) as string[];
-  const [filtroArea, setFiltroArea] = useState("");
-  const [selecionados, setSelecionados] = useState<number[]>([]);
-  const colabsFiltrados = colaboradores.filter(c => !filtroArea || c.area?.nivel1 === filtroArea);
+  // Chave única: "colaboradorId-agrupamentoId" para suportar movimentados com 2 painéis
+  type LinhaCalib = { key: string; colaboradorId: number; agrupamentoId: number; colab: Colaborador; ag: Agrupamento; movimentado: boolean };
 
-  function calcResultado(id: number) {
+  const atribsPorColab = new Map<number, number>();
+  for (const a of atribuicoes) atribsPorColab.set(a.colaboradorId, (atribsPorColab.get(a.colaboradorId) ?? 0) + 1);
+
+  const linhas: LinhaCalib[] = atribuicoes.map(a => ({
+    key: `${a.colaboradorId}-${a.agrupamentoId}`,
+    colaboradorId: a.colaboradorId,
+    agrupamentoId: a.agrupamentoId,
+    colab: a.colaborador,
+    ag: a.agrupamento,
+    movimentado: (atribsPorColab.get(a.colaboradorId) ?? 1) > 1,
+  }));
+
+  const areas = Array.from(new Set(linhas.map(l => l.colab.area?.nivel1).filter(Boolean))) as string[];
+  const [filtroArea, setFiltroArea] = useState("");
+  const [selecionados, setSelecionados] = useState<string[]>([]);
+
+  const linhasFiltradas = linhas.filter(l => !filtroArea || l.colab.area?.nivel1 === filtroArea);
+  const linhasMap = new Map(linhas.map(l => [l.key, l]));
+
+  function calcResultadoLinha(key: string) {
+    const l = linhasMap.get(key);
+    if (!l) return 0;
     let r = 0;
-    for (const at of atribuicoes.filter(a => a.colaboradorId === id))
-      for (const ig of at.agrupamento.indicadores)
-        r += calcMID(notasMap.get(ig.indicadorId) ?? 0, ig.peso);
+    for (const ig of l.ag.indicadores)
+      r += calcMID(notasMap.get(ig.indicadorId) ?? 0, ig.peso);
     return r;
   }
 
-  const comparar = selecionados.length > 0 ? selecionados : colabsFiltrados.slice(0, 5).map(c => c.id);
+  const comparar = selecionados.length > 0 ? selecionados : linhasFiltradas.slice(0, 5).map(l => l.key);
+
+  function toggleSel(key: string) {
+    setSelecionados(s => s.includes(key) ? s.filter(x => x !== key) : [...s, key]);
+  }
 
   return (
     <div className="space-y-3">
@@ -414,11 +444,10 @@ function RelatCalibracao({ atribuicoes, notasMap }: { atribuicoes: Atribuicao[];
         <p className="text-xs text-gray-400">Clique nos nomes para selecionar quem comparar (máx. recomendado: 6)</p>
       </div>
       <div className="flex flex-wrap gap-2">
-        {colabsFiltrados.map(c => (
-          <button key={c.id}
-            onClick={() => setSelecionados(s => s.includes(c.id) ? s.filter(x => x !== c.id) : [...s, c.id])}
-            className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${selecionados.includes(c.id) ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-600 border-gray-300 hover:border-blue-400"}`}>
-            {c.nome}
+        {linhasFiltradas.map(l => (
+          <button key={l.key} onClick={() => toggleSel(l.key)}
+            className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${selecionados.includes(l.key) ? "bg-blue-600 text-white border-blue-600" : l.movimentado ? "bg-amber-50 text-amber-700 border-amber-300 hover:border-amber-500" : "bg-white text-gray-600 border-gray-300 hover:border-blue-400"}`}>
+            {l.colab.nome}{l.movimentado ? ` (${l.ag.nome})` : ""}
           </button>
         ))}
       </div>
@@ -427,22 +456,29 @@ function RelatCalibracao({ atribuicoes, notasMap }: { atribuicoes: Atribuicao[];
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
               <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase w-36">Info</th>
-              {comparar.map(id => (
-                <th key={id} className="text-center px-4 py-2.5 text-xs font-semibold text-gray-700 whitespace-nowrap">{colabsMap.get(id)?.nome ?? id}</th>
-              ))}
+              {comparar.map(key => {
+                const l = linhasMap.get(key);
+                return (
+                  <th key={key} className="text-center px-4 py-2.5 text-xs font-semibold text-gray-700 whitespace-nowrap">
+                    {l?.colab.nome ?? key}
+                    {l?.movimentado && <span className="block text-[10px] font-normal text-amber-600">{l.ag.nome}</span>}
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {([
-              { label: "Matrícula",        fn: (id: number) => colabsMap.get(id)?.matricula ?? "—" },
-              { label: "Cargo",            fn: (id: number) => colabsMap.get(id)?.cargo ?? "—" },
-              { label: "Área",             fn: (id: number) => colabsMap.get(id)?.area?.nivel1 ?? "—" },
-              { label: "Resultado",        fn: (id: number) => <NotaBadge nota={calcResultado(id)}/> },
-            ] as { label: string; fn: (id: number) => React.ReactNode }[]).map(row => (
+              { label: "Matrícula", fn: (key: string) => linhasMap.get(key)?.colab.matricula ?? "—" },
+              { label: "Cargo",     fn: (key: string) => linhasMap.get(key)?.colab.cargo ?? "—" },
+              { label: "Área",      fn: (key: string) => linhasMap.get(key)?.colab.area?.nivel1 ?? "—" },
+              { label: "Painel",    fn: (key: string) => linhasMap.get(key)?.ag.nome ?? "—" },
+              { label: "Resultado", fn: (key: string) => <NotaBadge nota={calcResultadoLinha(key)}/> },
+            ] as { label: string; fn: (key: string) => React.ReactNode }[]).map(row => (
               <tr key={row.label} className="hover:bg-gray-50">
                 <td className="px-4 py-2.5 font-medium text-gray-600 text-xs whitespace-nowrap">{row.label}</td>
-                {comparar.map(id => (
-                  <td key={id} className="px-4 py-2.5 text-center text-xs text-gray-700">{row.fn(id)}</td>
+                {comparar.map(key => (
+                  <td key={key} className="px-4 py-2.5 text-center text-xs text-gray-700">{row.fn(key)}</td>
                 ))}
               </tr>
             ))}
