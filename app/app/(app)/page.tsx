@@ -25,7 +25,7 @@ export default function DashboardPage() {
   const { data: session } = useSession();
   const { ciclos, cicloAtivo, setCicloAtivo, recarregar } = useCiclo();
   const router = useRouter();
-  const role = (session?.user as { role?: string })?.role;
+  const role = session?.user?.role;
 
   const [stats, setStats] = useState<DashStats | null>(null);
   const [loadingStats, setLoadingStats] = useState(false);

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { Plus, X, Pencil, Trash2, Upload, Download, Search, Target, BarChart3, Users, AlertCircle, CheckCircle2 } from "lucide-react";
 import { useCiclo } from "@/app/lib/ciclo-context";
 import { HierarchicalAreaFilter, EMPTY_FILTERS, matchesAreaFilter, type AreaFilters } from "@/app/components/HierarchicalAreaFilter";
+import { fmtValor } from "@/app/lib/format";
 
 // ─── Types ────────────────────────────────────────────────
 interface Indicador { id: number; cicloId: number; codigo: string; nome: string; tipo: string; abrangencia: string; unidade: string; metaMinima?: number | null; metaAlvo?: number | null; metaMaxima?: number | null; baseline?: number | null; metrica?: string | null; periodicidade: string; criterioApuracao: string; origemDado?: string | null; analistaResp?: string | null; numeradorId?: number | null; divisorId?: number | null; statusJanela: string; status: string; descricao?: string | null; }
@@ -18,11 +19,6 @@ const ABRANGENCIA = ["CORPORATIVO","AREA","INDIVIDUAL"];
 const PERIODICIDADE = ["MENSAL","TRIMESTRAL","SEMESTRAL","ANUAL"];
 const CRITERIO = ["SOMA","MEDIA","ULTIMA_POSICAO"];
 const UNIDADES = ["%","R$","Unidades","Dias","Horas","Pontos","Índice","NPS","Score","Toneladas","Km","Litros","Kg"];
-const PREFIXO_UNIDADES = new Set(["R$"]);
-function fmtValor(valor: number | null | undefined, unidade: string) {
-  if (valor == null) return "—";
-  return PREFIXO_UNIDADES.has(unidade) ? `${unidade} ${valor}` : `${valor}${unidade}`;
-}
 const STATUS_JANELA_COLOR: Record<string,string> = { ABERTA:"bg-green-100 text-green-700", FECHADA:"bg-gray-100 text-gray-500", PRORROGADA:"bg-yellow-100 text-yellow-700" };
 
 // ─── Modal Indicador ──────────────────────────────────────

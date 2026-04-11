@@ -8,6 +8,7 @@ import {
   Settings, FileDown, FileUp, UserX, ArrowRight, Eye, EyeOff, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { HierarchicalAreaFilter, EMPTY_FILTERS, matchesAreaFilter, type AreaFilters } from "@/app/components/HierarchicalAreaFilter";
+import { fmtData } from "@/app/lib/format";
 import { useCiclo } from "@/app/lib/ciclo-context";
 
 // ─── Types ───────────────────────────────────────────────
@@ -1035,9 +1036,7 @@ function AbaMovimentacoes({ cicloId }: { cicloId: number }) {
     fetch(`/api/agrupamentos?cicloId=${cicloId}`).then(r => r.json()).then(d => setAgrupamentos(d.agrupamentos ?? []));
   }, [cicloId]);
 
-  function fmt(iso: string) {
-    return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
-  }
+
   function parseDados(json: string | null) {
     if (!json) return null;
     try { return JSON.parse(json); } catch { return null; }
@@ -1152,7 +1151,7 @@ function AbaMovimentacoes({ cicloId }: { cicloId: number }) {
                 const keys = nov ? Object.keys(nov) : ant ? Object.keys(ant) : [];
                 return (
                   <tr key={m.id} className={`border-b border-gray-100 align-top ${i % 2 === 0 ? "" : "bg-gray-50/40"} ${m.statusTratamento === "PENDENTE" ? "bg-amber-50/30" : ""}`}>
-                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{fmt(m.dataEfetiva)}</td>
+                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{fmtData(m.dataEfetiva)}</td>
                     <td className="px-4 py-3">
                       <p className="text-sm font-medium text-gray-800">{m.nomeColaborador ?? "—"}</p>
                       <p className="text-xs font-mono text-gray-400">{m.matricula}</p>

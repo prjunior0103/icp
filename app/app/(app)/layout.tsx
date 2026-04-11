@@ -36,7 +36,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
   const router = useRouter();
   const pathname = usePathname();
-  const role = (session?.user as { role?: string })?.role;
+  const role = session?.user?.role;
   const { ciclos, cicloAtivo, setCicloAtivo } = useCiclo();
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
@@ -115,7 +115,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
           <div className="text-right hidden sm:block">
             <p className="text-sm font-medium leading-tight">{session?.user?.name}</p>
             <p className="text-xs text-blue-300 leading-tight">
-              {(session?.user as { role?: string })?.role ?? ""}
+              {session?.user?.role ?? ""}
             </p>
           </div>
           <button

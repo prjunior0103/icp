@@ -5,6 +5,7 @@ import { useCiclo } from "@/app/lib/ciclo-context";
 import { calcNota, calcMID, gerarPeriodos, agregarRealizacoes } from "@/app/lib/calc";
 import { ClipboardList, BarChart3, Search, Save, ChevronDown, ChevronUp, Paperclip, X } from "lucide-react";
 import { HierarchicalAreaFilter, EMPTY_FILTERS, matchesAreaFilter, type AreaFilters } from "@/app/components/HierarchicalAreaFilter";
+import { MESES, labelPeriodo } from "@/app/lib/format";
 
 // ─── Types ────────────────────────────────────────────────
 interface Indicador {
@@ -22,13 +23,6 @@ interface Colaborador { id: number; nome: string; matricula: string; cargo: stri
 interface Atribuicao { colaboradorId: number; agrupamentoId: number; pesoNaCesta: number; colaborador: Colaborador; agrupamento: Agrupamento; }
 interface Area { id: number; nivel1: string; nivel2?: string | null; nivel3?: string | null; nivel4?: string | null; nivel5?: string | null; centroCusto: string; }
 
-const MESES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
-
-function labelPeriodo(p: string): string {
-  const m = p.match(/^(\d{4})-(\d{2})$/);
-  if (m) return `${MESES[parseInt(m[2])-1]}/${m[1]}`;
-  return p;
-}
 
 /** Resolve qual período do indicador corresponde ao mês p */
 function periodoDeInd(ind: Indicador, p: string, anoFiscal: number): string | null {

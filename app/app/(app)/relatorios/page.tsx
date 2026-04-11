@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
+import { MESES, labelPeriodo } from "@/app/lib/format";
 import { useSession } from "next-auth/react";
 import { useCiclo } from "@/app/lib/ciclo-context";
 import { calcNota, calcMID, gerarPeriodos, agregarRealizacoes } from "@/app/lib/calc";
@@ -34,12 +35,6 @@ const ABAS: { id: AbaId; label: string; icon: React.ReactNode }[] = [
   { id: "carta",         label: "Carta PDF",        icon: <Mail size={14}/> },
 ];
 
-const MESES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
-function labelPeriodo(p: string): string {
-  const m = p.match(/^(\d{4})-(\d{2})$/);
-  if (m) return `${MESES[parseInt(m[2])-1]}/${m[1]}`;
-  return p;
-}
 
 // ─── Utilitários ─────────────────────────────────────────
 function useCalcEngine(indicadores: Indicador[], realizacoes: Realizacao[], metasPeriodo: MetaPeriodo[], anoFiscal: number, mesInicio: number, mesFim: number) {
@@ -1079,7 +1074,7 @@ function RelatPPT({ atribuicoes, cicloId }: { atribuicoes: Atribuicao[]; cicloId
 // ─── Page ─────────────────────────────────────────────────
 export default function RelatoriosPage() {
   const { data: session } = useSession();
-  const role = (session?.user as { role?: string })?.role ?? "COLABORADOR";
+  const role = session?.user?.role ?? "COLABORADOR";
   const isCliente = role === "CLIENTE";
   const { cicloAtivo } = useCiclo();
   const searchParams = useSearchParams();

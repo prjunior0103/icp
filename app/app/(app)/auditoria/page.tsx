@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Shield, Search, ChevronDown, ChevronRight, X } from "lucide-react";
+import { fmtDataHora } from "@/app/lib/format";
 
 interface AuditLog {
   id: number;
@@ -77,10 +78,6 @@ export default function AuditoriaPage() {
   useEffect(() => { setOffset(0); }, [busca, filtroAcao, filtroEntidade]);
   useEffect(() => { fetchLogs(); }, [fetchLogs]);
 
-  function fmt(iso: string) {
-    const d = new Date(iso);
-    return d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
-  }
 
   const hasFilter = busca || filtroAcao || filtroEntidade;
 
@@ -147,7 +144,7 @@ export default function AuditoriaPage() {
               <tbody>
                 {logs.map((log, i) => (
                   <tr key={log.id} className={`border-b border-gray-100 ${i % 2 === 0 ? "" : "bg-gray-50/40"}`}>
-                    <td className="px-4 py-2.5 text-xs text-gray-500 whitespace-nowrap">{fmt(log.criadoEm)}</td>
+                    <td className="px-4 py-2.5 text-xs text-gray-500 whitespace-nowrap">{fmtDataHora(log.criadoEm)}</td>
                     <td className="px-4 py-2.5 text-xs text-gray-700 font-medium">{log.userName}</td>
                     <td className="px-4 py-2.5">
                       <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${ACAO_CORES[log.acao] ?? "bg-gray-100 text-gray-600"}`}>
