@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useCiclo } from "@/app/lib/ciclo-context";
-import { calcNota, calcMID, gerarPeriodos, agregarRealizacoes } from "@/app/lib/calc";
+import { calcNota, calcMID, calcPremio, gerarPeriodos, agregarRealizacoes } from "@/app/lib/calc";
 import { ClipboardList, BarChart3, Search, Save, ChevronDown, ChevronUp, Paperclip } from "lucide-react";
 import { ModalWrapper } from "@/app/components/ModalWrapper";
 import { HierarchicalAreaFilter, EMPTY_FILTERS, matchesAreaFilter, type AreaFilters } from "@/app/components/HierarchicalAreaFilter";
@@ -25,6 +25,23 @@ interface Colaborador { id: number; nome: string; matricula: string; cargo: stri
 interface Atribuicao { colaboradorId: number; agrupamentoId: number; pesoNaCesta: number; colaborador: Colaborador; agrupamento: Agrupamento; }
 interface Area { id: number; nivel1: string; nivel2?: string | null; nivel3?: string | null; nivel4?: string | null; nivel5?: string | null; centroCusto: string; }
 
+
+/** Retorna true se o período é "real" (≤ mês de referência) */
+function periodoIsReal(periodo: string, mesRef: string): boolean {
+  if (!mesRef) return true;
+  if (/^\d{4}-\d{2}$/.test(periodo)) return periodo <= mesRef;
+  if (/^\d{4}-T\d$/.test(periodo)) {
+    const [ano, t] = periodo.split("-T");
+    const end = `${ano}-${String(parseInt(t) * 3).padStart(2, "0")}`;
+    return end <= mesRef;
+  }
+  if (/^\d{4}-S\d$/.test(periodo)) {
+    const [ano, s] = periodo.split("-S");
+    const end = `${ano}-${String(parseInt(s) * 6).padStart(2, "0")}`;
+    return end <= mesRef;
+  }
+  return `${periodo}-12` <= mesRef;
+}
 
 /** Resolve qual período do indicador corresponde ao mês p */
 function periodoDeInd(ind: Indicador, p: string, anoFiscal: number): string | null {
@@ -127,8 +144,8 @@ function ModalEvidencia({ cicloId, target, realizacoes, onClose, onSaved }: {
 }
 
 // ─── Aba Preenchimento ────────────────────────────────────
-function AbaPreenchimento({ cicloId, anoFiscal, mesInicio, mesFim, indicadores, realizacoes, metasPeriodo, onSaved }:
-  { cicloId: number; anoFiscal: number; mesInicio: number; mesFim: number;
+function AbaPreenchimento({ cicloId, anoFiscal, mesInicio, mesFim, mesReferencia, indicadores, realizacoes, metasPeriodo, onSaved }:
+  { cicloId: number; anoFiscal: number; mesInicio: number; mesFim: number; mesReferencia: string;
     indicadores: Indicador[]; realizacoes: Realizacao[]; metasPeriodo: MetaPeriodo[]; onSaved: () => void }) {
   const [busca, setBusca] = useState("");
   const [salvando, setSalvando] = useState<string|null>(null);
@@ -200,11 +217,19 @@ function AbaPreenchimento({ cicloId, anoFiscal, mesInicio, mesFim, indicadores, 
                 <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase" rowSpan={2}>Indicador</th>
                 <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase" rowSpan={2}>Tipo</th>
                 <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase" rowSpan={2}>% Atingimento</th>
-                {mesesCiclo.map(p => (
-                  <th key={p} className="text-center px-2 py-2 text-xs font-semibold text-gray-500 uppercase whitespace-nowrap border-l border-gray-200" colSpan={1}>
-                    {labelPeriodo(p)}
-                  </th>
-                ))}
+                {mesesCiclo.map(p => {
+                  const isReal = periodoIsReal(p, mesReferencia);
+                  return (
+                    <th key={p} className={`text-center px-2 py-2 text-xs font-semibold uppercase whitespace-nowrap border-l ${isReal ? "text-gray-500 border-gray-200" : "text-orange-600 border-orange-200 bg-orange-50/50"}`} colSpan={1}>
+                      <div className="flex flex-col items-center gap-0.5">
+                        <span>{labelPeriodo(p)}</span>
+                        <span className={`text-[9px] font-semibold px-1 rounded ${isReal ? "text-blue-600 bg-blue-50" : "text-orange-600 bg-orange-100"}`}>
+                          {isReal ? "Real" : "Forecast"}
+                        </span>
+                      </div>
+                    </th>
+                  );
+                })}
                 <th className="text-center px-3 py-2 text-xs font-semibold text-indigo-600 uppercase whitespace-nowrap border-l-2 border-indigo-200 bg-indigo-50">YTD</th>
                 <th className="text-center px-3 py-2 text-xs font-semibold text-indigo-600 uppercase whitespace-nowrap border-l border-indigo-200 bg-indigo-50">Total</th>
               </tr>
@@ -234,29 +259,31 @@ function AbaPreenchimento({ cicloId, anoFiscal, mesInicio, mesFim, indicadores, 
             <tbody>
               {inds.map((ind, idx) => {
                 const periodos = gerarPeriodos(anoFiscal, mesInicio, mesFim, ind.periodicidade);
-                // Nota usando orçado como alvo quando disponível
-                const valsReal = periodos.map(p => {
+                // Valor efetivo: real para períodos ≤ mesRef, orçado (forecast) para períodos futuros
+                const valsEfetivo = periodos.map(p => {
                   const k = `${ind.id}_${p}`;
-                  return draft[k] !== undefined ? Number(draft[k]) : null;
+                  if (periodoIsReal(p, mesReferencia)) {
+                    return draft[k] !== undefined ? Number(draft[k]) : null;
+                  } else {
+                    return draftOrc[k] !== undefined ? Number(draftOrc[k]) : null;
+                  }
                 }).filter((v): v is number => v !== null);
                 const valsOrc = periodos.map(p => {
                   const k = `${ind.id}_${p}`;
                   return draftOrc[k] !== undefined ? Number(draftOrc[k]) : null;
                 }).filter((v): v is number => v !== null);
-                const realAgregado = agregarRealizacoes(valsReal, ind.criterioApuracao);
+                const realAgregado = agregarRealizacoes(valsEfetivo, ind.criterioApuracao);
                 const orcAgregado = agregarRealizacoes(valsOrc, ind.criterioApuracao);
                 const indParaNota = orcAgregado != null
                   ? { ...ind, metaAlvo: orcAgregado, faixas: ind.faixas ?? [] }
                   : { ...ind, faixas: ind.faixas ?? [] };
                 const nota = realAgregado != null ? calcNota(indParaNota, realAgregado) : null;
 
-                // YTD: até o último período com realizado lançado
-                const lastRealIdx = periodos.reduceRight((acc, p, i) =>
-                  acc === -1 && realizacoes.find(r => r.indicadorId === ind.id && r.periodo === p) ? i : acc, -1);
-                const ytdPeriodos = lastRealIdx >= 0 ? periodos.slice(0, lastRealIdx + 1) : [];
-                const ytdValsReal = ytdPeriodos.map(p => { const k=`${ind.id}_${p}`; return draft[k]!==undefined?Number(draft[k]):null; }).filter((v):v is number=>v!==null);
+                // YTD: até o mês de referência ou último período com valor
+                const ytdPeriodos = periodos.filter(p => periodoIsReal(p, mesReferencia));
+                const ytdValsEfetivo = ytdPeriodos.map(p => { const k=`${ind.id}_${p}`; return draft[k]!==undefined?Number(draft[k]):null; }).filter((v):v is number=>v!==null);
                 const ytdValsOrc  = ytdPeriodos.map(p => { const k=`${ind.id}_${p}`; return draftOrc[k]!==undefined?Number(draftOrc[k]):null; }).filter((v):v is number=>v!==null);
-                const ytdReal = agregarRealizacoes(ytdValsReal, ind.criterioApuracao);
+                const ytdReal = agregarRealizacoes(ytdValsEfetivo, ind.criterioApuracao);
                 const ytdOrc  = agregarRealizacoes(ytdValsOrc,  ind.criterioApuracao);
 
                 return (
@@ -358,9 +385,9 @@ function AbaPreenchimento({ cicloId, anoFiscal, mesInicio, mesFim, indicadores, 
 }
 
 // ─── Aba Resultados ────────────────────────────────────────
-function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, atribuicoes, areas, anoFiscal, mesInicio, mesFim, movimentadosSet }:
+function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, atribuicoes, areas, anoFiscal, mesInicio, mesFim, mesReferencia, movimentadosSet }:
   { indicadores: Indicador[]; realizacoes: Realizacao[]; metasPeriodo: MetaPeriodo[]; agrupamentos: Agrupamento[];
-    atribuicoes: Atribuicao[]; areas: Area[]; anoFiscal: number; mesInicio: number; mesFim: number; movimentadosSet: Set<string>; }) {
+    atribuicoes: Atribuicao[]; areas: Area[]; anoFiscal: number; mesInicio: number; mesFim: number; mesReferencia: string; movimentadosSet: Set<string>; }) {
 
   const [filtroGestor, setFiltroGestor] = useState("");
   const [filtroColaborador, setFiltroColaborador] = useState("");
@@ -368,25 +395,30 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
   const [filtroArea, setFiltroArea] = useState<AreaFilters>(EMPTY_FILTERS);
   const [expandido, setExpandido] = useState<Record<string,boolean>>({});
 
-  // Calcular nota de cada indicador — usa orçado como meta quando disponível
+  // Calcular nota de cada indicador — mix real/forecast por mês de referência
   const notasPorIndicador = new Map<number, number>();
   for (const ind of indicadores) {
+    const periodos = gerarPeriodos(anoFiscal, mesInicio, mesFim, ind.periodicidade);
+    // Valor efetivo: real para períodos ≤ mesRef, orçado (forecast) para futuros
+    function efetivo(indId: number, p: string): number | undefined {
+      if (periodoIsReal(p, mesReferencia)) {
+        return realizacoes.find(r => r.indicadorId === indId && r.periodo === p)?.valorRealizado;
+      } else {
+        return metasPeriodo.find(m => m.indicadorId === indId && m.periodo === p)?.valorOrcado;
+      }
+    }
     let valorFinal: number | null = null;
     if (ind.numeradorId && ind.divisorId) {
-      const periodos = gerarPeriodos(anoFiscal, mesInicio, mesFim, ind.periodicidade);
-      const valsNum = periodos.map(p => realizacoes.find(r => r.indicadorId===ind.numeradorId && r.periodo===p)?.valorRealizado).filter((v): v is number => v!=null);
-      const valsDen = periodos.map(p => realizacoes.find(r => r.indicadorId===ind.divisorId && r.periodo===p)?.valorRealizado).filter((v): v is number => v!=null);
+      const valsNum = periodos.map(p => efetivo(ind.numeradorId!, p)).filter((v): v is number => v != null);
+      const valsDen = periodos.map(p => efetivo(ind.divisorId!, p)).filter((v): v is number => v != null);
       const num = agregarRealizacoes(valsNum, ind.criterioApuracao);
       const den = agregarRealizacoes(valsDen, ind.criterioApuracao);
       if (num != null && den != null && den !== 0) valorFinal = num / den;
     } else {
-      const periodos = gerarPeriodos(anoFiscal, mesInicio, mesFim, ind.periodicidade);
-      const vals = periodos.map(p => realizacoes.find(r => r.indicadorId===ind.id && r.periodo===p)?.valorRealizado).filter((v): v is number => v!=null);
+      const vals = periodos.map(p => efetivo(ind.id, p)).filter((v): v is number => v != null);
       valorFinal = agregarRealizacoes(vals, ind.criterioApuracao);
     }
     if (valorFinal != null) {
-      // Usar orçado agregado como metaAlvo quando disponível
-      const periodos = gerarPeriodos(anoFiscal, mesInicio, mesFim, ind.periodicidade);
       const valsOrc = periodos.map(p => metasPeriodo.find(m => m.indicadorId===ind.id && m.periodo===p)?.valorOrcado).filter((v): v is number => v!=null);
       const orcAgregado = agregarRealizacoes(valsOrc, ind.criterioApuracao);
       const indParaNota = orcAgregado != null
@@ -466,6 +498,7 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
           {rows.map(row => {
             const c = row.colaborador;
             const { resultado, detalhes } = calcRow(row.atribs);
+            const premio = calcPremio(c.salarioBase, c.target, resultado);
             const aberto = expandido[row.key];
             return (
               <div key={row.key} className={`bg-white rounded-xl border overflow-hidden ${row.movimentado ? "border-amber-200" : "border-gray-200"}`}>
@@ -485,10 +518,26 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
                     {c.area?.nivel1 && <span className="text-xs text-gray-500 hidden sm:block">{c.area.nivel1}</span>}
                   </div>
                   <div className="flex items-center gap-6">
+                    <div className="text-right hidden md:block">
+                      <p className="text-xs text-gray-400">Salário Base</p>
+                      <p className="text-sm font-medium text-gray-700">
+                        {c.salarioBase.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                      </p>
+                    </div>
+                    <div className="text-right hidden md:block">
+                      <p className="text-xs text-gray-400">Target</p>
+                      <p className="text-sm font-medium text-gray-700">{c.target}%</p>
+                    </div>
                     <div className="text-right">
                       <p className="text-xs text-gray-500">Resultado</p>
                       <p className={`text-sm font-bold ${resultado >= 100 ? "text-green-600" : resultado > 0 ? "text-yellow-600" : "text-gray-400"}`}>
                         {resultado.toFixed(1)}%
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-gray-400">Prêmio Projetado</p>
+                      <p className="text-sm font-bold text-green-600">
+                        {premio.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                       </p>
                     </div>
                     {aberto ? <ChevronUp size={16} className="text-gray-400"/> : <ChevronDown size={16} className="text-gray-400"/>}
@@ -543,6 +592,7 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
 export default function ApuracaoPage() {
   const { cicloAtivo } = useCiclo();
   const [aba, setAba] = useState<"preenchimento"|"resultados">("preenchimento");
+  const [mesReferencia, setMesReferencia] = useState<string>("");
   const [indicadores, setIndicadores] = useState<Indicador[]>([]);
   const [realizacoes, setRealizacoes] = useState<Realizacao[]>([]);
   const [metasPeriodo, setMetasPeriodo] = useState<MetaPeriodo[]>([]);
@@ -550,6 +600,20 @@ export default function ApuracaoPage() {
   const [atribuicoes, setAtribuicoes] = useState<Atribuicao[]>([]);
   const [areas, setAreas] = useState<Area[]>([]);
   const [movimentadosSet, setMovimentadosSet] = useState<Set<string>>(new Set());
+
+  const mesesCiclo = cicloAtivo
+    ? gerarPeriodos(cicloAtivo.anoFiscal, cicloAtivo.mesInicio, cicloAtivo.mesFim, "MENSAL")
+    : [];
+
+  useEffect(() => {
+    if (mesesCiclo.length > 0 && !mesReferencia) {
+      const hoje = new Date();
+      const mesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}`;
+      const ref = mesesCiclo.includes(mesAtual) ? mesAtual : mesesCiclo[mesesCiclo.length - 1];
+      setMesReferencia(ref);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mesesCiclo.length]);
 
   const carregar = useCallback(() => {
     if (!cicloAtivo) return;
@@ -585,9 +649,21 @@ export default function ApuracaoPage() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Apuração</h1>
-        <p className="text-gray-500 text-sm mt-1">Ciclo {cicloAtivo.anoFiscal} — {cicloAtivo.status}</p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Apuração</h1>
+          <p className="text-gray-500 text-sm mt-1">Ciclo {cicloAtivo.anoFiscal} — {cicloAtivo.status}</p>
+        </div>
+        <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+          <label className="text-xs font-semibold text-blue-700 whitespace-nowrap">Mês de referência:</label>
+          <select value={mesReferencia} onChange={e => setMesReferencia(e.target.value)}
+            className="border border-blue-300 rounded px-2 py-1 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+            {mesesCiclo.map(m => (
+              <option key={m} value={m}>{labelPeriodo(m)}</option>
+            ))}
+          </select>
+          <span className="text-xs text-blue-500 hidden sm:block">≤ real · &gt; forecast</span>
+        </div>
       </div>
 
       <div className="flex gap-1 border-b border-gray-200">
@@ -604,6 +680,7 @@ export default function ApuracaoPage() {
           anoFiscal={cicloAtivo.anoFiscal}
           mesInicio={cicloAtivo.mesInicio}
           mesFim={cicloAtivo.mesFim}
+          mesReferencia={mesReferencia}
           indicadores={indicadores}
           realizacoes={realizacoes}
           metasPeriodo={metasPeriodo}
@@ -622,6 +699,7 @@ export default function ApuracaoPage() {
           anoFiscal={cicloAtivo.anoFiscal}
           mesInicio={cicloAtivo.mesInicio}
           mesFim={cicloAtivo.mesFim}
+          mesReferencia={mesReferencia}
           movimentadosSet={movimentadosSet}
         />
       )}
