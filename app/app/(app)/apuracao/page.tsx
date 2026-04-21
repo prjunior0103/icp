@@ -395,37 +395,56 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
   const [filtroArea, setFiltroArea] = useState<AreaFilters>(EMPTY_FILTERS);
   const [expandido, setExpandido] = useState<Record<string,boolean>>({});
 
-  // Calcular nota de cada indicador — mix real/forecast por mês de referência
+  // Helper: orçado agregado como metaAlvo quando disponível
+  function notaComMeta(ind: Indicador, periodos: string[], valorFinal: number): number {
+    const valsOrc = periodos.map(p => metasPeriodo.find(m => m.indicadorId===ind.id && m.periodo===p)?.valorOrcado).filter((v): v is number => v!=null);
+    const orcAgregado = agregarRealizacoes(valsOrc, ind.criterioApuracao);
+    const indParaNota = orcAgregado != null
+      ? { ...ind, metaAlvo: orcAgregado, faixas: ind.faixas ?? [] }
+      : { ...ind, faixas: ind.faixas ?? [] };
+    return calcNota(indParaNota, valorFinal);
+  }
+
+  // Notas usando mix real/forecast por mês de referência
   const notasPorIndicador = new Map<number, number>();
+  // Notas usando apenas valorRealizado (YTD atual)
+  const notasPorIndicadorReal = new Map<number, number>();
+
   for (const ind of indicadores) {
     const periodos = gerarPeriodos(anoFiscal, mesInicio, mesFim, ind.periodicidade);
-    // Valor efetivo: real para períodos ≤ mesRef, orçado (forecast) para futuros
-    function efetivo(indId: number, p: string): number | undefined {
+
+    function efetivoForecast(indId: number, p: string): number | undefined {
       if (periodoIsReal(p, mesReferencia)) {
         return realizacoes.find(r => r.indicadorId === indId && r.periodo === p)?.valorRealizado;
       } else {
         return metasPeriodo.find(m => m.indicadorId === indId && m.periodo === p)?.valorOrcado;
       }
     }
-    let valorFinal: number | null = null;
+    function efetivoReal(indId: number, p: string): number | undefined {
+      return realizacoes.find(r => r.indicadorId === indId && r.periodo === p)?.valorRealizado;
+    }
+
+    // Forecast (mix)
+    let vForecast: number | null = null;
     if (ind.numeradorId && ind.divisorId) {
-      const valsNum = periodos.map(p => efetivo(ind.numeradorId!, p)).filter((v): v is number => v != null);
-      const valsDen = periodos.map(p => efetivo(ind.divisorId!, p)).filter((v): v is number => v != null);
-      const num = agregarRealizacoes(valsNum, ind.criterioApuracao);
-      const den = agregarRealizacoes(valsDen, ind.criterioApuracao);
-      if (num != null && den != null && den !== 0) valorFinal = num / den;
+      const num = agregarRealizacoes(periodos.map(p => efetivoForecast(ind.numeradorId!, p)).filter((v): v is number => v != null), ind.criterioApuracao);
+      const den = agregarRealizacoes(periodos.map(p => efetivoForecast(ind.divisorId!, p)).filter((v): v is number => v != null), ind.criterioApuracao);
+      if (num != null && den != null && den !== 0) vForecast = num / den;
     } else {
-      const vals = periodos.map(p => efetivo(ind.id, p)).filter((v): v is number => v != null);
-      valorFinal = agregarRealizacoes(vals, ind.criterioApuracao);
+      vForecast = agregarRealizacoes(periodos.map(p => efetivoForecast(ind.id, p)).filter((v): v is number => v != null), ind.criterioApuracao);
     }
-    if (valorFinal != null) {
-      const valsOrc = periodos.map(p => metasPeriodo.find(m => m.indicadorId===ind.id && m.periodo===p)?.valorOrcado).filter((v): v is number => v!=null);
-      const orcAgregado = agregarRealizacoes(valsOrc, ind.criterioApuracao);
-      const indParaNota = orcAgregado != null
-        ? { ...ind, metaAlvo: orcAgregado, faixas: ind.faixas ?? [] }
-        : { ...ind, faixas: ind.faixas ?? [] };
-      notasPorIndicador.set(ind.id, calcNota(indParaNota, valorFinal));
+    if (vForecast != null) notasPorIndicador.set(ind.id, notaComMeta(ind, periodos, vForecast));
+
+    // Real (só valorRealizado)
+    let vReal: number | null = null;
+    if (ind.numeradorId && ind.divisorId) {
+      const num = agregarRealizacoes(periodos.map(p => efetivoReal(ind.numeradorId!, p)).filter((v): v is number => v != null), ind.criterioApuracao);
+      const den = agregarRealizacoes(periodos.map(p => efetivoReal(ind.divisorId!, p)).filter((v): v is number => v != null), ind.criterioApuracao);
+      if (num != null && den != null && den !== 0) vReal = num / den;
+    } else {
+      vReal = agregarRealizacoes(periodos.map(p => efetivoReal(ind.id, p)).filter((v): v is number => v != null), ind.criterioApuracao);
     }
+    if (vReal != null) notasPorIndicadorReal.set(ind.id, notaComMeta(ind, periodos, vReal));
   }
 
   const colaboradoresMap = new Map<number, Colaborador>();
@@ -449,25 +468,33 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
   }
   const rows = Array.from(rowsMap.values());
 
-  // Resultado = soma MIDs de todos agrupamentos do row
+  type MidRow = { ind: Indicador; notaReal: number; notaForecast: number; peso: number; midReal: number; midForecast: number };
+  type DetalheRow = { agrupamento: Agrupamento; atingimentoReal: number; atingimentoForecast: number; pesoNaCesta: number; mids: MidRow[] };
+
   function calcRow(atribs: Atribuicao[]) {
-    let resultado = 0;
-    const detalhes: { agrupamento: Agrupamento; atingimento: number; pesoNaCesta: number; mids: { ind: Indicador; nota: number; peso: number; mid: number }[] }[] = [];
+    let resultadoReal = 0;
+    let resultadoForecast = 0;
+    const detalhes: DetalheRow[] = [];
     for (const at of atribs) {
       const ag = at.agrupamento;
-      const mids: { ind: Indicador; nota: number; peso: number; mid: number }[] = [];
-      let atingAg = 0;
+      const mids: MidRow[] = [];
+      let atingReal = 0;
+      let atingForecast = 0;
       for (const ig of ag.indicadores) {
         if (filtroIndicador && String(ig.indicadorId) !== filtroIndicador) continue;
-        const nota = notasPorIndicador.get(ig.indicadorId) ?? 0;
-        const mid = calcMID(nota, ig.peso);
-        mids.push({ ind: ig.indicador, nota, peso: ig.peso, mid });
-        atingAg += mid;
+        const notaReal = notasPorIndicadorReal.get(ig.indicadorId) ?? 0;
+        const notaForecast = notasPorIndicador.get(ig.indicadorId) ?? 0;
+        const midReal = calcMID(notaReal, ig.peso);
+        const midForecast = calcMID(notaForecast, ig.peso);
+        mids.push({ ind: ig.indicador, notaReal, notaForecast, peso: ig.peso, midReal, midForecast });
+        atingReal += midReal;
+        atingForecast += midForecast;
       }
-      resultado += atingAg;
-      detalhes.push({ agrupamento: ag, atingimento: atingAg, pesoNaCesta: at.pesoNaCesta, mids });
+      resultadoReal += atingReal;
+      resultadoForecast += atingForecast;
+      detalhes.push({ agrupamento: ag, atingimentoReal: atingReal, atingimentoForecast: atingForecast, pesoNaCesta: at.pesoNaCesta, mids });
     }
-    return { resultado, detalhes };
+    return { resultadoReal, resultadoForecast, detalhes };
   }
 
   return (
@@ -497,8 +524,8 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
         <div className="space-y-2">
           {rows.map(row => {
             const c = row.colaborador;
-            const { resultado, detalhes } = calcRow(row.atribs);
-            const premio = calcPremio(c.salarioBase, c.target, resultado);
+            const { resultadoReal, resultadoForecast, detalhes } = calcRow(row.atribs);
+            const premioForecast = calcPremio(c.salarioBase, c.target, resultadoForecast);
             const aberto = expandido[row.key];
             return (
               <div key={row.key} className={`bg-white rounded-xl border overflow-hidden ${row.movimentado ? "border-amber-200" : "border-gray-200"}`}>
@@ -529,15 +556,21 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
                       <p className="text-sm font-medium text-gray-700">{c.target}%</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-xs text-gray-500">Resultado</p>
-                      <p className={`text-sm font-bold ${resultado >= 100 ? "text-green-600" : resultado > 0 ? "text-yellow-600" : "text-gray-400"}`}>
-                        {resultado.toFixed(1)}%
+                      <p className="text-xs text-blue-500 font-medium">Atual (YTD)</p>
+                      <p className={`text-sm font-bold ${resultadoReal >= 100 ? "text-green-600" : resultadoReal > 0 ? "text-yellow-600" : "text-gray-400"}`}>
+                        {resultadoReal.toFixed(1)}%
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-orange-500 font-medium">Forecast</p>
+                      <p className={`text-sm font-bold ${resultadoForecast >= 100 ? "text-green-600" : resultadoForecast > 0 ? "text-yellow-600" : "text-gray-400"}`}>
+                        {resultadoForecast.toFixed(1)}%
                       </p>
                     </div>
                     <div className="text-right">
                       <p className="text-xs text-gray-400">Prêmio Projetado</p>
                       <p className="text-sm font-bold text-green-600">
-                        {premio.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                        {premioForecast.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                       </p>
                     </div>
                     {aberto ? <ChevronUp size={16} className="text-gray-400"/> : <ChevronDown size={16} className="text-gray-400"/>}
@@ -553,24 +586,29 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
                             {d.agrupamento.nome}
                             <span className="font-normal text-gray-500"> ({d.pesoNaCesta}% na cesta)</span>
                           </p>
-                          <div className="flex items-center gap-3 text-xs text-right">
-                            <span className="text-gray-500">Ating. <span className="font-semibold text-gray-700">{d.atingimento.toFixed(1)}%</span></span>
+                          <div className="flex items-center gap-4 text-xs text-right">
+                            <span className="text-blue-500">Atual <span className="font-semibold text-gray-700">{d.atingimentoReal.toFixed(1)}%</span></span>
+                            <span className="text-orange-500">Forecast <span className="font-semibold text-gray-700">{d.atingimentoForecast.toFixed(1)}%</span></span>
                           </div>
                         </div>
                         <table className="w-full text-xs">
                           <thead><tr className="text-gray-500">
                             <th className="text-left pb-1">Indicador</th>
-                            <th className="text-right pb-1">% Ating.</th>
+                            <th className="text-right pb-1 text-blue-500">% Atual</th>
+                            <th className="text-right pb-1 text-orange-500">% Forecast</th>
                             <th className="text-right pb-1">Peso</th>
-                            <th className="text-right pb-1">MID</th>
+                            <th className="text-right pb-1 text-blue-500">MID Atual</th>
+                            <th className="text-right pb-1 text-orange-500">MID Forecast</th>
                           </tr></thead>
                           <tbody className="divide-y divide-gray-50">
                             {d.mids.map(m => (
                               <tr key={m.ind.id}>
                                 <td className="py-1 text-gray-700">{m.ind.codigo} — {m.ind.nome}</td>
-                                <td className="py-1 text-right font-medium">{m.nota.toFixed(1)}%</td>
+                                <td className="py-1 text-right font-medium text-blue-700">{m.notaReal.toFixed(1)}%</td>
+                                <td className="py-1 text-right font-medium text-orange-600">{m.notaForecast.toFixed(1)}%</td>
                                 <td className="py-1 text-right text-gray-500">{m.peso}%</td>
-                                <td className="py-1 text-right font-semibold text-blue-700">{m.mid.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%</td>
+                                <td className="py-1 text-right font-semibold text-blue-700">{m.midReal.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%</td>
+                                <td className="py-1 text-right font-semibold text-orange-600">{m.midForecast.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%</td>
                               </tr>
                             ))}
                           </tbody>
