@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { useCiclo } from "@/app/lib/ciclo-context";
 import { calcNota, calcMID, calcPremio, gerarPeriodos, agregarRealizacoes } from "@/app/lib/calc";
-import { ClipboardList, BarChart3, Search, Save, ChevronDown, ChevronUp, Paperclip } from "lucide-react";
+import { ClipboardList, BarChart3, Search, Save, ChevronDown, ChevronUp, Paperclip, Upload } from "lucide-react";
+import { ModalImportResultados } from "./_components/ModalImportResultados";
 import { ModalWrapper } from "@/app/components/ModalWrapper";
 import { HierarchicalAreaFilter, EMPTY_FILTERS, matchesAreaFilter, type AreaFilters } from "@/app/components/HierarchicalAreaFilter";
 import { MESES, labelPeriodo } from "@/app/lib/format";
@@ -152,6 +153,7 @@ function AbaPreenchimento({ cicloId, anoFiscal, mesInicio, mesFim, mesReferencia
   const [draft, setDraft] = useState<Record<string,string>>({});
   const [draftOrc, setDraftOrc] = useState<Record<string,string>>({});
   const [evidencia, setEvidencia] = useState<EvidenciaTarget|null>(null);
+  const [importando, setImportando] = useState(false);
 
   useEffect(() => {
     const init: Record<string,string> = {};
@@ -203,7 +205,21 @@ function AbaPreenchimento({ cicloId, anoFiscal, mesInicio, mesFim, mesReferencia
           placeholder="Buscar indicador..."
           className="flex-1"
         />
+        <button
+          onClick={() => setImportando(true)}
+          className="flex items-center gap-1.5 border border-gray-300 text-gray-600 text-sm px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors whitespace-nowrap"
+        >
+          <Upload size={14} /> Importar XLSX
+        </button>
       </div>
+
+      {importando && (
+        <ModalImportResultados
+          cicloId={cicloId}
+          onDone={() => { setImportando(false); onSaved(); }}
+          onClose={() => setImportando(false)}
+        />
+      )}
 
       {inds.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-200 p-10 text-center text-gray-500">
