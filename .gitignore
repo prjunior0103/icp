@@ -1,7 +1,8 @@
-app/node_modules/
-app/.next/
-app/dev.db
-app/.env
-app/src/generated/
-app/app/generated/
+saas/app/node_modules/
+saas/app/.next/
+saas/app/dev.db
+saas/app/.env
+saas/app/src/generated/
+saas/app/app/generated/
+icp_GCB/
 *.DS_Store

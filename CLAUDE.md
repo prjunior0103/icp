@@ -1,89 +1,44 @@
 ## 🔁 ESTADO DA SESSÃO ANTERIOR — LEIA ANTES DE TUDO
 
 # Estado Persistente — ICP
-> Atualizado: 2026-04-11 18:50
+> Atualizado: 2026-04-11 20:00
 
 ## Task em progresso
-Revisão UI/UX Pro Max — Fase 1 parcialmente concluída
+Nenhuma — aguardando próxima task.
 
-## Revisão UI/UX — Plano (4 Fases)
-- 🔄 Fase 1: Acessibilidade Foundation (HIGH)
-  - ✅ 1A: Contraste — `--ink-muted` atualizado para #64748b, text-gray-400 → text-gray-500 em ~80 instâncias de texto legível (25+ arquivos)
-  - ✅ 1B: FormField.tsx — useId() + htmlFor + cloneElement para associar labels
-  - ✅ 1C parte 1: ModalWrapper.tsx — focus trap implementado (Tab/Shift+Tab, restore focus)
-  - ✅ 1C parte 1: ModalWrapper.tsx — close button com touch target 44px
-  - ⏳ 1C parte 2: Migrar 14 modais inline para usar ModalWrapper (NÃO FEITO AINDA)
-- ⏳ Fase 2: Loading States e Feedback (MEDIUM) — NÃO INICIADA
-  - Criar LoadingSpinner.tsx (Loader2 + animate-spin)
-  - Substituir 5x "Carregando..." plain text
-  - Eliminar alert() em metas/page.tsx:79,94
-  - Fix tela branca auth loading em layout.tsx:50
-- ⏳ Fase 3: Keyboard e Touch Targets (MEDIUM) — NÃO INICIADA
-  - DataTable.tsx: role="button", tabIndex, onKeyDown em rows clicáveis
-  - Touch targets 44px em icon buttons (configuracoes, layout, etc.)
-  - Nav buttons → Next.js Link em layout.tsx:162-174
-- ⏳ Fase 4: Polish (LOW) — NÃO INICIADA
-  - Emojis → ícones Lucide em 3 relatórios
+## Últimas entregas
+- Manual do Sistema (/manual) — 2026-04-11 ✅ — deployado em produção (commit a925641)
 
-## Arquivos modificados (sessão atual)
-- globals.css — --ink-muted #94a3b8 → #64748b
-- FormField.tsx — useId() + htmlFor + cloneElement
-- ModalWrapper.tsx — focus trap + touch target close button
-- DataTable.tsx — empty state text-gray-500
-- login/page.tsx — footer text contrast
-- configuracoes/page.tsx — 5 instâncias text contrast
-- auditoria/page.tsx — 6 instâncias text contrast
-- page.tsx (dashboard) — 4 instâncias text contrast
-- metas/page.tsx — 8 instâncias text contrast
-- colaboradores/page.tsx — empty state contrast
-- relatorios/page.tsx — empty state contrast
-- apuracao/page.tsx — 8 instâncias text contrast
-- AbaColaboradores.tsx — 6 instâncias text contrast
-- AbaMovimentacoes.tsx — 8 instâncias text contrast
-- AbaAreas.tsx — empty state contrast
-- RelatSemPainel.tsx — empty state contrast
-- RelatMovimentacoes.tsx — 3 instâncias text contrast
-- RelatPendencias.tsx — 2 instâncias text contrast
-- RelatGestor.tsx — empty state contrast
-- RelatNaoApurados.tsx — empty state contrast
-- RelatColaborador.tsx — 4 instâncias text contrast
-- RelatCalibracao.tsx — hint text contrast
-- ModalAtribuicao.tsx — 5 instâncias text contrast
-- ModalAgrupamento.tsx — 1 instância text contrast
-- ModalIndicador.tsx — 2 instâncias text contrast
-- AbaFormulas.tsx — 7 instâncias text contrast
-- BaseCombobox.tsx — 4 instâncias text contrast
-- AreaCCCombobox.tsx — 3 instâncias text contrast
-- HierarchicalAreaFilter.tsx — 4 instâncias text contrast
-
-## Decisões técnicas recentes
-- text-gray-400 mantido em ícones decorativos e botões icon-only com hover state
-- text-gray-400 → text-gray-500 apenas em texto legível (labels, hints, empty states, loading)
-- --ink-muted atualizado para #64748b (slate-500) — ratio 5.4:1 no branco
-- FormField usa useId() + cloneElement (preserva layout label-acima-input)
-- ModalWrapper focus trap: querySelectorAll focusable, Tab wrap, restore previouslyFocused
-
-## Próximos passos
-1. Migrar 14 modais inline para ModalWrapper (1C parte 2)
-2. Fase 2: LoadingSpinner + eliminar alert() + fix auth loading
-3. Fase 3: DataTable keyboard + touch targets + nav Link
-4. Fase 4: Emojis → ícones
+## Revisão UI/UX — Concluída ✅
+- ✅ Fase 1A: Contraste
+- ✅ Fase 1B: FormField labels
+- ✅ Fase 1C: 15 modais → ModalWrapper
+- ✅ Fase 2: LoadingSpinner, alert() → toast, fix auth
+- ✅ Fase 3: DataTable keyboard, touch 44px, nav Link
+- ❌ Fase 4: Cancelada
 
 ## Branch e commits
 - Branch: rebuild/m1
-- Último commit: 6fa58ef (fase 6 — deploy atual)
-- Mudanças atuais: NÃO COMMITADAS (aguardando conclusão da revisão)
-
-## Plano detalhado
-- Arquivo: /Users/paulorjunior/.claude/plans/expressive-knitting-crab.md
+- Último commit: a925641 (manual do sistema)
 
 ## Deploy (VPS)
 - VPS: root@187.77.34.25 | senha: F4x1n3r0D0C40s&
 - App: /home/app/ICP/app | Porta: 3003 | Serviço: icp.service | DB: dev.db
 
-## Tasks pendentes no ICP
-- TASK-066 [MEDIA] Carta PDF + configuração de Regulador do Pool
-- TASK-075 [MEDIA] Bug: CritérioApuração MÉDIA faz cálculo igual ULTIMA_POSICAO
+## Tasks pendentes no ICP (backlog)
+- TASK-057 [MEDIA] Versão cliente
+- TASK-061 [ALTA] Ajuste de Filtros
+- TASK-062 [ALTA] Atribuição — Revisão do fluxo
+- TASK-066 [MEDIA] Carta PDF — Assinatura Docusign
+- TASK-067 [ALTA] Fluxo de Movimentações
+- TASK-068 [MEDIA] Relatório de pendência de preenchimento na Apuração
+- TASK-069 [MEDIA] Revisar Dashboard
+- TASK-070 [MEDIA] Coluna Total e YTD
+- TASK-071 [MEDIA] Página com fórmula de cálculo do indicador
+- TASK-072 [MEDIA] Página Auditoria (em-progresso)
+- TASK-073 [MEDIA] Novos Relatórios
+- TASK-074 [MEDIA] Gerar PPT
+- TASK-075 [MEDIA] Apuração — bug CritérioApuração MÉDIA
 
 ---
 
@@ -110,9 +65,34 @@ curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" 
 ```
 Fazer isso ANTES de qualquer outra ação. Nunca deixar Paulo sem resposta no Telegram.
 
-### REGRA 1 — Gerenciamento de contexto
-Quando a janela de contexto atingir **85% ou mais**, ou após qualquer commit, deploy ou fix:
-1. Atualizar `/Users/paulorjunior/Projetos/agents-state/projects/icp.md` com o estado atual
+### REGRA 1 — Gerenciamento de contexto e memória persistente
+**Salvar estado em `/Users/paulorjunior/Projetos/agents-state/projects/icp.md` após CADA uma dessas situações:**
+- Task concluída (qualquer tamanho)
+- Commit, deploy ou fix realizado
+- Contexto atingir **85% ou mais**
+- Antes de qualquer /clear
+
+**Formato obrigatório do arquivo de estado:**
+```
+# Estado Persistente — ICP
+> Atualizado: <data e hora>
+
+## Task em progresso
+<descrição ou "Nenhuma">
+
+## Últimas entregas
+- <item> — <data> ✅
+
+## Branch e commits
+- Branch: <branch atual>
+- Último commit: <hash> (<descrição>)
+
+## Tasks pendentes no backlog
+- TASK-XXX [PRIORIDADE] Descrição
+```
+
+**Ao atingir 85% de contexto:**
+1. Salvar estado no arquivo acima (use Write tool)
 2. Enviar no Telegram: `📋 Contexto atualizado. Vou limpar para não perder estado.`
 3. Executar: `/opt/homebrew/bin/tmux send-keys -t cro-agents:ICP "/clear" Enter`
 
@@ -137,11 +117,13 @@ Após commit → push → deploy, SEMPRE enviar no Telegram:
 
 ## Contexto do projeto
 
-- **Caminho:** `~/Projetos/ICP/app`
+- **Caminho:** `~/Projetos/ICP/saas/app` (produção VPS) · `~/Projetos/ICP/icp_GCB/app` (local vendível)
 - **Stack:** Next.js (App Router), React 19, TypeScript 5, Tailwind CSS 4, SQLite/LibSQL, Prisma 7, NextAuth v5
-- **Rodar:** `cd ~/Projetos/ICP/app && npm run dev` → http://localhost:3000
+- **Rodar saas:** `cd ~/Projetos/ICP/saas/app && npm run dev` → http://localhost:3000
+- **Rodar icp_GCB:** `cd ~/Projetos/ICP/icp_GCB/app && npm run dev` → http://localhost:3004
 - **Testes:** `npm test` (Vitest)
-- **Login padrão:** `admin` / `admin`
+- **Login padrão:** `admin@empresa.com` / `admin`
+- **Regra de replicação:** mudanças de negócio devem ser aplicadas nas 2 variantes. Ver `COMPARATIVO_VERSOES.md`.
 
 ## Domínio de negócio que você domina
 
