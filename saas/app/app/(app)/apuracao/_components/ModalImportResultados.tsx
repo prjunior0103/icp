@@ -29,13 +29,13 @@ export function ModalImportResultados({ cicloId, onDone, onClose }: {
       {!resultado ? (
         <div className="space-y-4">
           <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-xs text-blue-700">
-            <p className="font-semibold mb-1">Colunas esperadas no XLSX:</p>
-            <p className="font-mono">indicador | periodo | orcado | realizado</p>
-            <p className="mt-1 text-blue-500">Deixe "orcado" ou "realizado" em branco para importar só um dos valores.</p>
+            <p className="font-semibold mb-1">Formato do XLSX:</p>
+            <p className="font-mono">indicador | realizado_2025-01 | ... | realizado_2025-12 | orcado_2025-01 | ... | orcado_2025-12</p>
+            <p className="mt-1 text-blue-500">Uma linha por indicador. Deixe células em branco para não importar aquele período.</p>
           </div>
 
           <a
-            href="/api/resultados/template"
+            href={`/api/resultados/template?cicloId=${cicloId}`}
             className="flex items-center justify-center gap-2 w-full border border-gray-300 text-gray-600 text-sm py-2 rounded-lg hover:bg-gray-50 transition-colors"
           >
             <Download size={14} /> Baixar modelo XLSX

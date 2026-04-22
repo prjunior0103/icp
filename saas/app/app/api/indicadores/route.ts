@@ -24,7 +24,7 @@ export async function POST(req: Request) {
   const body = await req.json();
   const { cicloId, nome, tipo, abrangencia, unidade, metaMinima, metaAlvo, metaMaxima,
     baseline, metrica, periodicidade, criterioApuracao, origemDado, analistaResp,
-    aprovadorId, responsavelEnvioId, divisorId, statusJanela, janelaAbertaEm, janelaFechadaEm,
+    aprovadorId, responsavelEnvioId, numeradorId, divisorId, statusJanela, janelaAbertaEm, janelaFechadaEm,
     status, descricao } = body;
   if (!cicloId || !nome || !tipo) {
     return NextResponse.json({ error: "cicloId, nome e tipo são obrigatórios" }, { status: 400 });
@@ -52,6 +52,7 @@ export async function POST(req: Request) {
       origemDado: origemDado || null, analistaResp: analistaResp || null,
       aprovadorId: aprovadorId || null,
       responsavelEnvioId: responsavelEnvioId ? Number(responsavelEnvioId) : null,
+      numeradorId: numeradorId ? Number(numeradorId) : null,
       divisorId: divisorId ? Number(divisorId) : null,
       statusJanela: statusJanela ?? "FECHADA",
       janelaAbertaEm: janelaAbertaEm ? new Date(janelaAbertaEm) : null,
