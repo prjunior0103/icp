@@ -1,7 +1,9 @@
 export interface Indicador {
   id: number; cicloId: number; codigo: string; nome: string; tipo: string; abrangencia: string;
   unidade: string; metaMinima?: number | null; metaAlvo?: number | null; metaMaxima?: number | null;
-  baseline?: number | null; metrica?: string | null; periodicidade: string; criterioApuracao: string;
+  baseline?: number | null; metrica?: string | null;
+  piso?: number | null; teto?: number | null; gatilho?: number | null; bonusMetaZero?: number | null;
+  periodicidade: string; criterioApuracao: string;
   origemDado?: string | null; analistaResp?: string | null; numeradorId?: number | null;
   divisorId?: number | null; statusJanela: string; status: string; descricao?: string | null;
 }

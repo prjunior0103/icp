@@ -24,9 +24,9 @@ export function AbaFormulas({ indicadores, todosIndicadores }: { indicadores: In
       const den = todosIndicadores.find(i => i.id === ind.divisorId);
       return `(${num?.nome ?? "Numerador"}) ÷ (${den?.nome ?? "Divisor"})`;
     }
-    if (ind.tipo === "MAIOR_MELHOR") return "(Realizado ÷ Meta Alvo) × 100";
-    if (ind.tipo === "MENOR_MELHOR") return "(Meta Alvo ÷ Realizado) × 100";
-    if (ind.tipo === "PROJETO_MARCO") return "100 se Realizado ≥ 1, senão 0";
+    if (ind.tipo === "MAIOR_MELHOR") return "1 + (Realizado − Meta) / |Meta|  [P = +1]";
+    if (ind.tipo === "MENOR_MELHOR") return "1 − (Realizado − Meta) / |Meta|  [P = −1]";
+    if (ind.tipo === "PROJETO_MARCO") return "1.0 se Realizado ≥ 1, senão 0";
     return "—";
   }
 

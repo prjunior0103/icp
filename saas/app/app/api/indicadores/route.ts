@@ -23,9 +23,9 @@ export async function POST(req: Request) {
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   const body = await req.json();
   const { cicloId, nome, tipo, abrangencia, unidade, metaMinima, metaAlvo, metaMaxima,
-    baseline, metrica, periodicidade, criterioApuracao, origemDado, analistaResp,
-    aprovadorId, responsavelEnvioId, numeradorId, divisorId, statusJanela, janelaAbertaEm, janelaFechadaEm,
-    status, descricao } = body;
+    baseline, metrica, piso, teto, gatilho, bonusMetaZero, periodicidade, criterioApuracao,
+    origemDado, analistaResp, aprovadorId, responsavelEnvioId, numeradorId, divisorId,
+    statusJanela, janelaAbertaEm, janelaFechadaEm, status, descricao } = body;
   if (!cicloId || !nome || !tipo) {
     return NextResponse.json({ error: "cicloId, nome e tipo são obrigatórios" }, { status: 400 });
   }
@@ -47,6 +47,10 @@ export async function POST(req: Request) {
       metaAlvo: metaAlvo != null ? Number(metaAlvo) : null,
       metaMaxima: metaMaxima != null ? Number(metaMaxima) : null,
       baseline: baseline != null ? Number(baseline) : null,
+      piso: piso != null && piso !== "" ? Number(piso) : null,
+      teto: teto != null && teto !== "" ? Number(teto) : null,
+      gatilho: gatilho != null && gatilho !== "" ? Number(gatilho) : null,
+      bonusMetaZero: bonusMetaZero != null && bonusMetaZero !== "" ? Number(bonusMetaZero) : null,
       metrica: metrica || null, periodicidade: periodicidade ?? "MENSAL",
       criterioApuracao: criterioApuracao ?? "ULTIMA_POSICAO",
       origemDado: origemDado || null, analistaResp: analistaResp || null,
@@ -75,12 +79,13 @@ export async function PUT(req: Request) {
   if (!id) return NextResponse.json({ error: "id obrigatório" }, { status: 400 });
   const data: Record<string, unknown> = {};
   const fields = ["codigo","nome","tipo","abrangencia","unidade","metaMinima","metaAlvo","metaMaxima",
-    "baseline","metrica","periodicidade","criterioApuracao","origemDado","analistaResp","aprovadorId",
-    "responsavelEnvioId","numeradorId","divisorId","statusJanela","janelaAbertaEm","janelaFechadaEm","status","descricao"];
+    "baseline","metrica","piso","teto","gatilho","bonusMetaZero","periodicidade","criterioApuracao",
+    "origemDado","analistaResp","aprovadorId","responsavelEnvioId","numeradorId","divisorId",
+    "statusJanela","janelaAbertaEm","janelaFechadaEm","status","descricao"];
   for (const f of fields) {
     if (rest[f] !== undefined) {
-      if (["metaMinima","metaAlvo","metaMaxima","baseline"].includes(f))
-        data[f] = rest[f] != null ? Number(rest[f]) : null;
+      if (["metaMinima","metaAlvo","metaMaxima","baseline","piso","teto","gatilho","bonusMetaZero"].includes(f))
+        data[f] = rest[f] != null && rest[f] !== "" ? Number(rest[f]) : null;
       else if (["responsavelEnvioId","numeradorId","divisorId"].includes(f))
         data[f] = rest[f] ? Number(rest[f]) : null;
       else if (["janelaAbertaEm","janelaFechadaEm"].includes(f))

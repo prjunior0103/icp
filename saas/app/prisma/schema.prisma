@@ -89,6 +89,10 @@ model Indicador {
   metaMaxima          Float?
   baseline            Float?
   metrica             String?
+  piso                Float?                 // atingimento mínimo decimal (default 0.0)
+  teto                Float?                 // atingimento máximo decimal (default 1.5)
+  gatilho             Float?                 // atingimento mínimo para pagamento; abaixo → 0
+  bonusMetaZero       Float?                 // atingimento quando meta=0 (default 1.0)
   periodicidade       String                 @default("MENSAL") // MENSAL | TRIMESTRAL | SEMESTRAL | ANUAL
   criterioApuracao    String                 @default("ULTIMA_POSICAO") // SOMA | MEDIA | ULTIMA_POSICAO
   origemDado          String?

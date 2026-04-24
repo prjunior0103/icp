@@ -33,10 +33,15 @@ export function useCalcEngine(
       valorFinal = agregarRealizacoes(vals, ind.criterioApuracao);
     }
     realMap.set(ind.id, valorFinal);
-    const vO = periodos
-      .map(p => metasPeriodo.find(m => m.indicadorId === ind.id && m.periodo === p)?.valorOrcado)
-      .filter((v): v is number => v != null);
-    const orc = agregarRealizacoes(vO, ind.criterioApuracao);
+    let orc: number | null = null;
+    if (ind.numeradorId && ind.divisorId) {
+      const orcN = agregarRealizacoes(periodos.map(p => metasPeriodo.find(m => m.indicadorId === ind.numeradorId && m.periodo === p)?.valorOrcado).filter((v): v is number => v != null), ind.criterioApuracao);
+      const orcD = agregarRealizacoes(periodos.map(p => metasPeriodo.find(m => m.indicadorId === ind.divisorId && m.periodo === p)?.valorOrcado).filter((v): v is number => v != null), ind.criterioApuracao);
+      if (orcN != null && orcD != null && orcD !== 0) orc = orcN / orcD;
+    } else {
+      const vO = periodos.map(p => metasPeriodo.find(m => m.indicadorId === ind.id && m.periodo === p)?.valorOrcado).filter((v): v is number => v != null);
+      orc = agregarRealizacoes(vO, ind.criterioApuracao);
+    }
     orcMap.set(ind.id, orc);
     if (valorFinal != null) {
       const indC = orc != null

@@ -10,7 +10,7 @@ export function ModalIndicador({ ind, cicloId, colaboradores, todosIndicadores, 
   ind: Indicador | null; cicloId: number; colaboradores: Colaborador[];
   todosIndicadores: Indicador[]; onSave: () => void; onClose: () => void;
 }) {
-  const empty = { codigo:"", nome:"", tipo:"MAIOR_MELHOR", abrangencia:"CORPORATIVO", unidade:"%", metaMinima:"", metaAlvo:"", metaMaxima:"", baseline:"", metrica:"", periodicidade:"MENSAL", criterioApuracao:"ULTIMA_POSICAO", origemDado:"", analistaResp:"", numeradorId:"", divisorId:"", statusJanela:"FECHADA", status:"DRAFT", descricao:"" };
+  const empty = { codigo:"", nome:"", tipo:"MAIOR_MELHOR", abrangencia:"CORPORATIVO", unidade:"%", metaMinima:"", metaAlvo:"", metaMaxima:"", baseline:"", metrica:"", piso:"", teto:"", gatilho:"", bonusMetaZero:"", periodicidade:"MENSAL", criterioApuracao:"ULTIMA_POSICAO", origemDado:"", analistaResp:"", numeradorId:"", divisorId:"", statusJanela:"FECHADA", status:"DRAFT", descricao:"" };
   const [form, setForm] = useState(ind ? { ...empty, ...Object.fromEntries(Object.entries(ind).map(([k,v]) => [k, v == null ? "" : String(v)])) } : empty);
   const [faixas, setFaixas] = useState<FaixaIndicador[]>([]);
   const [salvando, setSalvando] = useState(false);
@@ -84,6 +84,18 @@ export function ModalIndicador({ ind, cicloId, colaboradores, todosIndicadores, 
             </div>
             {sel("Janela","statusJanela",["ABERTA","FECHADA","PRORROGADA"])}
             {sel("Status","status",["DRAFT","ATIVO"])}
+          </div>
+
+          {/* Parâmetros de Cálculo */}
+          <div className="border border-gray-200 rounded-lg p-3 space-y-2">
+            <p className="text-xs font-semibold text-gray-600">Parâmetros de Cálculo</p>
+            <p className="text-xs text-gray-500">Fórmula: 1 + P × (Realizado − Meta) / |Meta|. Deixe em branco para usar os defaults (piso=0%, teto=150%, sem gatilho, bônus meta zero=100%).</p>
+            <div className="grid grid-cols-2 gap-3">
+              {input("Piso (decimal, ex: 0.0)","piso","number")}
+              {input("Teto (decimal, ex: 1.5)","teto","number")}
+              {input("Gatilho (decimal, ex: 0.8)","gatilho","number")}
+              {input("Bônus meta zero (decimal, ex: 1.0)","bonusMetaZero","number")}
+            </div>
           </div>
 
           {/* Indicador Composto */}

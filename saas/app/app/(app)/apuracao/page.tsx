@@ -413,8 +413,16 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
 
   // Helper: orçado agregado como metaAlvo quando disponível
   function notaComMeta(ind: Indicador, periodos: string[], valorFinal: number): number {
-    const valsOrc = periodos.map(p => metasPeriodo.find(m => m.indicadorId===ind.id && m.periodo===p)?.valorOrcado).filter((v): v is number => v!=null);
-    const orcAgregado = agregarRealizacoes(valsOrc, ind.criterioApuracao);
+    let orcAgregado: number | null = null;
+    if (ind.numeradorId && ind.divisorId) {
+      // Composto: meta = orçado(numerador) / orçado(divisor)
+      const orcNum = agregarRealizacoes(periodos.map(p => metasPeriodo.find(m => m.indicadorId === ind.numeradorId && m.periodo === p)?.valorOrcado).filter((v): v is number => v != null), ind.criterioApuracao);
+      const orcDen = agregarRealizacoes(periodos.map(p => metasPeriodo.find(m => m.indicadorId === ind.divisorId && m.periodo === p)?.valorOrcado).filter((v): v is number => v != null), ind.criterioApuracao);
+      if (orcNum != null && orcDen != null && orcDen !== 0) orcAgregado = orcNum / orcDen;
+    } else {
+      const valsOrc = periodos.map(p => metasPeriodo.find(m => m.indicadorId === ind.id && m.periodo === p)?.valorOrcado).filter((v): v is number => v != null);
+      orcAgregado = agregarRealizacoes(valsOrc, ind.criterioApuracao);
+    }
     const indParaNota = orcAgregado != null
       ? { ...ind, metaAlvo: orcAgregado, faixas: ind.faixas ?? [] }
       : { ...ind, faixas: ind.faixas ?? [] };
