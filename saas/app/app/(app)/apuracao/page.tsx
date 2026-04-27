@@ -170,10 +170,14 @@ function AbaPreenchimento({ cicloId, anoFiscal, mesInicio, mesFim, mesReferencia
   async function salvarReal(indicadorId: number, periodo: string) {
     const key = `${indicadorId}_${periodo}`;
     const val = draft[key];
-    if (val === "" || val == null) return;
     setSalvando(`real_${key}`);
-    await fetch("/api/realizacoes", { method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({ cicloId, indicadorId, periodo, valorRealizado: Number(val) }) });
+    if (val === "" || val == null) {
+      const existing = realizacoes.find(r => r.indicadorId === indicadorId && r.periodo === periodo);
+      if (existing) await fetch(`/api/realizacoes?id=${existing.id}`, { method: "DELETE" });
+    } else {
+      await fetch("/api/realizacoes", { method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ cicloId, indicadorId, periodo, valorRealizado: Number(val) }) });
+    }
     setSalvando(null);
     onSaved();
   }
