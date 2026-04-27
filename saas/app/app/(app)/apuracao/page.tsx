@@ -185,10 +185,14 @@ function AbaPreenchimento({ cicloId, anoFiscal, mesInicio, mesFim, mesReferencia
   async function salvarOrc(indicadorId: number, periodo: string) {
     const key = `${indicadorId}_${periodo}`;
     const val = draftOrc[key];
-    if (val === "" || val == null) return;
     setSalvando(`orc_${key}`);
-    await fetch("/api/meta-periodos", { method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({ cicloId, indicadorId, periodo, valorOrcado: Number(val) }) });
+    if (val === "" || val == null) {
+      const existing = metasPeriodo.find(m => m.indicadorId === indicadorId && m.periodo === periodo);
+      if (existing) await fetch(`/api/meta-periodos?id=${existing.id}`, { method: "DELETE" });
+    } else {
+      await fetch("/api/meta-periodos", { method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ cicloId, indicadorId, periodo, valorOrcado: Number(val) }) });
+    }
     setSalvando(null);
     onSaved();
   }
@@ -443,7 +447,9 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
 
     function efetivoForecast(indId: number, p: string): number | undefined {
       if (periodoIsReal(p, mesReferencia)) {
-        return realizacoes.find(r => r.indicadorId === indId && r.periodo === p)?.valorRealizado;
+        const real = realizacoes.find(r => r.indicadorId === indId && r.periodo === p)?.valorRealizado;
+        if (real != null) return real;
+        return metasPeriodo.find(m => m.indicadorId === indId && m.periodo === p)?.valorOrcado;
       } else {
         return metasPeriodo.find(m => m.indicadorId === indId && m.periodo === p)?.valorOrcado;
       }

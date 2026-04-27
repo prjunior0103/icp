@@ -19,11 +19,12 @@ export async function POST(req: Request) {
   let criados = 0;
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i]; const linha = i + 2;
-    if (!r.codigo || !r.nome || !r.tipo) { erros.push(`Linha ${linha}: codigo, nome e tipo obrigatórios`); continue; }
+    if (!r.nome || !r.tipo) { erros.push(`Linha ${linha}: nome e tipo obrigatórios`); continue; }
+    const codigo = r.codigo ? String(r.codigo) : `IND${String(i + 1).padStart(3, "0")}`;
     try {
       await prisma.indicador.create({
         data: {
-          cicloId: Number(cicloId), codigo: String(r.codigo), nome: String(r.nome), tipo: String(r.tipo),
+          cicloId: Number(cicloId), codigo, nome: String(r.nome), tipo: String(r.tipo),
           abrangencia: r.abrangencia || "CORPORATIVO", unidade: r.unidade || "%",
           metaMinima: r.metaMinima ? Number(r.metaMinima) : null,
           metaAlvo: r.metaAlvo ? Number(r.metaAlvo) : null,
