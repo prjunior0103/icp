@@ -14,42 +14,93 @@ export interface IndicadorCalc {
   faixas?: FaixaIndicador[];
 }
 
+export type Polaridade = "maior_melhor" | "menor_melhor";
+
+export interface AuditoriaAtingimento {
+  meta: number;
+  realizado: number;
+  polaridade: Polaridade;
+  piso: number;
+  teto: number;
+  gatilho: number | null;
+  bonusMetaZero: number;
+  atingimentoFinal: number;
+  timestamp: string;
+}
+
 /**
  * Calcula atingimento em fração decimal usando "Desvio Relativo com Módulo".
  *
  * Fórmula universal: atingimento = 1 + P × (realizado − meta) / |meta|
- *   P = +1 para MAIOR_MELHOR | P = −1 para MENOR_MELHOR
+ *   P = +1 para maior_melhor | P = −1 para menor_melhor
  *
  * Suporta meta e realizado negativos (ex: LAIR).
  * Não realiza conversão de unidade — meta e realizado devem estar na mesma unidade.
+ * Para PROJETO_MARCO use calcNota diretamente (não é uma polaridade).
  */
 export function calcAtingimento(
   meta: number,
   realizado: number,
-  tipo: string,
-  opts: { piso?: number; teto?: number; gatilho?: number | null; bonusMetaZero?: number } = {}
+  polaridade: Polaridade,
+  opts: {
+    piso?: number;
+    teto?: number;
+    gatilho?: number | null;
+    bonusMetaZero?: number;
+    onAudit?: (a: AuditoriaAtingimento) => void;
+  } = {}
 ): number {
   const piso = opts.piso ?? 0.0;
   const teto = opts.teto ?? 1.5;
   const gatilho = opts.gatilho ?? null;
   const bonusMetaZero = opts.bonusMetaZero ?? 1.0;
 
-  if (tipo === "PROJETO_MARCO") return realizado >= 1 ? 1.0 : 0.0;
+  const P = polaridade === "maior_melhor" ? 1 : -1;
 
-  const P = tipo === "MAIOR_MELHOR" ? 1 : -1;
+  let atingimento: number;
 
   if (meta === 0) {
-    if (tipo === "MAIOR_MELHOR") return realizado >= 0 ? bonusMetaZero : 0.0;
-    return realizado <= 0 ? bonusMetaZero : 0.0;
+    if (polaridade === "maior_melhor") {
+      atingimento = realizado >= 0 ? bonusMetaZero : 0.0;
+    } else {
+      atingimento = realizado <= 0 ? bonusMetaZero : 0.0;
+    }
+  } else {
+    atingimento = 1 + P * (realizado - meta) / Math.abs(meta);
+    if (gatilho != null && atingimento < gatilho) atingimento = 0.0;
+    else {
+      atingimento = Math.max(piso, atingimento);
+      atingimento = Math.min(teto, atingimento);
+    }
   }
 
-  let atingimento = 1 + P * (realizado - meta) / Math.abs(meta);
-
-  if (gatilho != null && atingimento < gatilho) return 0.0;
-  atingimento = Math.max(piso, atingimento);
-  atingimento = Math.min(teto, atingimento);
+  if (opts.onAudit) {
+    opts.onAudit({
+      meta, realizado, polaridade, piso, teto, gatilho, bonusMetaZero,
+      atingimentoFinal: atingimento,
+      timestamp: new Date().toISOString(),
+    });
+  }
 
   return atingimento;
+}
+
+/**
+ * Versão auditada de calcAtingimento — retorna resultado + dados de auditoria.
+ * Usar em rotas de API onde é possível persistir o log no banco.
+ */
+export function calcAtingimentoAuditado(
+  meta: number,
+  realizado: number,
+  polaridade: Polaridade,
+  opts: { piso?: number; teto?: number; gatilho?: number | null; bonusMetaZero?: number } = {}
+): { atingimento: number; auditoria: AuditoriaAtingimento } {
+  let auditoria!: AuditoriaAtingimento;
+  const atingimento = calcAtingimento(meta, realizado, polaridade, {
+    ...opts,
+    onAudit: (a) => { auditoria = a; },
+  });
+  return { atingimento, auditoria };
 }
 
 /**
@@ -68,7 +119,9 @@ export function calcNota(ind: IndicadorCalc, valorRealizado: number): number {
 
   if (metaAlvo == null) return 0;
 
-  return calcAtingimento(metaAlvo, valorRealizado, tipo, {
+  const polaridade: Polaridade = tipo === "MAIOR_MELHOR" ? "maior_melhor" : "menor_melhor";
+
+  return calcAtingimento(metaAlvo, valorRealizado, polaridade, {
     piso: piso ?? undefined,
     teto: teto ?? undefined,
     gatilho: gatilho ?? null,
