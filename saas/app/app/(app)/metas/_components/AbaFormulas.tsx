@@ -22,7 +22,9 @@ export function AbaFormulas({ indicadores, todosIndicadores }: { indicadores: In
     if (ind.numeradorId && ind.divisorId) {
       const num = todosIndicadores.find(i => i.id === ind.numeradorId);
       const den = todosIndicadores.find(i => i.id === ind.divisorId);
-      return `(${num?.nome ?? "Numerador"}) ÷ (${den?.nome ?? "Divisor"})`;
+      const ratio = `(${num?.nome ?? "Numerador"}) ÷ (${den?.nome ?? "Divisor"})`;
+      const P = ind.tipo === "MAIOR_MELHOR" ? "+1" : "−1";
+      return `Realizado = ${ratio}\n1 + (Realizado − Meta) / |Meta|  [P = ${P}]`;
     }
     if (ind.tipo === "MAIOR_MELHOR") return "1 + (Realizado − Meta) / |Meta|  [P = +1]";
     if (ind.tipo === "MENOR_MELHOR") return "1 + (Realizado − Meta) / |Meta|  [P = −1]";
@@ -75,7 +77,7 @@ export function AbaFormulas({ indicadores, todosIndicadores }: { indicadores: In
 
                 <div className="bg-gray-50 rounded-lg px-3 py-2">
                   <p className="text-2xs text-gray-500 font-semibold uppercase tracking-wide mb-0.5">Fórmula</p>
-                  <p className="text-xs text-gray-700 font-mono">{descricaoFormula(ind)}</p>
+                  <p className="text-xs text-gray-700 font-mono whitespace-pre-line">{descricaoFormula(ind)}</p>
                 </div>
 
                 <div className="grid grid-cols-3 gap-1 text-center">
