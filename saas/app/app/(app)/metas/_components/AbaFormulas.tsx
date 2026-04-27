@@ -110,9 +110,9 @@ export function AbaFormulas({ indicadores, todosIndicadores }: { indicadores: In
                 )}
 
                 <div className="flex gap-2 text-2xs text-gray-500 border-t border-gray-100 pt-2">
-                  <span>Teto: <strong className="text-gray-600">{((ind.teto ?? 1.5) * 100).toFixed(0)}%</strong></span>
+                  <span>Teto: <strong className="text-gray-600">{((ind.teto ?? 1.5) * 100).toFixed(0)}%</strong>{ind.teto == null && <span className="text-gray-400 ml-0.5">(padrão)</span>}</span>
                   <span>·</span>
-                  <span>Piso: <strong className="text-gray-600">{((ind.piso ?? 0) * 100).toFixed(0)}%</strong></span>
+                  <span>Piso: <strong className="text-gray-600">{((ind.piso ?? 0) * 100).toFixed(0)}%</strong>{ind.piso == null && <span className="text-gray-400 ml-0.5">(padrão)</span>}</span>
                   {ind.gatilho != null && (
                     <><span>·</span><span>Gatilho: <strong className="text-gray-600">{(ind.gatilho * 100).toFixed(0)}%</strong></span></>
                   )}
