@@ -31,14 +31,18 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json();
-  const { anoFiscal, mesInicio = 1, mesFim = 12, bonusPool } = body;
+  const { anoFiscal, mesInicio = 1, mesFim = 12, bonusPool, tetoDefault, pisoDefault } = body;
 
   if (!anoFiscal || typeof anoFiscal !== "number") {
     return NextResponse.json({ error: "anoFiscal obrigatório" }, { status: 400 });
   }
 
   const ciclo = await prisma.cicloICP.create({
-    data: { anoFiscal, mesInicio, mesFim, bonusPool: bonusPool ?? null },
+    data: {
+      anoFiscal, mesInicio, mesFim, bonusPool: bonusPool ?? null,
+      tetoDefault: tetoDefault !== undefined ? (tetoDefault === "" ? null : Number(tetoDefault)) : 1.5,
+      pisoDefault: pisoDefault !== undefined ? (pisoDefault === "" ? null : Number(pisoDefault)) : 0.0,
+    },
   });
 
   const { userId, userName } = getAuditUser(session);
@@ -79,7 +83,7 @@ export async function PUT(req: Request) {
   }
 
   const body = await req.json();
-  const { id, anoFiscal, status, mesInicio, mesFim, bonusPool } = body;
+  const { id, anoFiscal, status, mesInicio, mesFim, bonusPool, tetoDefault, pisoDefault } = body;
 
   if (!id) return NextResponse.json({ error: "id obrigatório" }, { status: 400 });
 
@@ -92,6 +96,8 @@ export async function PUT(req: Request) {
       ...(mesInicio !== undefined && { mesInicio: Number(mesInicio) }),
       ...(mesFim !== undefined && { mesFim: Number(mesFim) }),
       ...(bonusPool !== undefined && { bonusPool: bonusPool ? Number(bonusPool) : null }),
+      ...(tetoDefault !== undefined && { tetoDefault: tetoDefault === "" || tetoDefault === null ? null : Number(tetoDefault) }),
+      ...(pisoDefault !== undefined && { pisoDefault: pisoDefault === "" || pisoDefault === null ? null : Number(pisoDefault) }),
     },
   });
 

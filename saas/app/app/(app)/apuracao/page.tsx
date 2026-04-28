@@ -16,6 +16,7 @@ interface Indicador {
   metaMinima?: number | null; metaAlvo?: number | null; metaMaxima?: number | null;
   periodicidade: string; criterioApuracao: string;
   numeradorId?: number | null; divisorId?: number | null;
+  teto?: number | null; piso?: number | null;
   faixas?: { de: number; ate: number; nota: number }[];
 }
 interface Realizacao { id: number; indicadorId: number; periodo: string; valorRealizado: number; lancadoPor?: string | null; dataEnvio?: string | null; anexoPath?: string | null; }
@@ -148,6 +149,7 @@ function ModalEvidencia({ cicloId, target, realizacoes, onClose, onSaved }: {
 function AbaPreenchimento({ cicloId, anoFiscal, mesInicio, mesFim, mesReferencia, indicadores, realizacoes, metasPeriodo, onSaved }:
   { cicloId: number; anoFiscal: number; mesInicio: number; mesFim: number; mesReferencia: string;
     indicadores: Indicador[]; realizacoes: Realizacao[]; metasPeriodo: MetaPeriodo[]; onSaved: () => void }) {
+  const { cicloAtivo } = useCiclo();
   const [busca, setBusca] = useState("");
   const [salvando, setSalvando] = useState<string|null>(null);
   const [draft, setDraft] = useState<Record<string,string>>({});
@@ -301,7 +303,7 @@ function AbaPreenchimento({ cicloId, anoFiscal, mesInicio, mesFim, mesReferencia
                 const indParaNota = orcAgregado != null
                   ? { ...ind, metaAlvo: orcAgregado, faixas: ind.faixas ?? [] }
                   : { ...ind, faixas: ind.faixas ?? [] };
-                const nota = realAgregado != null ? calcNota(indParaNota, realAgregado) : null;
+                const nota = realAgregado != null ? calcNota({ ...indParaNota, teto: ind.teto ?? cicloAtivo?.tetoDefault, piso: ind.piso ?? cicloAtivo?.pisoDefault }, realAgregado) : null;
 
                 // YTD: até o mês de referência ou último período com valor
                 const ytdPeriodos = periodos.filter(p => periodoIsReal(p, mesReferencia));
@@ -413,6 +415,7 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
   { indicadores: Indicador[]; realizacoes: Realizacao[]; metasPeriodo: MetaPeriodo[]; agrupamentos: Agrupamento[];
     atribuicoes: Atribuicao[]; areas: Area[]; anoFiscal: number; mesInicio: number; mesFim: number; mesReferencia: string; movimentadosSet: Set<string>; }) {
 
+  const { cicloAtivo } = useCiclo();
   const [filtroGestor, setFiltroGestor] = useState("");
   const [filtroColaborador, setFiltroColaborador] = useState("");
   const [filtroIndicador, setFiltroIndicador] = useState("");
@@ -434,7 +437,7 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
     const indParaNota = orcAgregado != null
       ? { ...ind, metaAlvo: orcAgregado, faixas: ind.faixas ?? [] }
       : { ...ind, faixas: ind.faixas ?? [] };
-    return calcNota(indParaNota, valorFinal);
+    return calcNota({ ...indParaNota, teto: ind.teto ?? cicloAtivo?.tetoDefault, piso: ind.piso ?? cicloAtivo?.pisoDefault }, valorFinal);
   }
 
   // Notas usando mix real/forecast por mês de referência

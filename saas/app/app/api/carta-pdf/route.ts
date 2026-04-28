@@ -48,7 +48,7 @@ export async function GET(req: Request) {
   const notasMap = new Map<number, number>();
   const realMap = new Map<number, number | null>();
   const orcMap = new Map<number, number | null>();
-  const todasIndicadores = new Map<number, { id: number; tipo: string; unidade: string; metaAlvo: number | null; metaMinima: number | null; metaMaxima: number | null; periodicidade: string; criterioApuracao: string; numeradorId: number | null; divisorId: number | null; faixas: { de: number; ate: number; nota: number }[] }>();
+  const todasIndicadores = new Map<number, { id: number; tipo: string; unidade: string; metaAlvo: number | null; metaMinima: number | null; metaMaxima: number | null; periodicidade: string; criterioApuracao: string; numeradorId: number | null; divisorId: number | null; teto?: number | null; piso?: number | null; faixas: { de: number; ate: number; nota: number }[] }>();
   for (const at of atribuicoes) {
     for (const ig of at.agrupamento.indicadores) {
       if (!todasIndicadores.has(ig.indicadorId)) todasIndicadores.set(ig.indicadorId, ig.indicador as typeof ig.indicador & { faixas: { de: number; ate: number; nota: number }[] });
@@ -72,7 +72,7 @@ export async function GET(req: Request) {
     orcMap.set(indId, orc);
     if (valorFinal != null) {
       const indC = orc != null ? { ...ind, metaAlvo: orc } : { ...ind };
-      notasMap.set(indId, calcNota(indC, valorFinal));
+      notasMap.set(indId, calcNota({ ...indC, teto: ind.teto ?? ciclo.tetoDefault, piso: ind.piso ?? ciclo.pisoDefault }, valorFinal));
     }
   }
 

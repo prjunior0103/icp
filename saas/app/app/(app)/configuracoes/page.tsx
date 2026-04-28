@@ -112,12 +112,23 @@ export default function ConfiguracoesPage() {
   const [salvandoCarta, setSalvandoCarta] = useState(false);
   const [cartaSalva, setCartaSalva] = useState(false);
 
+  // ── Parâmetros de cálculo ──────────────────────────────
+  const [tetoDefault, setTetoDefault] = useState<string>("150");
+  const [pisoDefault, setPisoDefault] = useState<string>("0");
+  const [salvandoParams, setSalvandoParams] = useState(false);
+  const [paramsSalvo, setParamsSalvo] = useState(false);
+
   useEffect(() => {
     fetch("/api/ciclos")
       .then(r => r.json())
       .then(d => {
-        const ativo = (d.ciclos ?? []).find((c: { id: number; status: string }) => c.status === "ATIVO");
-        if (ativo) { setCicloId(ativo.id); carregarCarta(ativo.id); }
+        const ativo = (d.ciclos ?? []).find((c: { id: number; status: string; tetoDefault?: number | null; pisoDefault?: number | null }) => c.status === "ATIVO");
+        if (ativo) {
+          setCicloId(ativo.id);
+          carregarCarta(ativo.id);
+          setTetoDefault(ativo.tetoDefault != null ? String(ativo.tetoDefault * 100) : "");
+          setPisoDefault(ativo.pisoDefault != null ? String(ativo.pisoDefault * 100) : "");
+        }
       });
   }, []);
 
@@ -158,6 +169,33 @@ export default function ConfiguracoesPage() {
       setErro("Erro de conexão ao salvar");
     } finally {
       setSalvandoCarta(false);
+    }
+  }
+
+  async function salvarParams() {
+    if (!cicloId) return;
+    setSalvandoParams(true);
+    try {
+      const res = await fetch("/api/ciclos", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: cicloId,
+          tetoDefault: tetoDefault === "" ? null : Number(tetoDefault) / 100,
+          pisoDefault: pisoDefault === "" ? null : Number(pisoDefault) / 100,
+        }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setErro(d.error ?? "Erro ao salvar parâmetros");
+        return;
+      }
+      setParamsSalvo(true);
+      setTimeout(() => setParamsSalvo(false), 2500);
+    } catch {
+      setErro("Erro de conexão ao salvar");
+    } finally {
+      setSalvandoParams(false);
     }
   }
 
@@ -374,13 +412,48 @@ export default function ConfiguracoesPage() {
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"/>
           </div>
 
-          {/* Salvar */}
+          {/* Salvar carta */}
           <div className="flex items-center gap-3">
             <button onClick={salvarCarta} disabled={salvandoCarta || !cicloId}
               className="flex items-center gap-2 bg-blue-700 hover:bg-blue-800 disabled:bg-blue-300 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors">
               <Save size={15}/> {salvandoCarta ? "Salvando..." : "Salvar configuração"}
             </button>
             {cartaSalva && <span className="text-sm text-green-600 font-medium">✓ Salvo com sucesso</span>}
+          </div>
+
+          {/* Parâmetros de Cálculo */}
+          <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700">Parâmetros de Cálculo</h3>
+              <p className="text-xs text-gray-500 mt-0.5">Aplicados a indicadores sem teto/piso próprio configurado.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Teto padrão (%)</label>
+                <input
+                  type="number" step="1" min="0" value={tetoDefault}
+                  onChange={e => setTetoDefault(e.target.value)}
+                  placeholder="Sem limite (vazio)"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                <p className="text-xs text-gray-400 mt-1">Deixe vazio para sem limite</p>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Piso padrão (%)</label>
+                <input
+                  type="number" step="1" value={pisoDefault}
+                  onChange={e => setPisoDefault(e.target.value)}
+                  placeholder="Sem piso (vazio)"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                <p className="text-xs text-gray-400 mt-1">Deixe vazio para sem piso</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <button onClick={salvarParams} disabled={salvandoParams || !cicloId}
+                className="flex items-center gap-2 bg-blue-700 hover:bg-blue-800 disabled:bg-blue-300 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors">
+                <Save size={15}/> {salvandoParams ? "Salvando..." : "Salvar parâmetros"}
+              </button>
+              {paramsSalvo && <span className="text-sm text-green-600 font-medium">✓ Salvo com sucesso</span>}
+            </div>
           </div>
         </div>
       )}

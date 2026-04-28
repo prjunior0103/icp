@@ -13,6 +13,8 @@ export interface Indicador {
   criterioApuracao: string;
   numeradorId?: number | null;
   divisorId?: number | null;
+  teto?: number | null;
+  piso?: number | null;
   faixas?: { de: number; ate: number; nota: number }[];
   analistaResp?: string | null;
   responsavelEnvio?: { id: number; nome: string } | null;

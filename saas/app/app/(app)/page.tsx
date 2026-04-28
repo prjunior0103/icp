@@ -48,7 +48,7 @@ export default function DashboardPage() {
 
     const colabs: { id: number }[] = rColabs.colaboradores ?? [];
     const atribs: { colaboradorId: number; agrupamentoId: number; pesoNaCesta: number; agrupamento: { indicadores: { indicadorId: number; peso: number }[] } }[] = rAtrib.atribuicoes ?? [];
-    const indicadores: { id: number; tipo: string; unidade: string; metaAlvo: number | null; metaMinima: number | null; metaMaxima: number | null; periodicidade: string; criterioApuracao: string; numeradorId: number | null; divisorId: number | null; faixas?: { de: number; ate: number; nota: number }[] }[] = rInds.indicadores ?? [];
+    const indicadores: { id: number; tipo: string; unidade: string; metaAlvo: number | null; metaMinima: number | null; metaMaxima: number | null; periodicidade: string; criterioApuracao: string; numeradorId: number | null; divisorId: number | null; teto?: number | null; piso?: number | null; faixas?: { de: number; ate: number; nota: number }[] }[] = rInds.indicadores ?? [];
     const realizacoes: { indicadorId: number; periodo: string; valorRealizado: number }[] = rReal.realizacoes ?? [];
     const metasPeriodo: { indicadorId: number; periodo: string; valorOrcado: number }[] = rMeta.metasPeriodo ?? [];
 
@@ -98,7 +98,7 @@ export default function DashboardPage() {
           orc = agregarRealizacoes(vO, ind.criterioApuracao);
         }
         const indC = orc != null ? { ...ind, metaAlvo: orc, faixas: ind.faixas ?? [] } : { ...ind, faixas: ind.faixas ?? [] };
-        notasMap.set(ind.id, calcNota(indC, valorFinal));
+        notasMap.set(ind.id, calcNota({ ...indC, teto: ind.teto ?? cicloAtivo.tetoDefault, piso: ind.piso ?? cicloAtivo.pisoDefault }, valorFinal));
       }
     }
 

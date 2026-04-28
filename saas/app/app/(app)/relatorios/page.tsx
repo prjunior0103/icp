@@ -121,7 +121,8 @@ export default function RelatoriosPage() {
     indicadores, realizacoes, metasPeriodo,
     cicloAtivo?.anoFiscal ?? 0,
     cicloAtivo?.mesInicio ?? 1,
-    cicloAtivo?.mesFim ?? 12
+    cicloAtivo?.mesFim ?? 12,
+    cicloAtivo ?? undefined
   );
 
   if (!cicloAtivo) return (

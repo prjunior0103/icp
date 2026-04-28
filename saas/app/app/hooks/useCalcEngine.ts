@@ -7,7 +7,8 @@ export function useCalcEngine(
   metasPeriodo: MetaPeriodo[],
   anoFiscal: number,
   mesInicio: number,
-  mesFim: number
+  mesFim: number,
+  cicloDefaults?: { tetoDefault?: number | null; pisoDefault?: number | null }
 ) {
   const notasMap = new Map<number, number>();
   const realMap = new Map<number, number | null>();
@@ -47,7 +48,7 @@ export function useCalcEngine(
       const indC = orc != null
         ? { ...ind, metaAlvo: orc, faixas: ind.faixas ?? [] }
         : { ...ind, faixas: ind.faixas ?? [] };
-      notasMap.set(ind.id, calcNota(indC, valorFinal));
+      notasMap.set(ind.id, calcNota({ ...indC, teto: ind.teto ?? cicloDefaults?.tetoDefault, piso: ind.piso ?? cicloDefaults?.pisoDefault }, valorFinal));
     }
   }
   return { notasMap, realMap, orcMap };

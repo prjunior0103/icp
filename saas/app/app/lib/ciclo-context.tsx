@@ -9,6 +9,8 @@ interface Ciclo {
   mesInicio: number;
   mesFim: number;
   bonusPool?: number | null;
+  tetoDefault?: number | null;
+  pisoDefault?: number | null;
 }
 
 interface CicloContextType {

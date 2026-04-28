@@ -19,13 +19,15 @@ model User {
 }
 
 model CicloICP {
-  id        Int      @id @default(autoincrement())
-  anoFiscal Int      @unique
-  status    String   @default("SETUP") // SETUP, ATIVO, ENCERRADO
-  mesInicio Int      @default(1)
-  mesFim    Int      @default(12)
-  bonusPool Float?
-  criadoEm  DateTime @default(now())
+  id          Int      @id @default(autoincrement())
+  anoFiscal   Int      @unique
+  status      String   @default("SETUP") // SETUP, ATIVO, ENCERRADO
+  mesInicio   Int      @default(1)
+  mesFim      Int      @default(12)
+  bonusPool   Float?
+  tetoDefault Float?   @default(1.5)    // cap padrão para indicadores sem teto próprio; null = sem limite
+  pisoDefault Float?   @default(0.0)    // piso padrão para indicadores sem piso próprio; null = sem piso
+  criadoEm    DateTime @default(now())
 }
 
 model ParametroSistema {

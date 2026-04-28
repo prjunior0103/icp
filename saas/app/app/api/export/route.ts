@@ -50,7 +50,7 @@ export async function GET(req: Request) {
     const valsOrc = periodos.map(p => metasPeriodo.find(m => m.indicadorId === ind.id && m.periodo === p)?.valorOrcado).filter((v): v is number => v != null);
     const orcAgg = agregarRealizacoes(valsOrc, ind.criterioApuracao);
     const indCalc = orcAgg != null ? { ...ind, metaAlvo: orcAgg } : ind;
-    return calcNota({ ...indCalc, faixas: ind.faixas }, valorFinal);
+    return calcNota({ ...indCalc, faixas: ind.faixas, teto: ind.teto ?? ciclo!.tetoDefault, piso: ind.piso ?? ciclo!.pisoDefault }, valorFinal);
   }
 
   const notasMap = new Map<number, number>();

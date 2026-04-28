@@ -20,8 +20,8 @@ export interface AuditoriaAtingimento {
   meta: number;
   realizado: number;
   polaridade: Polaridade;
-  piso: number;
-  teto: number;
+  piso: number | null;
+  teto: number | null;
   gatilho: number | null;
   bonusMetaZero: number;
   atingimentoFinal: number;
@@ -43,15 +43,16 @@ export function calcAtingimento(
   realizado: number,
   polaridade: Polaridade,
   opts: {
-    piso?: number;
-    teto?: number;
+    piso?: number | null;
+    teto?: number | null;
     gatilho?: number | null;
     bonusMetaZero?: number;
     onAudit?: (a: AuditoriaAtingimento) => void;
   } = {}
 ): number {
-  const piso = opts.piso ?? 0.0;
-  const teto = opts.teto ?? 1.5;
+  // undefined → default histórico; null → sem piso/teto
+  const piso = opts.piso === undefined ? 0.0 : opts.piso;
+  const teto = opts.teto === undefined ? 1.5 : opts.teto;
   const gatilho = opts.gatilho ?? null;
   const bonusMetaZero = opts.bonusMetaZero ?? 1.0;
 
@@ -69,8 +70,8 @@ export function calcAtingimento(
     atingimento = 1 + P * (realizado - meta) / Math.abs(meta);
     if (gatilho != null && atingimento < gatilho) atingimento = 0.0;
     else {
-      atingimento = Math.max(piso, atingimento);
-      atingimento = Math.min(teto, atingimento);
+      if (piso !== null) atingimento = Math.max(piso, atingimento);
+      if (teto !== null) atingimento = Math.min(teto, atingimento);
     }
   }
 
@@ -93,7 +94,7 @@ export function calcAtingimentoAuditado(
   meta: number,
   realizado: number,
   polaridade: Polaridade,
-  opts: { piso?: number; teto?: number; gatilho?: number | null; bonusMetaZero?: number } = {}
+  opts: { piso?: number | null; teto?: number | null; gatilho?: number | null; bonusMetaZero?: number } = {}
 ): { atingimento: number; auditoria: AuditoriaAtingimento } {
   let auditoria!: AuditoriaAtingimento;
   const atingimento = calcAtingimento(meta, realizado, polaridade, {
@@ -122,8 +123,8 @@ export function calcNota(ind: IndicadorCalc, valorRealizado: number): number {
   const polaridade: Polaridade = tipo === "MAIOR_MELHOR" ? "maior_melhor" : "menor_melhor";
 
   return calcAtingimento(metaAlvo, valorRealizado, polaridade, {
-    piso: piso ?? undefined,
-    teto: teto ?? undefined,
+    piso: piso !== undefined ? piso : undefined,
+    teto: teto !== undefined ? teto : undefined,
     gatilho: gatilho ?? null,
     bonusMetaZero: bonusMetaZero ?? undefined,
   }) * 100;

@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "CicloICP" ADD COLUMN "tetoDefault" REAL DEFAULT 1.5;
+ALTER TABLE "CicloICP" ADD COLUMN "pisoDefault" REAL DEFAULT 0.0;

@@ -96,7 +96,7 @@ export async function GET(req: Request) {
     orcMap.set(indId, orc);
     if (valorFinal != null) {
       const indC = orc != null ? { ...ind, metaAlvo: orc, faixas: ind.faixas ?? [] } : { ...ind, faixas: ind.faixas ?? [] };
-      notasMap.set(indId, calcNota(indC, valorFinal));
+      notasMap.set(indId, calcNota({ ...indC, teto: ind.teto ?? ciclo.tetoDefault, piso: ind.piso ?? ciclo.pisoDefault }, valorFinal));
     }
   }
 
@@ -123,7 +123,7 @@ export async function GET(req: Request) {
     const orc = orcMap.get(indId) ?? null;
     if (valorFinal != null) {
       const indC = orc != null ? { ...ind, metaAlvo: orc, faixas: ind.faixas ?? [] } : { ...ind, faixas: ind.faixas ?? [] };
-      notasYtdMap.set(indId, calcNota(indC, valorFinal));
+      notasYtdMap.set(indId, calcNota({ ...indC, teto: ind.teto ?? ciclo.tetoDefault, piso: ind.piso ?? ciclo.pisoDefault }, valorFinal));
     }
   }
 
