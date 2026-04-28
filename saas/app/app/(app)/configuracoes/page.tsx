@@ -6,6 +6,7 @@ import { Users, Plus, Trash2, Pencil, Eye, EyeOff, Shield, UserCog, User, Buildi
 import { ModalWrapper } from "@/app/components/ModalWrapper";
 import { LoadingSpinner } from "@/app/components/LoadingSpinner";
 import { useConfirm } from "@/app/components/ConfirmModal";
+import { useCiclo } from "@/app/lib/ciclo-context";
 
 interface Usuario { id: string; name: string; email: string; role: string; }
 
@@ -37,6 +38,7 @@ interface ConfigCarta {
 export default function ConfiguracoesPage() {
   const { data: session } = useSession();
   const role = (session?.user as { role?: string })?.role;
+  const { recarregar } = useCiclo();
   const [aba, setAba] = useState<"usuarios" | "carta">("usuarios");
 
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
@@ -190,6 +192,7 @@ export default function ConfiguracoesPage() {
         setErro(d.error ?? "Erro ao salvar parâmetros");
         return;
       }
+      recarregar();
       setParamsSalvo(true);
       setTimeout(() => setParamsSalvo(false), 2500);
     } catch {
