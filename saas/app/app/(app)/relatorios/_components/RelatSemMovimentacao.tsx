@@ -72,7 +72,7 @@ export function RelatSemMovimentacao({ cicloId }: { cicloId: number }) {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                {["Colaborador", "Cargo", "Centro de Custo", "Gestor", "Salário Base", "Target", "Ávos", "Detalhe Ávos", "Prêmio Máx."].map(h => (
+                {["Colaborador", "Cargo", "Centro de Custo", "Gestor", "Salário Base", "Múltiplo", "Ávos", "Detalhe Ávos", "Prêmio Máx."].map(h => (
                   <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -88,7 +88,7 @@ export function RelatSemMovimentacao({ cicloId }: { cicloId: number }) {
                   <td className="px-4 py-2.5 text-xs text-gray-500">{c.centroCusto ?? "—"}</td>
                   <td className="px-4 py-2.5 text-xs text-gray-500">{c.nomeGestor ?? "—"}</td>
                   <td className="px-4 py-2.5 text-xs text-gray-700">{fmtR(c.salarioBase)}</td>
-                  <td className="px-4 py-2.5 text-xs text-gray-700">{c.target}%</td>
+                  <td className="px-4 py-2.5 text-xs text-gray-700">{(c.target / 100).toFixed(2)}x</td>
                   <td className="px-4 py-2.5">
                     <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${
                       c.avos === 1 ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"

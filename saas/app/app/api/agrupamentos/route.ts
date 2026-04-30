@@ -73,6 +73,7 @@ export async function DELETE(req: Request) {
   const id = searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id obrigatório" }, { status: 400 });
   const agrupamento = await prisma.agrupamento.findUnique({ where: { id: Number(id) } });
+  await prisma.atribuicaoAgrupamento.deleteMany({ where: { agrupamentoId: Number(id) } });
   await prisma.agrupamento.delete({ where: { id: Number(id) } });
 
   const { userId, userName } = getAuditUser(session);
