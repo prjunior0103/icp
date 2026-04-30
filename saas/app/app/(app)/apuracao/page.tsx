@@ -312,6 +312,8 @@ function AbaPreenchimento({ cicloId, anoFiscal, mesInicio, mesFim, mesReferencia
                 const ytdValsOrc  = ytdPeriodos.map(p => { const k=`${ind.id}_${p}`; return draftOrc[k]!==undefined?Number(draftOrc[k]):null; }).filter((v):v is number=>v!==null);
                 const ytdReal = agregarRealizacoes(ytdValsEfetivo, ind.criterioApuracao);
                 const ytdOrc  = agregarRealizacoes(ytdValsOrc,  ind.criterioApuracao);
+                // Nota YTD: calculada só com realizado; nota projetada: real+forecast
+                const notaYtd = ytdReal != null ? calcNota({ ...indParaNota, teto: ind.teto ?? cicloAtivo?.tetoDefault, piso: ind.piso ?? cicloAtivo?.pisoDefault }, ytdReal) : null;
 
                 return (
                   <tr key={ind.id} className={`border-b border-gray-100 ${idx % 2 === 0 ? "bg-white" : "bg-gray-50/40"}`}>
@@ -321,11 +323,16 @@ function AbaPreenchimento({ cicloId, anoFiscal, mesInicio, mesFim, mesReferencia
                     </td>
                     <td className="px-4 py-2.5 text-xs text-gray-600 whitespace-nowrap">{ind.tipo}</td>
                     <td className="px-4 py-2.5">
-                      {nota != null ? (
-                        <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${nota >= 100 ? "bg-green-100 text-green-700" : nota > 0 ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-600"}`}>
-                          {nota.toFixed(2)}%
-                        </span>
-                      ) : <span className="text-gray-300 text-xs">—</span>}
+                      <div className="flex flex-col gap-1">
+                        {nota != null ? (
+                          <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${nota >= 100 ? "bg-green-100 text-green-700" : nota > 0 ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-600"}`}>
+                            {nota.toFixed(2)}%
+                          </span>
+                        ) : <span className="text-gray-300 text-xs">—</span>}
+                        {notaYtd != null ? (
+                          <span className="text-[10px] text-blue-600 font-medium">YTD: {notaYtd.toFixed(2)}%</span>
+                        ) : null}
+                      </div>
                     </td>
                     {mesesCiclo.map(p => {
                       const pi = periodoDeInd(ind, p, anoFiscal);
@@ -376,13 +383,19 @@ function AbaPreenchimento({ cicloId, anoFiscal, mesInicio, mesFim, mesReferencia
                         </td>
                       );
                     })}
-                    {/* YTD — apenas realizado */}
+                    {/* YTD */}
                     <td className="border-l-2 border-indigo-200 bg-indigo-50/40 px-2 py-1 text-center whitespace-nowrap">
-                      <span className="text-xs text-blue-700 font-mono font-semibold">{ytdReal != null ? ytdReal.toLocaleString("pt-BR", {maximumFractionDigits:2}) : "—"}</span>
+                      <div className="flex flex-col gap-1 items-center">
+                        <span className="text-xs text-orange-600 font-mono">{ytdOrc != null ? ytdOrc.toLocaleString("pt-BR", {maximumFractionDigits:2}) : "—"}</span>
+                        <span className="text-xs text-blue-700 font-mono font-semibold">{ytdReal != null ? ytdReal.toLocaleString("pt-BR", {maximumFractionDigits:2}) : "—"}</span>
+                      </div>
                     </td>
-                    {/* Total — realizado + forecast */}
+                    {/* Total */}
                     <td className="border-l border-indigo-200 bg-indigo-50/40 px-2 py-1 text-center whitespace-nowrap">
-                      <span className="text-xs text-blue-700 font-mono font-semibold">{realAgregado != null ? realAgregado.toLocaleString("pt-BR", {maximumFractionDigits:2}) : "—"}</span>
+                      <div className="flex flex-col gap-1 items-center">
+                        <span className="text-xs text-orange-600 font-mono">{orcAgregado != null ? orcAgregado.toLocaleString("pt-BR", {maximumFractionDigits:2}) : "—"}</span>
+                        <span className="text-xs text-blue-700 font-mono font-semibold">{realAgregado != null ? realAgregado.toLocaleString("pt-BR", {maximumFractionDigits:2}) : "—"}</span>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -593,7 +606,7 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
                     </div>
                     <div className="text-right hidden md:block">
                       <p className="text-xs text-gray-400">Target</p>
-                      <p className="text-sm font-medium text-gray-700">{(c.target/100).toFixed(2)}x</p>
+                      <p className="text-sm font-medium text-gray-700">{c.target.toFixed(2)}x</p>
                     </div>
                     <div className="text-right">
                       <p className="text-xs text-blue-500 font-medium">Atual (YTD)</p>
