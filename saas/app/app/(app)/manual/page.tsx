@@ -236,6 +236,18 @@ function SecaoMetas() {
           <li><CheckCircle2 size={13} className="inline text-green-500 mr-1" /><strong>Cascata:</strong> meta replicada de uma área para sub-áreas automaticamente</li>
         </ul>
       </div>
+      <div>
+        <p className="font-medium text-gray-700 mb-2">Edição em massa de indicadores</p>
+        <p>
+          Na aba <em>Indicadores</em> da página de Metas, é possível selecionar múltiplos indicadores usando as
+          caixas de seleção da tabela e aplicar alterações em lote:
+        </p>
+        <ul className="mt-2 space-y-1">
+          <li><CheckCircle2 size={13} className="inline text-green-500 mr-1" /><strong>Janela de apuração:</strong> alterar para ABERTA, PRORROGADA ou FECHADA em todos os selecionados de uma vez</li>
+          <li><CheckCircle2 size={13} className="inline text-green-500 mr-1" /><strong>Status:</strong> ativar ou desativar indicadores em massa</li>
+        </ul>
+        <p className="mt-2 text-xs text-gray-500">Use o checkbox no cabeçalho da coluna para selecionar todos os indicadores visíveis.</p>
+      </div>
     </>
   );
 }
@@ -275,21 +287,24 @@ function SecaoMovimentacoes() {
     <>
       <p>
         O sistema detecta automaticamente movimentações ao importar colaboradores com alterações nos campos
-        de área, cargo ou status.
+        de área, função, gestor ou status.
       </p>
       <div>
         <p className="font-medium text-gray-700 mb-2">Tipos de movimentação</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {[
-            "ADMISSAO",
-            "DESLIGAMENTO",
-            "MUDANCA_AREA",
-            "MUDANCA_CARGO",
-            "AFASTAMENTO",
-            "RETORNO",
-          ].map((t) => (
-            <div key={t} className="font-mono text-xs bg-gray-50 border border-gray-200 rounded px-3 py-1.5 text-gray-700">
-              {t}
+            { tipo: "ADMISSAO", desc: "Novo colaborador no ciclo" },
+            { tipo: "DESLIGAMENTO", desc: "Saída confirmada" },
+            { tipo: "MUDANCA_AREA", desc: "Transferência de unidade" },
+            { tipo: "MUDANCA_FUNCAO", desc: "Alteração de cargo/função" },
+            { tipo: "MUDANCA_GESTOR", desc: "Troca de gestor responsável" },
+            { tipo: "AFASTAMENTO", desc: "Licença, afastamento médico etc." },
+            { tipo: "RETORNO", desc: "Retorno após afastamento" },
+            { tipo: "POSSIVEL_DESLIGAMENTO", desc: "Sinalização de risco de saída" },
+          ].map(({ tipo, desc }) => (
+            <div key={tipo} className="border border-gray-200 rounded-lg p-2.5">
+              <p className="font-mono text-xs text-blue-700 mb-0.5">{tipo}</p>
+              <p className="text-xs text-gray-500">{desc}</p>
             </div>
           ))}
         </div>
@@ -301,23 +316,37 @@ function SecaoMovimentacoes() {
           <em>Colaboradores → Movimentações</em> para aprovar, rejeitar ou ajustar a data efetiva.
         </p>
       </div>
+      <div>
+        <p className="font-medium text-gray-700 mb-2">Cálculo de ávos (pro-rata)</p>
+        <p className="mb-2">
+          Colaboradores que ingressaram ou foram desligados durante o ciclo recebem o prêmio proporcionalmente
+          ao número de meses ativos — calculado em <strong>ávos</strong>:
+        </p>
+        <Formula>{"Ávos = meses ativos / total de meses do ciclo"}</Formula>
+        <div className="mt-3 space-y-1.5 text-xs text-gray-600">
+          <p><strong>Regra de admissão:</strong> admitido até o dia 15 → mês conta; após o dia 15 → mês não conta.</p>
+          <p><strong>Regra de desligamento:</strong> desligado a partir do dia 15 → mês conta; antes do dia 15 → mês não conta.</p>
+          <p className="mt-1 text-gray-500">Exemplo: ciclo de 12 meses (jan–dez). Admissão em 10/04 → meses ativos = abr a dez = 9 → ávos = 9/12 = 0,75.</p>
+        </div>
+      </div>
     </>
   );
 }
 
 const RELATORIOS = [
-  { icon: <BarChart3 size={14} />, nome: "Resumo Geral", desc: "Visão consolidada de todos os indicadores do ciclo." },
-  { icon: <Users size={14} />, nome: "Por Colaborador", desc: "Nota e prêmio individual de cada colaborador." },
-  { icon: <Target size={14} />, nome: "Por Indicador", desc: "Desempenho histórico de cada meta." },
-  { icon: <Award size={14} />, nome: "Ranking", desc: "Classificação de colaboradores por nota." },
-  { icon: <TrendingUp size={14} />, nome: "Evolução", desc: "Tendência de realização ao longo dos períodos." },
-  { icon: <Layers size={14} />, nome: "Por Área", desc: "Performance agregada por unidade organizacional." },
+  { icon: <Users size={14} />, nome: "Por Colaborador", desc: "Nota e prêmio estimado de cada colaborador no ciclo." },
+  { icon: <BarChart3 size={14} />, nome: "Por Indicador", desc: "Desempenho histórico e realizado de cada meta." },
+  { icon: <GitBranch size={14} />, nome: "Contratação", desc: "Colaboradores admitidos no ciclo com detalhe de ávos." },
+  { icon: <Users size={14} />, nome: "Por Responsável", desc: "Visão consolidada por BP ou responsável de área." },
+  { icon: <Users size={14} />, nome: "Painel do Gestor", desc: "Resultados da equipe agrupados por gestor." },
+  { icon: <Layers size={14} />, nome: "Calibração", desc: "Comparativo entre colaboradores para calibração de notas." },
+  { icon: <FileText size={14} />, nome: "Pendências", desc: "Indicadores sem realizado preenchido no período vigente." },
   { icon: <RefreshCw size={14} />, nome: "Movimentações", desc: "Histórico de admissões, desligamentos e transferências." },
-  { icon: <Shield size={14} />, nome: "Auditoria", desc: "Registro de todas as ações do sistema (somente GUARDIÃO)." },
-  { icon: <FileText size={14} />, nome: "Carta ICP", desc: "Documento de comunicação do prêmio ao colaborador." },
-  { icon: <Calculator size={14} />, nome: "Cálculo Detalhado", desc: "Fórmulas e valores intermediários de cada indicador." },
-  { icon: <Settings size={14} />, nome: "Configuração do Ciclo", desc: "Parâmetros definidos para o ciclo vigente." },
-  { icon: <Play size={14} />, nome: "Simulação", desc: "Projeção de prêmios com valores hipotéticos." },
+  { icon: <Users size={14} />, nome: "Sem Painel", desc: "Colaboradores sem cesta de indicadores atribuída." },
+  { icon: <AlertCircle size={14} />, nome: "Não Apurados", desc: "Indicadores com janela aberta mas sem realizado informado." },
+  { icon: <CheckCircle2 size={14} />, nome: "Sem Movimentação", desc: "Colaboradores sem eventos de movimentação — inclui cálculo de ávos para admissões no ciclo." },
+  { icon: <TrendingUp size={14} />, nome: "Gerar PPT", desc: "Exportação de apresentação PowerPoint com os resultados do ciclo." },
+  { icon: <FileText size={14} />, nome: "Carta PDF", desc: "Carta individualizada de comunicação do prêmio ao colaborador." },
 ];
 
 function SecaoRelatorios() {

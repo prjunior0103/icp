@@ -21,6 +21,7 @@ interface ColabSemMov {
   totalMeses: number;
   premioBase: number;
   premioMaxProporcional: number;
+  dataAdm: string | null;
 }
 
 export function RelatSemMovimentacao({ cicloId }: { cicloId: number }) {
@@ -71,7 +72,7 @@ export function RelatSemMovimentacao({ cicloId }: { cicloId: number }) {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                {["Colaborador", "Cargo", "Centro de Custo", "Gestor", "Salário Base", "Target", "Ávos", "Prêmio Máx."].map(h => (
+                {["Colaborador", "Cargo", "Centro de Custo", "Gestor", "Salário Base", "Target", "Ávos", "Detalhe Ávos", "Prêmio Máx."].map(h => (
                   <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -94,6 +95,14 @@ export function RelatSemMovimentacao({ cicloId }: { cicloId: number }) {
                     }`}>
                       {c.mesesAtivos}/{c.totalMeses}
                     </span>
+                  </td>
+                  <td className="px-4 py-2.5 text-xs text-gray-500">
+                    {c.avos === 1
+                      ? <span className="text-green-600">Ciclo cheio</span>
+                      : c.dataAdm
+                        ? <span>Admitido em {c.dataAdm} → {c.mesesAtivos}/{c.totalMeses} meses</span>
+                        : <span>{c.mesesAtivos}/{c.totalMeses} meses</span>
+                    }
                   </td>
                   <td className="px-4 py-2.5 font-medium text-gray-800">{fmtR(c.premioMaxProporcional)}</td>
                 </tr>

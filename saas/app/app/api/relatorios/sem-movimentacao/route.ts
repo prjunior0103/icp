@@ -67,6 +67,9 @@ export async function GET(req: Request) {
         });
       }
       const premioBase = c.salarioBase * (c.target / 100);
+      const dataAdmFormatada = dataAdm
+        ? dataAdm.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })
+        : null;
       return {
         id: c.id,
         matricula: c.matricula,
@@ -82,6 +85,7 @@ export async function GET(req: Request) {
         totalMeses,
         premioBase,
         premioMaxProporcional: premioBase * avos,
+        dataAdm: dataAdmFormatada,
       };
     });
 
