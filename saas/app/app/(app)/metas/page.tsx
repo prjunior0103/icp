@@ -122,24 +122,26 @@ export default function MetasPage() {
     }, { confirmLabel: "Remover", variant: "danger" });
   }
   function atribuirATodos(ag: Agrupamento) {
-    if (colaboradores.length === 0) { showToast("Nenhum colaborador neste ciclo.", "info"); return; }
+    const total = colaboradores.length;
+    if (total === 0) { showToast("Nenhum colaborador neste ciclo.", "info"); return; }
     const peso = Math.round(ag.indicadores.reduce((s, i) => s + i.peso, 0) * 100) / 100;
     confirm.request(
-      `Atribuir "${ag.nome}" a ${colaboradores.length} colaborador(es) com peso ${peso}%?`,
+      `Atribuir "${ag.nome}" a ${total} colaborador(es) com peso ${peso}%?`,
       async () => {
         setAtribuindoAg(s => new Set(s).add(ag.id));
-        const cid = cicloAtivo!.id;
-        await Promise.all(
-          colaboradores.map(c =>
-            fetch("/api/atribuicoes", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ cicloId: cid, colaboradorId: c.id, agrupamentoId: ag.id, pesoNaCesta: peso, cascata: "NENHUM" }),
-            })
-          )
-        );
-        setAtribuindoAg(s => { const n = new Set(s); n.delete(ag.id); return n; });
-        carregarAtribs();
+        try {
+          const res = await fetch("/api/atribuicoes/todos", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ cicloId: cicloAtivo!.id, agrupamentoId: ag.id, pesoNaCesta: peso }),
+          });
+          const d = await res.json();
+          if (!res.ok) { showToast(d.error ?? "Erro ao atribuir"); return; }
+          showToast(`${d.criados} atribuições criadas/atualizadas`, "info");
+          carregarAtribs();
+        } finally {
+          setAtribuindoAg(s => { const n = new Set(s); n.delete(ag.id); return n; });
+        }
       },
       { confirmLabel: "Atribuir", variant: "primary" }
     );
