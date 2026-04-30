@@ -100,8 +100,8 @@ export function RelatSemMovimentacao({ cicloId }: { cicloId: number }) {
                     {c.avos === 1
                       ? <span className="text-green-600">Ciclo cheio</span>
                       : c.dataAdm
-                        ? <span>Admitido em {c.dataAdm} → {c.mesesAtivos}/{c.totalMeses} meses</span>
-                        : <span>{c.mesesAtivos}/{c.totalMeses} meses</span>
+                        ? <span>Ref.: {c.dataAdm} (admissão) → {c.mesesAtivos}/{c.totalMeses} meses ativos</span>
+                        : <span>{c.mesesAtivos}/{c.totalMeses} meses ativos</span>
                     }
                   </td>
                   <td className="px-4 py-2.5 font-medium text-gray-800">{fmtR(c.premioMaxProporcional)}</td>

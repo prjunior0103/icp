@@ -9,6 +9,7 @@ import { ModalWrapper } from "@/app/components/ModalWrapper";
 import { HierarchicalAreaFilter, EMPTY_FILTERS, matchesAreaFilter, type AreaFilters } from "@/app/components/HierarchicalAreaFilter";
 import { MESES, labelPeriodo } from "@/app/lib/format";
 import { SearchInput } from "@/app/components/SearchInput";
+import { BaseCombobox } from "@/app/components/BaseCombobox";
 
 // ─── Types ────────────────────────────────────────────────
 interface Indicador {
@@ -322,7 +323,7 @@ function AbaPreenchimento({ cicloId, anoFiscal, mesInicio, mesFim, mesReferencia
                     <td className="px-4 py-2.5">
                       {nota != null ? (
                         <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${nota >= 100 ? "bg-green-100 text-green-700" : nota > 0 ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-600"}`}>
-                          {nota.toFixed(1)}%
+                          {nota.toFixed(2)}%
                         </span>
                       ) : <span className="text-gray-300 text-xs">—</span>}
                     </td>
@@ -375,19 +376,13 @@ function AbaPreenchimento({ cicloId, anoFiscal, mesInicio, mesFim, mesReferencia
                         </td>
                       );
                     })}
-                    {/* YTD */}
+                    {/* YTD — apenas realizado */}
                     <td className="border-l-2 border-indigo-200 bg-indigo-50/40 px-2 py-1 text-center whitespace-nowrap">
-                      <div className="flex flex-col gap-1 items-center">
-                        <span className="text-xs text-orange-600 font-mono">{ytdOrc != null ? ytdOrc.toLocaleString("pt-BR", {maximumFractionDigits:2}) : "—"}</span>
-                        <span className="text-xs text-blue-700 font-mono font-semibold">{ytdReal != null ? ytdReal.toLocaleString("pt-BR", {maximumFractionDigits:2}) : "—"}</span>
-                      </div>
+                      <span className="text-xs text-blue-700 font-mono font-semibold">{ytdReal != null ? ytdReal.toLocaleString("pt-BR", {maximumFractionDigits:2}) : "—"}</span>
                     </td>
-                    {/* Total */}
+                    {/* Total — realizado + forecast */}
                     <td className="border-l border-indigo-200 bg-indigo-50/40 px-2 py-1 text-center whitespace-nowrap">
-                      <div className="flex flex-col gap-1 items-center">
-                        <span className="text-xs text-orange-600 font-mono">{orcAgregado != null ? orcAgregado.toLocaleString("pt-BR", {maximumFractionDigits:2}) : "—"}</span>
-                        <span className="text-xs text-blue-700 font-mono font-semibold">{realAgregado != null ? realAgregado.toLocaleString("pt-BR", {maximumFractionDigits:2}) : "—"}</span>
-                      </div>
+                      <span className="text-xs text-blue-700 font-mono font-semibold">{realAgregado != null ? realAgregado.toLocaleString("pt-BR", {maximumFractionDigits:2}) : "—"}</span>
                     </td>
                   </tr>
                 );
@@ -489,13 +484,15 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
   const colaboradores = Array.from(colaboradoresMap.values());
   const gestoresIds = new Set(colaboradores.map(c => c.gestorId).filter(Boolean));
   const gestores = colaboradores.filter(c => gestoresIds.has(c.id));
+  const gestorIdToNome = new Map(gestores.map(g => [g.id, g.nome]));
+  const indLabelToId = new Map(indicadores.map(i => [`${i.codigo} — ${i.nome}`, i.id]));
 
   // Agrupa em rows: movimentados → 1 card por atribuição; não-movimentados → 1 card com todos agrupamentos
   type Row = { key: string; colaborador: Colaborador; atribs: Atribuicao[]; movimentado: boolean };
   const rowsMap = new Map<string, Row>();
   for (const at of atribuicoes) {
     const c = at.colaborador;
-    if (filtroGestor && String(c.gestorId) !== filtroGestor) continue;
+    if (filtroGestor && gestorIdToNome.get(c.gestorId ?? -1) !== filtroGestor) continue;
     if (filtroColaborador && !c.nome.toLowerCase().includes(filtroColaborador.toLowerCase())) continue;
     if (!matchesAreaFilter(c, filtroArea, areas)) continue;
     const movimentado = movimentadosSet.has(c.matricula);
@@ -518,7 +515,7 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
       let atingReal = 0;
       let atingForecast = 0;
       for (const ig of ag.indicadores) {
-        if (filtroIndicador && String(ig.indicadorId) !== filtroIndicador) continue;
+        if (filtroIndicador && ig.indicadorId !== indLabelToId.get(filtroIndicador)) continue;
         const notaReal = notasPorIndicadorReal.get(ig.indicadorId) ?? 0;
         const notaForecast = notasPorIndicador.get(ig.indicadorId) ?? 0;
         const midReal = calcMID(notaReal, ig.peso);
@@ -542,14 +539,20 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
           <input value={filtroColaborador} onChange={e=>setFiltroColaborador(e.target.value)} placeholder="Colaborador..."
             className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"/>
         </div>
-        <select value={filtroGestor} onChange={e=>setFiltroGestor(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="">Todos os gestores</option>
-          {gestores.map(g=><option key={g.id} value={g.id}>{g.nome}</option>)}
-        </select>
-        <select value={filtroIndicador} onChange={e=>setFiltroIndicador(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="">Todos os indicadores</option>
-          {indicadores.map(i=><option key={i.id} value={i.id}>{i.codigo} — {i.nome}</option>)}
-        </select>
+        <BaseCombobox
+          options={gestores.map(g => g.nome)}
+          value={filtroGestor}
+          onChange={setFiltroGestor}
+          placeholder="Todos os gestores"
+          className="min-w-40"
+        />
+        <BaseCombobox
+          options={indicadores.map(i => `${i.codigo} — ${i.nome}`)}
+          value={filtroIndicador}
+          onChange={setFiltroIndicador}
+          placeholder="Todos os indicadores"
+          className="min-w-52"
+        />
         <HierarchicalAreaFilter areas={areas} value={filtroArea} onChange={setFiltroArea} />
       </div>
 
@@ -590,18 +593,18 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
                     </div>
                     <div className="text-right hidden md:block">
                       <p className="text-xs text-gray-400">Target</p>
-                      <p className="text-sm font-medium text-gray-700">{c.target}%</p>
+                      <p className="text-sm font-medium text-gray-700">{(c.target/100).toFixed(2)}x</p>
                     </div>
                     <div className="text-right">
                       <p className="text-xs text-blue-500 font-medium">Atual (YTD)</p>
                       <p className={`text-sm font-bold ${resultadoReal >= 100 ? "text-green-600" : resultadoReal > 0 ? "text-yellow-600" : "text-gray-400"}`}>
-                        {resultadoReal.toFixed(1)}%
+                        {resultadoReal.toFixed(2)}%
                       </p>
                     </div>
                     <div className="text-right">
                       <p className="text-xs text-orange-500 font-medium">Forecast</p>
                       <p className={`text-sm font-bold ${resultadoForecast >= 100 ? "text-green-600" : resultadoForecast > 0 ? "text-yellow-600" : "text-gray-400"}`}>
-                        {resultadoForecast.toFixed(1)}%
+                        {resultadoForecast.toFixed(2)}%
                       </p>
                     </div>
                     <div className="text-right">
@@ -624,8 +627,8 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
                             <span className="font-normal text-gray-500"> ({d.pesoNaCesta}% na cesta)</span>
                           </p>
                           <div className="flex items-center gap-4 text-xs text-right">
-                            <span className="text-blue-500">Atual <span className="font-semibold text-gray-700">{d.atingimentoReal.toFixed(1)}%</span></span>
-                            <span className="text-orange-500">Forecast <span className="font-semibold text-gray-700">{d.atingimentoForecast.toFixed(1)}%</span></span>
+                            <span className="text-blue-500">Atual <span className="font-semibold text-gray-700">{d.atingimentoReal.toFixed(2)}%</span></span>
+                            <span className="text-orange-500">Forecast <span className="font-semibold text-gray-700">{d.atingimentoForecast.toFixed(2)}%</span></span>
                           </div>
                         </div>
                         <table className="w-full text-xs">
@@ -641,8 +644,8 @@ function AbaResultados({ indicadores, realizacoes, metasPeriodo, agrupamentos, a
                             {d.mids.map(m => (
                               <tr key={m.ind.id}>
                                 <td className="py-1 text-gray-700">{m.ind.codigo} — {m.ind.nome}</td>
-                                <td className="py-1 text-right font-medium text-blue-700">{m.notaReal.toFixed(1)}%</td>
-                                <td className="py-1 text-right font-medium text-orange-600">{m.notaForecast.toFixed(1)}%</td>
+                                <td className="py-1 text-right font-medium text-blue-700">{m.notaReal.toFixed(2)}%</td>
+                                <td className="py-1 text-right font-medium text-orange-600">{m.notaForecast.toFixed(2)}%</td>
                                 <td className="py-1 text-right text-gray-500">{m.peso}%</td>
                                 <td className="py-1 text-right font-semibold text-blue-700">{m.midReal.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%</td>
                                 <td className="py-1 text-right font-semibold text-orange-600">{m.midForecast.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%</td>
