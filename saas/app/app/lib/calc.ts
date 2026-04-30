@@ -180,3 +180,43 @@ export function agregarRealizacoes(valores: number[], criterio: string): number 
   if (criterio === "MEDIA") return valores.reduce((a, b) => a + b, 0) / valores.length;
   return valores[valores.length - 1];
 }
+
+/**
+ * Calcula a fração de ávos (0–1) com base na data real do evento e nas datas do ciclo.
+ *
+ * Regra dos 15 dias:
+ * - ADMISSAO: dia ≤ 15 → mês da admissão conta; dia > 15 → conta a partir do mês seguinte
+ * - DESLIGAMENTO: dia ≥ 15 → mês do desligamento conta; dia < 15 → conta até o mês anterior
+ * - Demais tipos → avos = 1 (ciclo cheio, sem proporcionalidade)
+ */
+export function calcAvosMeses(params: {
+  tipo: "ADMISSAO" | "DESLIGAMENTO" | string;
+  dataMovimentacao: Date;
+  anoFiscal: number;
+  mesInicio: number;
+  mesFim: number;
+}): number {
+  const { tipo, dataMovimentacao, anoFiscal, mesInicio, mesFim } = params;
+  const totalMeses = mesFim - mesInicio + 1;
+  if (totalMeses <= 0) return 1;
+
+  const dia = dataMovimentacao.getDate();
+  const mesEvento = dataMovimentacao.getMonth() + 1; // 1-based
+
+  if (tipo === "ADMISSAO") {
+    // Mês efetivo de início: dia ≤ 15 → mesEvento, dia > 15 → mesEvento + 1
+    const mesEfetivoInicio = dia <= 15 ? mesEvento : mesEvento + 1;
+    const mesesAtivos = Math.max(0, mesFim - Math.max(mesEfetivoInicio, mesInicio) + 1);
+    return Math.min(1, mesesAtivos / totalMeses);
+  }
+
+  if (tipo === "DESLIGAMENTO") {
+    // Mês efetivo de fim: dia ≥ 15 → mesEvento, dia < 15 → mesEvento - 1
+    const mesEfetivoFim = dia >= 15 ? mesEvento : mesEvento - 1;
+    const mesesAtivos = Math.max(0, Math.min(mesEfetivoFim, mesFim) - mesInicio + 1);
+    return Math.min(1, mesesAtivos / totalMeses);
+  }
+
+  return 1;
+}
+

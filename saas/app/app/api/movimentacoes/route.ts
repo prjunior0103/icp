@@ -19,7 +19,7 @@ export async function GET(req: Request) {
   const movimentacoes = await prisma.movimentacaoColaborador.findMany({
     where: {
       cicloId: Number(cicloId),
-      ...(tipo && { tipo }),
+      tipo: tipo || { not: "ADMISSAO" },
       ...(status && { statusTratamento: status }),
       ...(busca && { matricula: { contains: busca } }),
     },
@@ -105,6 +105,7 @@ export async function PUT(req: Request) {
         tipo: "DESLIGAMENTO",
         statusTratamento: "TRATADO",
         dadosNovos: JSON.stringify({ dataDesligamento, tipoDesligamento }),
+        dataMovimentacao: new Date(dataDesligamento),
       },
     });
     return NextResponse.json({ ok: true });

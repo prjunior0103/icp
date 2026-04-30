@@ -20,6 +20,7 @@ import { RelatPendencias } from "./_components/RelatPendencias";
 import { RelatMovimentacoes } from "./_components/RelatMovimentacoes";
 import { RelatSemPainel } from "./_components/RelatSemPainel";
 import { RelatNaoApurados } from "./_components/RelatNaoApurados";
+import { RelatSemMovimentacao } from "./_components/RelatSemMovimentacao";
 import { RelatCartaPDF } from "./_components/RelatCartaPDF";
 import { RelatPPT } from "./_components/RelatPPT";
 
@@ -34,6 +35,7 @@ const ABAS: { id: AbaId; label: string; icon: React.ReactNode }[] = [
   { id: "movimentacoes",  label: "Movimentações",    icon: <ArrowLeftRight size={14} /> },
   { id: "sem-painel",     label: "Sem Painel",       icon: <UserX size={14} /> },
   { id: "nao-apurados",   label: "Não Apurados",     icon: <AlertCircle size={14} /> },
+  { id: "sem-movimentacao", label: "Sem Movimentação", icon: <UserCheck size={14} /> },
   { id: "ppt",            label: "Gerar PPT",        icon: <Presentation size={14} /> },
   { id: "carta",          label: "Carta PDF",        icon: <Mail size={14} /> },
 ];
@@ -173,6 +175,7 @@ export default function RelatoriosPage() {
       {aba === "movimentacoes" && <RelatMovimentacoes cicloId={cicloAtivo.id} />}
       {aba === "sem-painel"    && <RelatSemPainel colaboradoresAll={colaboradoresAll} atribuicoes={atribuicoes} agrupamentos={agrupamentosAll} cicloId={cicloAtivo.id} onAtribuir={carregar} readOnly={isCliente} />}
       {aba === "nao-apurados"  && <RelatNaoApurados indicadores={indicadores} realizacoes={realizacoes} anoFiscal={cicloAtivo.anoFiscal} mesInicio={cicloAtivo.mesInicio} mesFim={cicloAtivo.mesFim} />}
+      {aba === "sem-movimentacao" && <RelatSemMovimentacao cicloId={cicloAtivo.id} />}
       {aba === "ppt"           && <RelatPPT atribuicoes={atribuicoes} cicloId={cicloAtivo.id} />}
       {aba === "carta"         && <RelatCartaPDF atribuicoes={atribuicoes} cicloId={cicloAtivo.id} />}
     </div>

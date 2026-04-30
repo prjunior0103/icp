@@ -196,19 +196,20 @@ model FaixaIndicador {
 }
 
 model MovimentacaoColaborador {
-  id               Int      @id @default(autoincrement())
-  cicloId          Int
-  matricula        String
-  tipo             String   // ADMISSAO | DESLIGAMENTO | AFASTAMENTO | RETORNO | MUDANCA_FUNCAO | MUDANCA_AREA | MUDANCA_GESTOR | POSSIVEL_DESLIGAMENTO
-  dataEfetiva      DateTime @default(now())
-  dadosAntigos     String?
-  dadosNovos       String?
-  observacao       String?
-  requerNovoPainel Boolean  @default(false)
-  painelAnteriorId Int?
-  painelNovoId     Int?
-  statusTratamento String   @default("PENDENTE") // PENDENTE | TRATADO | IGNORADO
-  criadoEm         DateTime @default(now())
+  id                Int       @id @default(autoincrement())
+  cicloId           Int
+  matricula         String
+  tipo              String    // ADMISSAO | DESLIGAMENTO | AFASTAMENTO | RETORNO | MUDANCA_FUNCAO | MUDANCA_AREA | MUDANCA_GESTOR | POSSIVEL_DESLIGAMENTO
+  dataEfetiva       DateTime  @default(now())
+  dataMovimentacao  DateTime? // data real do evento (admissão, desligamento, etc.) — usada para cálculo de ávos
+  dadosAntigos      String?
+  dadosNovos        String?
+  observacao        String?
+  requerNovoPainel  Boolean   @default(false)
+  painelAnteriorId  Int?
+  painelNovoId      Int?
+  statusTratamento  String    @default("PENDENTE") // PENDENTE | TRATADO | IGNORADO
+  criadoEm          DateTime  @default(now())
 }
 
 model ConfigMovimentacao {

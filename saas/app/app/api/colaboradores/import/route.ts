@@ -238,6 +238,7 @@ export async function POST(req: Request) {
             cicloId: cid, matricula, tipo: "ADMISSAO",
             dadosNovos: JSON.stringify({ nome: sharedData.nome, cargo: sharedData.cargo, centroCusto: sharedData.centroCusto }),
             statusTratamento: "TRATADO",
+            dataMovimentacao: sharedData.admissao ?? null,
           },
         });
         criados++;

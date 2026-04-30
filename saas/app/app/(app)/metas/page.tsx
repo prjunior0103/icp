@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Plus, Pencil, Trash2, Upload, Download, Target, BarChart3, Users } from "lucide-react";
+import { Plus, Pencil, Trash2, Upload, Download, Target, BarChart3, Users, CheckSquare } from "lucide-react";
 import { useCiclo } from "@/app/lib/ciclo-context";
 import { HierarchicalAreaFilter, EMPTY_FILTERS, matchesAreaFilter, type AreaFilters } from "@/app/components/HierarchicalAreaFilter";
 import { fmtValor } from "@/app/lib/format";
@@ -31,6 +31,10 @@ export default function MetasPage() {
   const [modalAg, setModalAg] = useState<Agrupamento|null|"new">(null);
   const [modalAtrib, setModalAtrib] = useState<Atribuicao | null | "new">(null);
   const [modalImport, setModalImport] = useState(false);
+  const [selInds, setSelInds] = useState<Set<number>>(new Set());
+  const [bulkJanela, setBulkJanela] = useState("");
+  const [bulkStatus, setBulkStatus] = useState("");
+  const [bulkSalvando, setBulkSalvando] = useState(false);
   const [selAtribs, setSelAtribs] = useState<Set<number>>(new Set());
   const [excluindoAtribs, setExcluindoAtribs] = useState(false);
   const [atribuindoAg, setAtribuindoAg] = useState<Set<number>>(new Set());
@@ -78,6 +82,27 @@ export default function MetasPage() {
 
     return () => controller.abort();
   },[cicloAtivo?.id]);
+
+  function toggleSelInd(id: number) {
+    setSelInds(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  }
+  function toggleSelAllInds() {
+    setSelInds(s => s.size === indsFiltrados.length ? new Set() : new Set(indsFiltrados.map(i => i.id)));
+  }
+  async function aplicarBulkInds() {
+    if (!bulkJanela && !bulkStatus) { showToast("Selecione janela ou status para aplicar"); return; }
+    setBulkSalvando(true);
+    const res = await fetch("/api/indicadores/bulk", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: [...selInds], ...(bulkJanela && { statusJanela: bulkJanela }), ...(bulkStatus && { status: bulkStatus }) }),
+    });
+    setBulkSalvando(false);
+    if (!res.ok) { const d = await res.json(); showToast(d.error ?? "Erro ao aplicar"); return; }
+    setSelInds(new Set()); setBulkJanela(""); setBulkStatus("");
+    carregarInds();
+    showToast(`${selInds.size} indicador(es) atualizados`, "info");
+  }
 
   function excluirInd(id: number) {
     confirm.request("Excluir indicador?", async () => {
@@ -179,17 +204,48 @@ export default function MetasPage() {
             <button onClick={()=>setModalImport(true)} className="flex items-center gap-2 border border-gray-300 text-gray-700 text-sm px-3 py-2 rounded-lg hover:bg-gray-50"><Upload size={15}/>Importar</button>
             <button onClick={()=>setModalInd("new")} className="flex items-center gap-2 bg-blue-700 hover:bg-blue-800 text-white text-sm px-3 py-2 rounded-lg"><Plus size={15}/>Novo</button>
           </div>
+          {selInds.size > 0 && (
+            <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-2.5">
+              <CheckSquare size={16} className="text-blue-600 shrink-0"/>
+              <span className="text-sm text-blue-800 font-medium">{selInds.size} selecionado(s)</span>
+              <div className="flex items-center gap-2 ml-2">
+                <select value={bulkJanela} onChange={e=>setBulkJanela(e.target.value)}
+                  className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <option value="">Janela...</option>
+                  <option value="ABERTA">Aberta</option>
+                  <option value="FECHADA">Fechada</option>
+                  <option value="PRORROGADA">Prorrogada</option>
+                </select>
+                <select value={bulkStatus} onChange={e=>setBulkStatus(e.target.value)}
+                  className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <option value="">Status...</option>
+                  <option value="ATIVO">Ativo</option>
+                  <option value="INATIVO">Inativo</option>
+                  <option value="DRAFT">Draft</option>
+                </select>
+                <button onClick={aplicarBulkInds} disabled={bulkSalvando || (!bulkJanela && !bulkStatus)}
+                  className="bg-blue-700 hover:bg-blue-800 disabled:bg-blue-400 text-white text-sm px-3 py-1.5 rounded-lg font-medium">
+                  {bulkSalvando ? "Aplicando..." : "Aplicar"}
+                </button>
+              </div>
+              <button onClick={()=>setSelInds(new Set())} className="ml-auto text-xs text-blue-600 hover:text-blue-800 underline">Limpar seleção</button>
+            </div>
+          )}
           {indsFiltrados.length===0 ? (
             <div className="bg-white rounded-xl border border-gray-200 p-10 text-center text-gray-500"><Target size={36} className="mx-auto mb-2 text-gray-300"/>Nenhum indicador cadastrado</div>
           ) : (
             <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>{["Código","Nome","Tipo","Alvo","Janela","Status",""].map(h=><th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>)}</tr>
+                  <tr>
+                    <th className="px-4 py-2.5 w-10"><input type="checkbox" aria-label="Selecionar todos" className="rounded" checked={selInds.size===indsFiltrados.length&&indsFiltrados.length>0} onChange={toggleSelAllInds}/></th>
+                    {["Código","Nome","Tipo","Alvo","Janela","Status",""].map(h=><th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>)}
+                  </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {indsFiltrados.map(i=>(
-                    <tr key={i.id} className="hover:bg-gray-50">
+                    <tr key={i.id} className={`hover:bg-gray-50 ${selInds.has(i.id)?"bg-blue-50":""}`}>
+                      <td className="px-4 py-2.5"><input type="checkbox" aria-label={`Selecionar ${i.nome}`} className="rounded" checked={selInds.has(i.id)} onChange={()=>toggleSelInd(i.id)}/></td>
                       <td className="px-4 py-2.5 font-mono text-xs text-gray-600">{i.codigo}</td>
                       <td className="px-4 py-2.5"><p className="font-medium text-gray-800">{i.nome}</p>{i.metrica&&<p className="text-xs text-gray-500">{i.metrica}</p>}</td>
                       <td className="px-4 py-2.5 text-xs text-gray-600">{i.tipo}</td>

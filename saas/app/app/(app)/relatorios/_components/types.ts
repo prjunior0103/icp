@@ -106,6 +106,7 @@ export type AbaId =
   | "movimentacoes"
   | "sem-painel"
   | "nao-apurados"
+  | "sem-movimentacao"
   | "ppt"
   | "carta";
 

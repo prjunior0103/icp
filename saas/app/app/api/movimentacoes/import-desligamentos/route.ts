@@ -78,6 +78,7 @@ export async function POST(req: Request) {
           tipo: "DESLIGAMENTO",
           statusTratamento: "TRATADO",
           dadosNovos: JSON.stringify({ dataDesligamento: data.toISOString().slice(0, 10), tipoDesligamento: tipoRaw }),
+          dataMovimentacao: data,
         },
       });
     } else {
@@ -89,6 +90,7 @@ export async function POST(req: Request) {
           tipo: "DESLIGAMENTO",
           dadosNovos: JSON.stringify({ dataDesligamento: data.toISOString().slice(0, 10), tipoDesligamento: tipoRaw }),
           statusTratamento: "TRATADO",
+          dataMovimentacao: data,
         },
       });
     }
