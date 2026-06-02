@@ -6,3 +6,9 @@ saas/app/src/generated/
 saas/app/app/generated/
 icp_GCB/
 *.DS_Store
+.gstack/
+
+# === cro-software-house cleanup (20260602-202733) ===
+CLAUDE.md
+.claude/
+icp_GCB_v*.zip
