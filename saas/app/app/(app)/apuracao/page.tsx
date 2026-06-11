@@ -324,14 +324,22 @@ function AbaPreenchimento({ cicloId, anoFiscal, mesInicio, mesFim, mesReferencia
                     <td className="px-4 py-2.5 text-xs text-gray-600 whitespace-nowrap">{ind.tipo}</td>
                     <td className="px-4 py-2.5">
                       <div className="flex flex-col gap-1">
-                        {nota != null ? (
-                          <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${nota >= 100 ? "bg-green-100 text-green-700" : nota > 0 ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-600"}`}>
-                            {nota.toFixed(2)}%
-                          </span>
-                        ) : <span className="text-gray-300 text-xs">—</span>}
-                        {notaYtd != null ? (
-                          <span className="text-[10px] text-blue-600 font-medium">YTD: {notaYtd.toFixed(2)}%</span>
-                        ) : null}
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-[9px] text-orange-500 font-medium uppercase tracking-wide">Total</span>
+                          {nota != null ? (
+                            <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${nota >= 100 ? "bg-green-100 text-green-700" : nota > 0 ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-600"}`}>
+                              {nota.toFixed(2)}%
+                            </span>
+                          ) : <span className="text-gray-300 text-xs">—</span>}
+                        </div>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-[9px] text-blue-500 font-medium uppercase tracking-wide">YTD</span>
+                          {notaYtd != null ? (
+                            <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${notaYtd >= 100 ? "bg-green-100 text-green-700" : notaYtd > 0 ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-600"}`}>
+                              {notaYtd.toFixed(2)}%
+                            </span>
+                          ) : <span className="text-gray-300 text-xs">—</span>}
+                        </div>
                       </div>
                     </td>
                     {mesesCiclo.map(p => {
