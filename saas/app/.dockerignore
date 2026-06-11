@@ -1,0 +1,43 @@
+# Dependencias — sao reinstaladas DENTRO do container (binarios nativos corretos).
+node_modules
+**/node_modules
+
+# Build do Next.js (refeito no build da imagem).
+.next
+out
+build
+
+# Prisma client gerado (regerado no build via `prisma generate`).
+app/generated
+
+# Git / metadados.
+.git
+.gitignore
+
+# Bancos locais — NUNCA entram na imagem. O banco vive no volume /data.
+*.db
+*.db-shm
+*.db-wal
+
+# Arquivos de ambiente — segredos NUNCA vao para a imagem.
+# (o compose injeta via env_file em runtime)
+.env
+.env.*
+!.env.example
+
+# Caches / logs / SO.
+.DS_Store
+*.pem
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+coverage
+.vercel
+
+# Os proprios assets de infra nao precisam ir para o contexto da app.
+Dockerfile
+docker-compose.yml
+.dockerignore
+deploy
+README.md

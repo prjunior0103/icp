@@ -1,0 +1,29 @@
+# =============================================================================
+# ICP — docker-compose
+# -----------------------------------------------------------------------------
+# Sobe a aplicacao ICP em 1 unico container.
+# - A porta e publicada SOMENTE no loopback (127.0.0.1): o nginx faz a frente e
+#   a porta nunca fica exposta na internet.
+# - O banco (SQLite/libsql) vive num volume nomeado, montado em /data.
+# Uso:  docker compose up -d --build
+# =============================================================================
+services:
+  icp:
+    build: .
+    container_name: icp
+    # Carrega as variaveis do .env (copie do .env.example e ajuste os segredos).
+    env_file:
+      - .env
+    # Garante o caminho do banco no volume, independente do que estiver no .env.
+    environment:
+      DATABASE_URL: "file:/data/app.db"
+    # Publica APENAS no loopback. Acesso externo so via nginx (reverse proxy).
+    ports:
+      - "127.0.0.1:3003:3003"
+    # Volume nomeado para persistir o banco entre recriacoes do container.
+    volumes:
+      - icp_data:/data
+    restart: unless-stopped
+
+volumes:
+  icp_data:
